@@ -1,0 +1,13 @@
+﻿{
+  "name": "bullet-kings-bot",
+  "version": "1.0.0",
+  "description": "Bullet Kings - Telegram Bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.16.3",
+    "dotenv": "^16.3.1"
+  }
+}
