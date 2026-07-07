@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИГРА (РЕАЛИСТИЧНЫЙ ВРАТАРЬ)
+// src/handlers/game.js - СЕРИЯ БУЛЛИТОВ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -18,31 +18,20 @@ function saveUsers(users) {
 }
 
 // ============================================
-// ХРАНИМ ИСТОРИЮ ДЕЙСТВИЙ ИГРОКА (для ИИ)
+// ХРАНИМ СОСТОЯНИЕ МАТЧЕЙ
 // ============================================
-const playerHistory = {};
+const matches = {};
 
 // ============================================
 // УМНЫЙ ИИ (РЕАЛИСТИЧНЫЙ ВРАТАРЬ)
 // ============================================
 function getAIAction(playerId, difficulty = 1) {
-  // Реалистичные действия вратаря (без прыжков!)
   const actions = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'];
+  const history = matches[playerId]?.history || [];
   
-  const history = playerHistory[playerId] || [];
+  let weights = { left: 1, right: 1, stand: 1, low: 1, glove: 1, aggressive: 1 };
   
-  // Веса для действий
-  let weights = {
-    left: 1,
-    right: 1,
-    stand: 1,
-    low: 1,
-    glove: 1,
-    aggressive: 1
-  };
-  
-  // Адаптация под игрока
-  if (history.length > 3) {
+  if (history.length > 2) {
     const lastThree = history.slice(-3);
     const leftCount = lastThree.filter(a => a === 'left').length;
     const rightCount = lastThree.filter(a => a === 'right').length;
@@ -52,7 +41,6 @@ function getAIAction(playerId, difficulty = 1) {
     const wristCount = lastThree.filter(a => a === 'wrist').length;
     const slapCount = lastThree.filter(a => a === 'slap').length;
     
-    // Вратарь учится на твоих бросках
     if (leftCount >= 2) { weights.left += 3; weights.stand += 1; }
     if (rightCount >= 2) { weights.right += 3; weights.stand += 1; }
     if (topCount >= 2) { weights.stand += 2; weights.glove += 2; }
@@ -62,20 +50,10 @@ function getAIAction(playerId, difficulty = 1) {
     if (slapCount >= 2) { weights.low += 2; weights.glove += 1; }
   }
   
-  // Сложность
-  const difficultyBonus = {
-    novice: 0.5,
-    amateur: 0.7,
-    pro: 1.0,
-    legend: 1.5
-  };
-  
+  const difficultyBonus = { novice: 0.5, amateur: 0.7, pro: 1.0, legend: 1.5 };
   const factor = difficultyBonus[difficulty] || 1;
-  Object.keys(weights).forEach(key => {
-    weights[key] = weights[key] * factor;
-  });
+  Object.keys(weights).forEach(key => { weights[key] = weights[key] * factor; });
   
-  // Выбор действия
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
   let random = Math.random() * total;
   for (const [action, weight] of Object.entries(weights)) {
@@ -86,94 +64,51 @@ function getAIAction(playerId, difficulty = 1) {
 }
 
 // ============================================
-// РАСЧЁТ БРОСКА (РЕАЛИСТИЧНЫЙ)
+// РАСЧЁТ БРОСКА (ПОЛНАЯ ТАБЛИЦА 42 КОМБИНАЦИИ)
 // ============================================
 function calculateShot(playerAction, goalieAction, difficulty = 1) {
-  // Таблица взаимодействия (реалистичная)
   const actionBonus = {
-    'left': { 
-      'left': 0.1,      // Вратарь закрыл левый угол → сэйв
-      'right': 0.7,     // Вратарь не там → гол
-      'stand': 0.4, 
-      'low': 0.3, 
-      'glove': 0.3, 
-      'aggressive': 0.6 
-    },
-    'right': { 
-      'left': 0.7, 
-      'right': 0.1,     // Вратарь закрыл правый угол → сэйв
-      'stand': 0.4, 
-      'low': 0.3, 
-      'glove': 0.3, 
-      'aggressive': 0.6 
-    },
-    'top': { 
-      'left': 0.5, 
-      'right': 0.5, 
-      'stand': 0.2,     // Стоя легче поймать верх
-      'low': 0.6, 
-      'glove': 0.6,     // Ловушка хороша для верха
-      'aggressive': 0.3 
-    },
-    'fivehole': { 
-      'left': 0.6, 
-      'right': 0.6, 
-      'stand': 0.8,     // Стоя — щитки закрыты → сэйв
-      'low': 0.2,       // Закрыл низ → сэйв
-      'glove': 0.7, 
-      'aggressive': 0.3 
-    },
-    'deke': { 
-      'left': 0.5, 
-      'right': 0.5, 
-      'stand': 0.3, 
-      'low': 0.4, 
-      'glove': 0.4, 
-      'aggressive': 0.8  // Агрессивный выход против финта → сэйв
-    },
-    'wrist': { 
-      'left': 0.4, 
-      'right': 0.4, 
-      'stand': 0.3, 
-      'low': 0.5, 
-      'glove': 0.2,     // Ловушка против кистевого → сэйв
-      'aggressive': 0.5 
-    },
-    'slap': { 
-      'left': 0.4, 
-      'right': 0.4, 
-      'stand': 0.3, 
-      'low': 0.2,       // Щитки против щелчка → сэйв
-      'glove': 0.5, 
-      'aggressive': 0.5 
-    }
+    'left': { 'left': 0.05, 'right': 0.75, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
+    'right': { 'left': 0.75, 'right': 0.05, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
+    'top': { 'left': 0.70, 'right': 0.70, 'stand': 0.15, 'low': 0.65, 'glove': 0.65, 'aggressive': 0.40 },
+    'fivehole': { 'left': 0.65, 'right': 0.65, 'stand': 0.10, 'low': 0.05, 'glove': 0.70, 'aggressive': 0.35 },
+    'deke': { 'left': 0.55, 'right': 0.55, 'stand': 0.35, 'low': 0.45, 'glove': 0.45, 'aggressive': 0.10 },
+    'wrist': { 'left': 0.45, 'right': 0.45, 'stand': 0.35, 'low': 0.55, 'glove': 0.10, 'aggressive': 0.55 },
+    'slap': { 'left': 0.45, 'right': 0.45, 'stand': 0.35, 'low': 0.10, 'glove': 0.55, 'aggressive': 0.55 }
   };
 
   const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
   const randomFactor = 0.7 + Math.random() * 0.6;
-  
-  // Сложность
-  const difficultyBonus = {
-    novice: 1.5,
-    amateur: 1.2,
-    pro: 0.9,
-    legend: 0.6
-  };
+  const difficultyBonus = { novice: 1.5, amateur: 1.2, pro: 0.9, legend: 0.6 };
   const defenseFactor = difficultyBonus[difficulty] || 1;
   
   let probability = multiplier * randomFactor * defenseFactor;
   probability = Math.max(0.05, Math.min(0.95, probability));
   
-  return {
-    isGoal: Math.random() < probability,
-    probability: Math.round(probability * 100)
-  };
+  return { isGoal: Math.random() < probability, probability: Math.round(probability * 100) };
 }
 
-function getAIShot() {
-  const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
-  return actions[Math.floor(Math.random() * actions.length)];
-}
+// ============================================
+// НАЗВАНИЯ ДЕЙСТВИЙ
+// ============================================
+const actionNames = {
+  left: '⬅️ Влево',
+  right: '➡️ Вправо',
+  top: '⬆️ Верхний',
+  fivehole: '⬇️ Между щитков',
+  deke: '🔄 Финт',
+  wrist: '✋ Кистевой',
+  slap: '💥 Щелчок'
+};
+
+const goalieNames = {
+  left: '🧤 Закрыл левый угол',
+  right: '🧤 Закрыл правый угол',
+  stand: '🧍 Стоя',
+  low: '🛡️ Опустил щитки',
+  glove: '🧤 Ловушка',
+  aggressive: '💪 Агрессивный выход'
+};
 
 module.exports = (bot) => {
   
@@ -213,14 +148,24 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
     const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
-    
     const user = ctx.from;
-    if (!playerHistory[user.id]) {
-      playerHistory[user.id] = [];
-    }
+    
+    // Создаём новый матч
+    matches[user.id] = {
+      difficulty: difficulty,
+      playerScore: 0,
+      aiScore: 0,
+      round: 0,
+      maxRounds: 5,
+      isFinished: false,
+      history: [],
+      isSuddenDeath: false
+    };
     
     await ctx.editMessageText(
       '🤖 *Матч против ИИ (' + difficultyNames[difficulty] + ')*\n\n' +
+      '📊 Счёт: Ты 0 — 0 ИИ\n' +
+      '🔢 Раунд 1 из 5\n\n' +
       '*Выбери действие:*',
       {
         parse_mode: 'Markdown',
@@ -232,7 +177,7 @@ module.exports = (bot) => {
           [Markup.button.callback('🔄 Финт', 'shot_deke')],
           [Markup.button.callback('✋ Кистевой', 'shot_wrist')],
           [Markup.button.callback('💥 Щелчок', 'shot_slap')],
-          [Markup.button.callback('🔙 Назад', 'play_ai')],
+          [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
         ])
       }
     );
@@ -242,81 +187,149 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     const playerAction = ctx.match[1];
     const user = ctx.from;
-    const users = getUsers();
-    const data = users[user.id];
+    const match = matches[user.id];
     
-    if (!playerHistory[user.id]) {
-      playerHistory[user.id] = [];
-    }
-    playerHistory[user.id].push(playerAction);
-    if (playerHistory[user.id].length > 10) {
-      playerHistory[user.id].shift();
+    if (!match || match.isFinished) {
+      await ctx.editMessageText('❌ Матч завершён! Начни новый.');
+      return;
     }
     
-    const difficulty = 'pro';
+    const difficulty = match.difficulty;
     const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
     
+    // Ход игрока
     const goalieAction = getAIAction(user.id, difficulty);
     const result = calculateShot(playerAction, goalieAction, difficulty);
     
-    const actionNames = {
-      left: '⬅️ Влево',
-      right: '➡️ Вправо',
-      top: '⬆️ Верхний',
-      fivehole: '⬇️ Между щитков',
-      deke: '🔄 Финт',
-      wrist: '✋ Кистевой',
-      slap: '💥 Щелчок'
-    };
-    
-    const goalieNames = {
-      left: '🧤 Закрыл левый угол',
-      right: '🧤 Закрыл правый угол',
-      stand: '🧍 Стоя',
-      low: '🛡️ Опустил щитки',
-      glove: '🧤 Ловушка',
-      aggressive: '💪 Агрессивный выход'
-    };
+    match.history.push(playerAction);
+    match.round++;
     
     if (result.isGoal) {
-      data.wins++;
-      data.coins += 20;
-      data.rating += 25;
-    } else {
-      data.losses++;
-      data.rating = Math.max(0, data.rating - 10);
+      match.playerScore++;
     }
-    data.matches++;
-    data.league = data.rating >= 2000 ? 'Легенда' :
-                  data.rating >= 1800 ? 'Мастер' :
-                  data.rating >= 1600 ? 'Алмаз' :
-                  data.rating >= 1400 ? 'Платина' :
-                  data.rating >= 1200 ? 'Золото' :
-                  data.rating >= 1000 ? 'Серебро' : 'Бронза';
     
-    saveUsers(users);
+    // Ход ИИ (только если матч ещё не закончен)
+    let aiResult = null;
+    let aiAction = null;
+    let aiGoalieAction = null;
     
-    const resultEmoji = result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*';
-    const ratingChange = result.isGoal ? '+25' : '-10';
-    const coinsChange = result.isGoal ? '+20' : '0';
+    if (!match.isFinished) {
+      aiAction = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'][Math.floor(Math.random() * 7)];
+      aiGoalieAction = getAIAction(user.id + '_ai', difficulty);
+      aiResult = calculateShot(aiAction, aiGoalieAction, difficulty);
+      if (aiResult.isGoal) {
+        match.aiScore++;
+      }
+    }
     
+    // Проверка окончания матча
+    const isMatchEnd = match.round >= match.maxRounds || match.playerScore !== match.aiScore;
+    
+    if (match.round >= match.maxRounds && match.playerScore === match.aiScore) {
+      // Ничья → переход в режим "до гола"
+      match.isSuddenDeath = true;
+    }
+    
+    if (match.isSuddenDeath && (result.isGoal || (aiResult && aiResult.isGoal))) {
+      match.isFinished = true;
+    }
+    
+    if (match.round >= match.maxRounds && match.playerScore !== match.aiScore) {
+      match.isFinished = true;
+    }
+    
+    // Сохраняем данные
+    const users = getUsers();
+    const data = users[user.id];
+    if (match.isFinished) {
+      const isWin = match.playerScore > match.aiScore;
+      if (isWin) {
+        data.wins++;
+        data.coins += 20;
+        data.rating += 25;
+      } else {
+        data.losses++;
+        data.rating = Math.max(0, data.rating - 10);
+      }
+      data.matches++;
+      data.league = data.rating >= 2000 ? 'Легенда' :
+                    data.rating >= 1800 ? 'Мастер' :
+                    data.rating >= 1600 ? 'Алмаз' :
+                    data.rating >= 1400 ? 'Платина' :
+                    data.rating >= 1200 ? 'Золото' :
+                    data.rating >= 1000 ? 'Серебро' : 'Бронза';
+      saveUsers(users);
+    }
+    
+    // Формируем результат
     let resultText = '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
-    resultText += '🧤 *Вратарь:* ' + goalieNames[goalieAction] + '\n\n';
-    resultText += resultEmoji + '\n\n';
-    resultText += '📊 *Результат:*\n';
-    resultText += '🏆 Рейтинг: ' + data.rating + ' (' + ratingChange + ')\n';
-    resultText += '🥇 Лига: ' + data.league + '\n';
-    resultText += '⭐ Монет: ' + data.coins + ' (' + coinsChange + ')\n';
-    resultText += '✅ Побед: ' + data.wins + '\n';
-    resultText += '❌ Поражений: ' + data.losses + '\n';
-    resultText += '📊 Шанс гола: ' + result.probability + '%';
+    resultText += '🧤 *Вратарь:* ' + goalieNames[goalieAction] + '\n';
+    resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
     
+    if (aiAction) {
+      resultText += '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
+      resultText += '🧤 *Вратарь:* ' + goalieNames[aiGoalieAction] + '\n';
+      resultText += (aiResult.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
+    }
+    
+    resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
+    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n';
+    
+    if (match.isFinished) {
+      const isWin = match.playerScore > match.aiScore;
+      resultText += '\n🏁 *МАТЧ ЗАВЕРШЁН!*\n';
+      resultText += (isWin ? '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга' : '😔 *ПОРАЖЕНИЕ...* -10 рейтинга') + '\n';
+      resultText += '🏆 Рейтинг: ' + data.rating + '\n';
+      resultText += '🥇 Лига: ' + data.league + '\n';
+      resultText += '⭐ Монет: ' + data.coins;
+      
+      await ctx.editMessageText(
+        resultText,
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔄 Сыграть ещё', 'play_ai')],
+            [Markup.button.callback('🔙 Назад', 'back')],
+          ])
+        }
+      );
+    } else {
+      const nextRound = match.round + 1;
+      const roundText = match.isSuddenDeath ? 'ДО ГОЛА!' : (nextRound + ' из ' + match.maxRounds);
+      
+      resultText += '\n*Выбери действие для раунда ' + roundText + ':*';
+      
+      await ctx.editMessageText(
+        resultText,
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('⬅️ Влево', 'shot_left')],
+            [Markup.button.callback('➡️ Вправо', 'shot_right')],
+            [Markup.button.callback('⬆️ Верхний', 'shot_top')],
+            [Markup.button.callback('⬇️ Между щитков', 'shot_fivehole')],
+            [Markup.button.callback('🔄 Финт', 'shot_deke')],
+            [Markup.button.callback('✋ Кистевой', 'shot_wrist')],
+            [Markup.button.callback('💥 Щелчок', 'shot_slap')],
+            [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
+          ])
+        }
+      );
+    }
+  });
+
+  bot.action('forfeit', async (ctx) => {
+    await ctx.answerCbQuery();
+    const user = ctx.from;
+    const match = matches[user.id];
+    if (match) {
+      match.isFinished = true;
+    }
     await ctx.editMessageText(
-      resultText,
+      '🏳️ *Матч завершён досрочно!*\n\nТы сдался 😔',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Сыграть ещё', 'play_ai')],
           [Markup.button.callback('🔙 Назад', 'back')],
         ])
       }
@@ -341,5 +354,3 @@ module.exports = (bot) => {
     );
   });
 };
-
-
