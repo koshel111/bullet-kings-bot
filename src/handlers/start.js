@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/start.js - ГЛАВНОЕ МЕНЮ
+// src/handlers/start.js - ГЛАВНОЕ МЕНЮ (ИСПРАВЛЕНО)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -21,71 +21,74 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
+// ============================================
+// ФУНКЦИЯ ПОКАЗА ГЛАВНОГО МЕНЮ
+// ============================================
+async function showMainMenu(ctx, bot) {
+  const user = ctx.from;
+  const users = getUsers();
+  
+  if (!users[user.id]) {
+    users[user.id] = {
+      name: user.first_name,
+      coins: 100,
+      crystals: 10,
+      rating: 0,
+      league: 'Бронза',
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      matches: 0,
+      cards: STARTING_CARDS.map(c => ({ ...c, count: 1 })),
+      team: STARTING_CARDS.map(c => ({ ...c })),
+    };
+    saveUsers(users);
+  }
+  
+  const data = users[user.id];
+  
+  const text = 
+    '🏒 *Добро пожаловать в Bullet Kings!*\n\n' +
+    'Привет, ' + user.first_name + '! 👋\n\n' +
+    '🔥 *Твоя статистика:*\n' +
+    '🏆 Рейтинг: ' + data.rating + '\n' +
+    '🥇 Лига: ' + data.league + '\n' +
+    '⭐ Монет: ' + data.coins + '\n' +
+    '💎 Кристаллов: ' + data.crystals + '\n' +
+    '✅ Побед: ' + data.wins + '\n' +
+    '📊 Матчей: ' + data.matches + '\n\n' +
+    '👥 В команде: ' + data.team.length + ' игроков\n' +
+    '📚 Карт: ' + data.cards.length + '\n\n' +
+    'Выбери действие:';
+  
+  await ctx.editMessageText(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback('🎮 Играть', 'play')],
+      [Markup.button.callback('👥 Команда', 'team')],
+      [Markup.button.callback('📚 Коллекция', 'collection')],
+      [Markup.button.callback('🛒 Магазин', 'shop')],
+      [Markup.button.callback('👤 Профиль', 'profile')],
+      [Markup.button.callback('📅 Бонус', 'bonus')],
+    ])
+  });
+}
+
 module.exports = (bot) => {
   
+  // ============================================
+  // ОБРАБОТЧИК /start
+  // ============================================
   bot.start(async (ctx) => {
-    const user = ctx.from;
-    const users = getUsers();
-    
-    if (!users[user.id]) {
-      users[user.id] = {
-        name: user.first_name,
-        coins: 100,
-        crystals: 10,
-        rating: 0,
-        league: 'Бронза',
-        wins: 0,
-        losses: 0,
-        draws: 0,
-        matches: 0,
-        cards: STARTING_CARDS.map(c => ({ ...c, count: 1 })),
-        team: STARTING_CARDS.map(c => ({ ...c })),
-      };
-      saveUsers(users);
-    }
-    
-    const data = users[user.id];
-    
-    const text = 
-      '🏒 *Добро пожаловать в Bullet Kings!*\n\n' +
-      'Привет, ' + user.first_name + '! 👋\n\n' +
-      '🔥 *Твоя статистика:*\n' +
-      '🏆 Рейтинг: ' + data.rating + '\n' +
-      '🥇 Лига: ' + data.league + '\n' +
-      '⭐ Монет: ' + data.coins + '\n' +
-      '💎 Кристаллов: ' + data.crystals + '\n' +
-      '✅ Побед: ' + data.wins + '\n' +
-      '📊 Матчей: ' + data.matches + '\n\n' +
-      '👥 В команде: ' + data.team.length + ' игроков\n' +
-      '📚 Карт: ' + data.cards.length + '\n\n' +
-      'Выбери действие:';
-    
-    await ctx.reply(text, {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('🎮 Играть', 'play')],
-        [Markup.button.callback('👥 Команда', 'team')],
-        [Markup.button.callback('📚 Коллекция', 'collection')],
-        [Markup.button.callback('🛒 Магазин', 'shop')],
-        [Markup.button.callback('👤 Профиль', 'profile')],
-        [Markup.button.callback('📅 Бонус', 'bonus')],
-      ])
-    });
+    await showMainMenu(ctx, bot);
   });
 
-  // ОБЯЗАТЕЛЬНЫЙ ОБРАБОТЧИК ДЛЯ КНОПКИ НАЗАД!
+  // ============================================
+  // КНОПКА НАЗАД - РАБОТАЕТ!
+  // ============================================
   bot.action('back', async (ctx) => {
-      await ctx.answerCbQuery();
-  
-      try {
-        // Пытаемся отредактировать текущее сообщение
-        await ctx.editMessageText('⏳ Возврат...');
-      } catch (err) {
-        // Если не получается — просто отправляем новое
-        await ctx.reply('⏳ Возврат...');
-      }
-  
-      // Вызываем главное меню
-      await bot.start(ctx);
+    await ctx.answerCbQuery();
+    await showMainMenu(ctx, bot);
   });
+
 };
