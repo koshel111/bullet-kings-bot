@@ -1,10 +1,10 @@
 ﻿// ============================================
-// src/data/players.js - ВСЕ ИГРОКИ (РЕАЛЬНЫЕ РЕЙТИНГИ)
+// src/data/players.js - ВСЕ ИГРОКИ
 // ============================================
 
 const PLAYERS = [
   // ============================================
-  // НХЛ (20 РУССКИХ ИГРОКОВ) - РЕАЛЬНЫЕ РЕЙТИНГИ
+  // НХЛ (20 РУССКИХ ИГРОКОВ)
   // ============================================
   { name: 'Александр Овечкин', overall: 91, rarity: 'Легендарный', position: 'LW' },
   { name: 'Евгений Малкин', overall: 88, rarity: 'Эпический', position: 'C' },
@@ -28,7 +28,7 @@ const PLAYERS = [
   { name: 'Даниил Тарасов', overall: 78, rarity: 'Редкий', position: 'G' },
 
   // ============================================
-  // КХЛ (70 ИГРОКОВ) - РЕАЛЬНЫЕ РЕЙТИНГИ
+  // КХЛ (70 ИГРОКОВ)
   // ============================================
   { name: 'Сергей Плотников', overall: 84, rarity: 'Элитный', position: 'LW' },
   { name: 'Антон Слепышев', overall: 82, rarity: 'Элитный', position: 'RW' },
@@ -137,18 +137,18 @@ const PLAYERS = [
 ];
 
 // ============================================
-// СТАРТОВЫЙ СОСТАВ (СЛАБЫЕ ИГРОКИ)
+// СТАРТОВЫЙ СОСТАВ (ТОЛЬКО РЕДКИЕ И ЭЛИТНЫЕ!)
 // ============================================
 const STARTING_CARDS = [
   { name: 'Евгений Кузнецов', overall: 83, rarity: 'Элитный', position: 'C' },
-  { name: 'Илья Сорокин', overall: 87, rarity: 'Эпический', position: 'G' },
-  { name: 'Сергей Бобровский', overall: 90, rarity: 'Легендарный', position: 'G' },
-  { name: 'Евгений Малкин', overall: 88, rarity: 'Эпический', position: 'C' },
-  { name: 'Андрей Василевский', overall: 92, rarity: 'Легендарный', position: 'G' },
+  { name: 'Александр Романов', overall: 80, rarity: 'Редкий', position: 'D' },
+  { name: 'Егор Шарангович', overall: 80, rarity: 'Редкий', position: 'RW' },
+  { name: 'Яков Тренин', overall: 78, rarity: 'Редкий', position: 'C' },
+  { name: 'Григорий Денисенко', overall: 77, rarity: 'Редкий', position: 'LW' },
 ];
 
 // ============================================
-// РЕДКОСТИ (ДЛЯ КОЛЛЕКЦИИ)
+// РЕДКОСТИ С ЭМОДЗИ
 // ============================================
 const RARITIES = [
   { name: 'Обычный', color: '#808080', emoji: '⬜' },
@@ -184,8 +184,21 @@ function getRandomPack(count) {
   return cards;
 }
 
+function getRarityEmoji(rarityName) {
+  const rarity = RARITIES.find(r => r.name === rarityName);
+  return rarity ? rarity.emoji : '⬜';
+}
+
 function getAllRarities() {
   return RARITIES;
 }
 
-module.exports = { PLAYERS, STARTING_CARDS, RARITIES, getRandomCard, getRandomPack, getAllRarities };
+module.exports = { 
+  PLAYERS, 
+  STARTING_CARDS, 
+  RARITIES, 
+  getRandomCard, 
+  getRandomPack, 
+  getRarityEmoji,
+  getAllRarities 
+};
