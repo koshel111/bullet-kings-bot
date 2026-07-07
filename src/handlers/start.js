@@ -73,6 +73,7 @@ module.exports = (bot) => {
     });
   });
 
+  // ОБЯЗАТЕЛЬНЫЙ ОБРАБОТЧИК ДЛЯ КНОПКИ НАЗАД!
   bot.action('back', async (ctx) => {
     await ctx.answerCbQuery();
     await bot.start(ctx);
