@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИГРА (С ВАРИАНТАМИ БРОСКА)
+// src/handlers/game.js - ИГРА (УМНЫЙ ИИ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -18,36 +18,108 @@ function saveUsers(users) {
 }
 
 // ============================================
-// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: РАСЧЁТ БРОСКА
+// ХРАНИМ ИСТОРИЮ ДЕЙСТВИЙ ИГРОКА (для ИИ)
+// ============================================
+const playerHistory = {};
+
+// ============================================
+// УМНЫЙ ИИ
+// ============================================
+function getAIAction(playerId, difficulty = 1) {
+  const actions = ['jumpLeft', 'jumpRight', 'stand', 'coverLow', 'glove', 'aggressive'];
+  
+  // Получаем историю игрока
+  const history = playerHistory[playerId] || [];
+  const lastAction = history.length > 0 ? history[history.length - 1] : null;
+  
+  // Веса для действий (изменяются в зависимости от истории)
+  let weights = {
+    jumpLeft: 1,
+    jumpRight: 1,
+    stand: 1,
+    coverLow: 1,
+    glove: 1,
+    aggressive: 1
+  };
+  
+  // Если игрок часто бросает в определённые зоны — ИИ адаптируется
+  if (history.length > 3) {
+    const lastThree = history.slice(-3);
+    const leftCount = lastThree.filter(a => a === 'left').length;
+    const rightCount = lastThree.filter(a => a === 'right').length;
+    const topCount = lastThree.filter(a => a === 'top').length;
+    const fiveholeCount = lastThree.filter(a => a === 'fivehole').length;
+    const dekeCount = lastThree.filter(a => a === 'deke').length;
+    const wristCount = lastThree.filter(a => a === 'wrist').length;
+    const slapCount = lastThree.filter(a => a === 'slap').length;
+    
+    // Увеличиваем вес действий, которые противостоят частым броскам
+    if (leftCount >= 2) { weights.jumpRight += 2; weights.stand += 1; }
+    if (rightCount >= 2) { weights.jumpLeft += 2; weights.stand += 1; }
+    if (topCount >= 2) { weights.stand += 2; weights.glove += 1; }
+    if (fiveholeCount >= 2) { weights.stand += 2; weights.coverLow += 2; }
+    if (dekeCount >= 2) { weights.aggressive += 3; weights.jumpLeft += 1; weights.jumpRight += 1; }
+    if (wristCount >= 2) { weights.glove += 2; weights.stand += 1; }
+    if (slapCount >= 2) { weights.pads += 2; weights.glove += 1; }
+  }
+  
+  // Сложность влияет на точность ИИ
+  const difficultyBonus = {
+    novice: 0.5,
+    amateur: 0.7,
+    pro: 1.0,
+    legend: 1.5
+  };
+  
+  // Умножение весов на сложность
+  const factor = difficultyBonus[difficulty] || 1;
+  Object.keys(weights).forEach(key => {
+    weights[key] = weights[key] * factor;
+  });
+  
+  // Выбор действия с весами
+  const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  let random = Math.random() * total;
+  for (const [action, weight] of Object.entries(weights)) {
+    random -= weight;
+    if (random <= 0) return action;
+  }
+  return actions[Math.floor(Math.random() * actions.length)];
+}
+
+// ============================================
+// РАСЧЁТ БРОСКА (С УЧЁТОМ СЛОЖНОСТИ)
 // ============================================
 function calculateShot(playerAction, goalieAction, difficulty = 1) {
-  // Шанс гола в зависимости от действия
   const actionBonus = {
-    'left': { 'jumpRight': 0.8, 'stand': 0.5 },
-    'right': { 'jumpLeft': 0.8, 'stand': 0.5 },
-    'top': { 'stand': 0.3, 'jumpRight': 0.5, 'jumpLeft': 0.5 },
-    'fivehole': { 'stand': 0.8, 'coverLow': 0.2 },
-    'deke': { 'jumpLeft': 0.6, 'jumpRight': 0.6, 'aggressive': 1.2 },
-    'wrist': { 'glove': 0.7, 'stand': 0.4 },
-    'slap': { 'pads': 0.4, 'glove': 0.6 },
+    'left': { 'jumpRight': 0.8, 'stand': 0.5, 'coverLow': 0.3 },
+    'right': { 'jumpLeft': 0.8, 'stand': 0.5, 'coverLow': 0.3 },
+    'top': { 'stand': 0.3, 'glove': 0.6, 'jumpLeft': 0.5, 'jumpRight': 0.5 },
+    'fivehole': { 'stand': 0.8, 'coverLow': 0.2, 'aggressive': 0.3 },
+    'deke': { 'aggressive': 1.2, 'jumpLeft': 0.6, 'jumpRight': 0.6, 'stand': 0.4 },
+    'wrist': { 'glove': 0.7, 'stand': 0.4, 'jumpLeft': 0.5, 'jumpRight': 0.5 },
+    'slap': { 'pads': 0.4, 'glove': 0.6, 'stand': 0.3 }
   };
 
   const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
-  const randomFactor = 0.75 + Math.random() * 0.5;
-  const difficultyBonus = 1 + (difficulty - 1) * 0.15;
+  const randomFactor = 0.7 + Math.random() * 0.6;
   
-  let probability = multiplier / (0.5 + 0.1) * randomFactor / difficultyBonus;
+  // Сложность ИИ влияет на защиту
+  const difficultyBonus = {
+    novice: 1.5,
+    amateur: 1.2,
+    pro: 0.9,
+    legend: 0.6
+  };
+  const defenseFactor = difficultyBonus[difficulty] || 1;
+  
+  let probability = multiplier / (0.5 + 0.1) * randomFactor * defenseFactor;
   probability = Math.max(0.05, Math.min(0.95, probability));
   
   return {
     isGoal: Math.random() < probability,
     probability: Math.round(probability * 100)
   };
-}
-
-function getAIAction() {
-  const actions = ['jumpLeft', 'jumpRight', 'stand', 'coverLow', 'glove', 'aggressive'];
-  return actions[Math.floor(Math.random() * actions.length)];
 }
 
 function getAIShot() {
@@ -94,6 +166,12 @@ module.exports = (bot) => {
     const difficulty = ctx.match[1];
     const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
     
+    // Инициализируем историю для игрока
+    const user = ctx.from;
+    if (!playerHistory[user.id]) {
+      playerHistory[user.id] = [];
+    }
+    
     await ctx.editMessageText(
       '🤖 *Матч против ИИ (' + difficultyNames[difficulty] + ')*\n\n' +
       '*Выбери действие:*',
@@ -120,9 +198,22 @@ module.exports = (bot) => {
     const users = getUsers();
     const data = users[user.id];
     
-    // Действие вратаря (ИИ)
-    const goalieAction = getAIAction();
-    const difficulty = 1; // Простая сложность для теста
+    // Сохраняем действие игрока в историю
+    if (!playerHistory[user.id]) {
+      playerHistory[user.id] = [];
+    }
+    playerHistory[user.id].push(playerAction);
+    // Ограничиваем историю 10 последними действиями
+    if (playerHistory[user.id].length > 10) {
+      playerHistory[user.id].shift();
+    }
+    
+    // Сложность (по умолчанию Профессионал)
+    const difficulty = 'pro';
+    const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
+    
+    // Действие вратаря (ИИ с анализом истории)
+    const goalieAction = getAIAction(user.id, difficulty);
     
     // Расчёт броска
     const result = calculateShot(playerAction, goalieAction, difficulty);
@@ -166,15 +257,21 @@ module.exports = (bot) => {
     
     saveUsers(users);
     
+    // Эмодзи в зависимости от результата
+    const resultEmoji = result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*';
+    const ratingChange = result.isGoal ? '+25' : '-10';
+    const coinsChange = result.isGoal ? '+20' : '0';
+    
     let resultText = '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
     resultText += '🧤 *Вратарь:* ' + goalieNames[goalieAction] + '\n\n';
-    resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
-    resultText += '📊 *Счёт:*\n';
-    resultText += '🏆 Рейтинг: ' + data.rating + '\n';
+    resultText += resultEmoji + '\n\n';
+    resultText += '📊 *Результат:*\n';
+    resultText += '🏆 Рейтинг: ' + data.rating + ' (' + ratingChange + ')\n';
     resultText += '🥇 Лига: ' + data.league + '\n';
-    resultText += '⭐ Монет: ' + data.coins + '\n';
+    resultText += '⭐ Монет: ' + data.coins + ' (' + coinsChange + ')\n';
     resultText += '✅ Побед: ' + data.wins + '\n';
-    resultText += '❌ Поражений: ' + data.losses;
+    resultText += '❌ Поражений: ' + data.losses + '\n';
+    resultText += '📊 Шанс гола: ' + result.probability + '%';
     
     await ctx.editMessageText(
       resultText,
