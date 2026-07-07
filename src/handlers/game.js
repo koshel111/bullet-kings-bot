@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - СЕРИЯ БУЛЛИТОВ (БЕЗ НИЧЬИ)
+// src/handlers/game.js - ИСПРАВЛЕНО ЗАВИСАНИЕ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -240,7 +240,7 @@ module.exports = (bot) => {
     }
     
     if (!match.isPlayerTurn) {
-      await ctx.editMessageText('⏳ Сейчас ход ИИ!');
+      await ctx.editMessageText('⏳ Ход ИИ!');
       return;
     }
     
@@ -257,53 +257,36 @@ module.exports = (bot) => {
       match.playerScore++;
     }
     
+    // ПЕРЕКЛЮЧАЕМ ХОД НА ИИ
     match.isPlayerTurn = false;
     
-    // ✅ ПРОВЕРЯЕМ ОКОНЧАНИЕ МАТЧА (НИЧЬИ НЕТ!)
+    // Ход ИИ (сразу рассчитываем)
+    const aiAction = getAIShot(user.id, difficulty);
+    const aiGoalieAction = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'][Math.floor(Math.random() * 6)];
+    const aiResult = calculateShot(aiAction, aiGoalieAction, difficulty);
+    
+    if (aiResult.isGoal) {
+      match.aiScore++;
+    }
+    
+    // Проверяем окончание матча
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
     if (isSuddenDeath) {
       match.isSuddenDeath = true;
-      // В режиме "до гола" матч заканчивается только когда кто-то забил в этом раунде
-      if (result.isGoal || (aiResult && aiResult.isGoal)) {
-        match.isFinished = true;
-      }
+    }
+    
+    // В режиме "до гола" матч заканчивается, если кто-то забил в этом раунде
+    if (match.isSuddenDeath && (result.isGoal || aiResult.isGoal)) {
+      match.isFinished = true;
     }
     
     if (isFinishedAfterRounds) {
       match.isFinished = true;
     }
     
-    // Ход ИИ
-    let aiResult = null;
-    let aiAction = null;
-    let aiGoalieAction = null;
-    
-    if (!match.isFinished) {
-      aiAction = getAIShot(user.id, difficulty);
-      aiGoalieAction = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'][Math.floor(Math.random() * 6)];
-      aiResult = calculateShot(aiAction, aiGoalieAction, difficulty);
-      if (aiResult.isGoal) {
-        match.aiScore++;
-      }
-      
-      // Если в режиме "до гола" ИИ забил — матч завершается
-      if (match.isSuddenDeath && aiResult.isGoal) {
-        match.isFinished = true;
-      }
-    }
-    
-    // Ещё раз проверяем завершение матча
-    if (match.isSuddenDeath && (result.isGoal || (aiResult && aiResult.isGoal))) {
-      match.isFinished = true;
-    }
-    
-    if (match.round >= match.maxRounds && match.playerScore !== match.aiScore) {
-      match.isFinished = true;
-    }
-    
-    // Сохраняем данные при завершении
+    // Сохраняем данные
     const users = getUsers();
     const data = users[user.id];
     
@@ -370,20 +353,22 @@ module.exports = (bot) => {
       return;
     }
     
-    // Если матч не завершён — показываем следующий раунд
+    // ПОКАЗЫВАЕМ РЕЗУЛЬТАТ РАУНДА
     let resultText = '🎯 *' + player.name + ' бросает!*\n';
     resultText += '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
     resultText += '🧤 *Вратарь ИИ:* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
     
-    if (aiAction) {
-      resultText += '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
-      resultText += '🧤 *Вратарь:* ' + goalieNames[aiGoalieAction] + '\n';
-      resultText += (aiResult.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
-    }
+    resultText += '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
+    resultText += '🧤 *Твой вратарь:* ' + goalieNames[aiGoalieAction] + '\n';
+    resultText += (aiResult.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
     
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+    
+    // Переключаем ход на игрока
+    match.isPlayerTurn = true;
+    
     resultText += '*Выбери следующего игрока для буллита:*';
     
     const team = match.team;
