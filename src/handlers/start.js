@@ -75,7 +75,11 @@ module.exports = (bot) => {
 
   // ОБЯЗАТЕЛЬНЫЙ ОБРАБОТЧИК ДЛЯ КНОПКИ НАЗАД!
   bot.action('back', async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.start(ctx);
-  });
+      console.log('🔍 КНОПКА НАЗАД НАЖАТА!');
+      console.log('👤 Пользователь:', ctx.from.id);
+      console.log('📊 Данные кнопки:', ctx.callbackQuery.data);
+  
+      await ctx.answerCbQuery();
+      await bot.start(ctx);
+   });
 };
