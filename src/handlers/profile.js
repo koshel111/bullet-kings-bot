@@ -5,7 +5,7 @@
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
-const { getRarityEmoji } = require('../data/players');
+const { getRarityEmoji } = require('../data/players');  // ✅ БЕРЁМ ИЗ players.js
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -16,21 +16,6 @@ function getUsers() {
 
 function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
-}
-
-// ============================================
-// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ
-// ============================================
-function getRarityEmoji(rarity) {
-  const map = {
-    'Обычный': '⬜',
-    'Редкий': '🟩',
-    'Элитный': '🔵',
-    'Эпический': '🟣',
-    'Легендарный': '⭐',
-    'Икона': '🔥'
-  };
-  return map[rarity] || '⬜';
 }
 
 module.exports = (bot) => {
@@ -60,7 +45,6 @@ module.exports = (bot) => {
     const allCards = data.cards || [];
     const currentTeam = data.team || [];
     
-    // Разделяем на полевых и вратарей
     const forwards = allCards.filter(c => c.position !== 'G');
     const goalies = allCards.filter(c => c.position === 'G');
     const teamForwards = currentTeam.filter(p => p.position !== 'G');
@@ -68,7 +52,6 @@ module.exports = (bot) => {
     
     let text = '👥 *Твоя команда*\n\n';
     
-    // Текущий состав
     text += '📋 *Текущий состав:*\n';
     if (teamForwards.length === 0 && !teamGoalie) {
       text += 'У тебя пока нет игроков в команде!\n';
@@ -125,7 +108,6 @@ module.exports = (bot) => {
     
     const buttons = [];
     
-    // Кнопки для полевых игроков
     forwards.forEach((player, index) => {
       const emoji = getRarityEmoji(player.rarity);
       const isSelected = teamForwards.some(p => p.id === player.id);
@@ -133,7 +115,6 @@ module.exports = (bot) => {
       buttons.push([Markup.button.callback(label, 'select_forward_' + index)]);
     });
     
-    // Кнопки для вратарей
     buttons.push([Markup.button.callback('───────────', 'separator')]);
     goalies.forEach((player, index) => {
       const emoji = getRarityEmoji(player.rarity);
@@ -207,9 +188,7 @@ module.exports = (bot) => {
       return;
     }
     
-    // Убираем старого вратаря
     data.team = data.team.filter(p => p.position !== 'G');
-    // Добавляем нового
     data.team.push({ ...player, count: 1 });
     
     saveUsers(users);
