@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shop.js - МАГАЗИН (1 КАРТА В ПАКЕ)
+// src/handlers/shop.js - С ПРАВИЛЬНЫМИ ПОЗИЦИЯМИ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -16,6 +16,16 @@ function getUsers() {
 
 function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
+}
+
+// ============================================
+// ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ НАЗВАНИЯ ПОЗИЦИИ
+// ============================================
+function getPositionName(position) {
+  if (position === 'G') return 'Вратарь';
+  if (position === 'LW' || position === 'RW' || position === 'C') return 'Нападающий';
+  if (position === 'D') return 'Защитник';
+  return 'Полевой';
 }
 
 // ============================================
@@ -188,6 +198,7 @@ module.exports = (bot) => {
     // Формируем результат
     const emoji = getRarityEmoji(card.rarity);
     const positionEmoji = card.position === 'G' ? '🧤' : '🏒';
+    const positionName = getPositionName(card.position);
     
     await ctx.editMessageText(
       '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n' +
@@ -195,7 +206,7 @@ module.exports = (bot) => {
       emoji + ' ' + positionEmoji + ' ' + card.name + '\n' +
       'Редкость: ' + card.rarity + '\n' +
       'Рейтинг: ' + card.overall + ' OVR\n' +
-      'Позиция: ' + (card.position === 'G' ? 'Вратарь' : 'Полевой') + '\n\n' +
+      'Позиция: ' + positionName + '\n\n' +
       '📊 Всего карт: ' + data.cards.length,
       {
         parse_mode: 'Markdown',
