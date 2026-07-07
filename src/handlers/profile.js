@@ -1,11 +1,11 @@
 ﻿// ============================================
-// src/handlers/profile.js - С ВЫБОРОМ СОСТАВА
+// src/handlers/profile.js - ИСПРАВЛЕННЫЙ ВЫБОР СОСТАВА
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
-const { getRarityEmoji } = require('../data/players');  // ✅ БЕРЁМ ИЗ players.js
+const { getRarityEmoji } = require('../data/players');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -35,7 +35,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // КОМАНДА — ОТОБРАЖЕНИЕ + ВЫБОР СОСТАВА
+  // КОМАНДА
   // ============================================
   bot.action('team', async (ctx) => {
     await ctx.answerCbQuery();
@@ -108,6 +108,7 @@ module.exports = (bot) => {
     
     const buttons = [];
     
+    // Полевые игроки
     forwards.forEach((player, index) => {
       const emoji = getRarityEmoji(player.rarity);
       const isSelected = teamForwards.some(p => p.id === player.id);
@@ -115,7 +116,10 @@ module.exports = (bot) => {
       buttons.push([Markup.button.callback(label, 'select_forward_' + index)]);
     });
     
+    // Разделитель
     buttons.push([Markup.button.callback('───────────', 'separator')]);
+    
+    // Вратари
     goalies.forEach((player, index) => {
       const emoji = getRarityEmoji(player.rarity);
       const isSelected = teamGoalie && teamGoalie.id === player.id;
@@ -136,7 +140,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ВЫБОР ПОЛЕВОГО ИГРОКА
+  // ВЫБОР ПОЛЕВОГО ИГРОКА (ИСПРАВЛЕНО!)
   // ============================================
   bot.action(/select_forward_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -153,12 +157,15 @@ module.exports = (bot) => {
       return;
     }
     
-    const isInTeam = data.team.some(p => p.id === player.id);
+    // Проверяем, есть ли игрок в составе
+    const isInTeam = data.team.some(p => p.id === player.id && p.position !== 'G');
     const forwardsCount = data.team.filter(p => p.position !== 'G').length;
     
     if (isInTeam) {
+      // Убираем из состава
       data.team = data.team.filter(p => p.id !== player.id);
     } else {
+      // Добавляем в состав (максимум 5 полевых)
       if (forwardsCount >= 5) {
         await ctx.editMessageText('❌ В команде уже 5 полевых игроков!');
         return;
@@ -166,12 +173,15 @@ module.exports = (bot) => {
       data.team.push({ ...player, count: 1 });
     }
     
+    // Сохраняем
     saveUsers(users);
+    
+    // Обновляем экран выбора состава
     await bot.action('edit_team')(ctx);
   });
 
   // ============================================
-  // ВЫБОР ВРАТАРЯ
+  // ВЫБОР ВРАТАРЯ (ИСПРАВЛЕНО!)
   // ============================================
   bot.action(/select_goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -188,10 +198,22 @@ module.exports = (bot) => {
       return;
     }
     
-    data.team = data.team.filter(p => p.position !== 'G');
-    data.team.push({ ...player, count: 1 });
+    // Проверяем, есть ли уже вратарь
+    const currentGoalie = data.team.find(p => p.position === 'G');
     
+    if (currentGoalie && currentGoalie.id === player.id) {
+      // Если тот же вратарь — убираем
+      data.team = data.team.filter(p => p.id !== player.id);
+    } else {
+      // Убираем старого вратаря и добавляем нового
+      data.team = data.team.filter(p => p.position !== 'G');
+      data.team.push({ ...player, count: 1 });
+    }
+    
+    // Сохраняем
     saveUsers(users);
+    
+    // Обновляем экран выбора состава
     await bot.action('edit_team')(ctx);
   });
 
@@ -209,33 +231,47 @@ module.exports = (bot) => {
     const goalie = team.find(p => p.position === 'G');
     
     if (forwards.length !== 5) {
-      await ctx.editMessageText('❌ Нужно выбрать ровно 5 полевых игроков!', {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔙 Вернуться к выбору', 'edit_team')],
-          [Markup.button.callback('🔙 Назад', 'team')],
-        ])
-      });
+      await ctx.editMessageText(
+        '❌ *Нужно выбрать ровно 5 полевых игроков!*\n\n' +
+        'Сейчас: ' + forwards.length + ' полевых\n' +
+        'Нужно: 5 полевых',
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔙 Вернуться к выбору', 'edit_team')],
+            [Markup.button.callback('🔙 Назад', 'team')],
+          ])
+        }
+      );
       return;
     }
     
     if (!goalie) {
-      await ctx.editMessageText('❌ Нужно выбрать вратаря!', {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔙 Вернуться к выбору', 'edit_team')],
-          [Markup.button.callback('🔙 Назад', 'team')],
-        ])
-      });
+      await ctx.editMessageText(
+        '❌ *Нужно выбрать вратаря!*',
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔙 Вернуться к выбору', 'edit_team')],
+            [Markup.button.callback('🔙 Назад', 'team')],
+          ])
+        }
+      );
       return;
     }
     
+    let text = '✅ *Состав сохранён!*\n\n';
+    text += '🏒 *Полевые игроки:*\n';
+    forwards.forEach((p, i) => {
+      const emoji = getRarityEmoji(p.rarity);
+      text += (i+1) + '. ' + emoji + ' ' + p.name + ' - ' + p.rarity + ' (' + p.overall + ' OVR)\n';
+    });
+    text += '\n🧤 *Вратарь:*\n';
+    text += '  ' + getRarityEmoji(goalie.rarity) + ' ' + goalie.name + ' - ' + goalie.rarity + ' (' + goalie.overall + ' OVR)\n';
+    text += '\n✅ Состав готов к матчу!';
+    
     await ctx.editMessageText(
-      '✅ *Состав сохранён!*\n\n' +
-      '🏒 *Полевые игроки:*\n' +
-      forwards.map((p, i) => (i+1) + '. ' + getRarityEmoji(p.rarity) + ' ' + p.name + ' (' + p.overall + ' OVR)').join('\n') +
-      '\n\n🧤 *Вратарь:*\n' +
-      '  ' + getRarityEmoji(goalie.rarity) + ' ' + goalie.name + ' (' + goalie.overall + ' OVR)',
+      text,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
