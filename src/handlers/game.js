@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИГРА (РЕЙТИНГ НЕ УХОДИТ В МИНУС)
+// src/handlers/game.js - ИГРА (РЕАЛИСТИЧНЫЙ ВРАТАРЬ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -23,23 +23,25 @@ function saveUsers(users) {
 const playerHistory = {};
 
 // ============================================
-// УМНЫЙ ИИ
+// УМНЫЙ ИИ (РЕАЛИСТИЧНЫЙ ВРАТАРЬ)
 // ============================================
 function getAIAction(playerId, difficulty = 1) {
-  const actions = ['jumpLeft', 'jumpRight', 'stand', 'coverLow', 'glove', 'aggressive'];
+  // Реалистичные действия вратаря (без прыжков!)
+  const actions = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'];
   
   const history = playerHistory[playerId] || [];
-  const lastAction = history.length > 0 ? history[history.length - 1] : null;
   
+  // Веса для действий
   let weights = {
-    jumpLeft: 1,
-    jumpRight: 1,
+    left: 1,
+    right: 1,
     stand: 1,
-    coverLow: 1,
+    low: 1,
     glove: 1,
     aggressive: 1
   };
   
+  // Адаптация под игрока
   if (history.length > 3) {
     const lastThree = history.slice(-3);
     const leftCount = lastThree.filter(a => a === 'left').length;
@@ -50,15 +52,17 @@ function getAIAction(playerId, difficulty = 1) {
     const wristCount = lastThree.filter(a => a === 'wrist').length;
     const slapCount = lastThree.filter(a => a === 'slap').length;
     
-    if (leftCount >= 2) { weights.jumpRight += 2; weights.stand += 1; }
-    if (rightCount >= 2) { weights.jumpLeft += 2; weights.stand += 1; }
-    if (topCount >= 2) { weights.stand += 2; weights.glove += 1; }
-    if (fiveholeCount >= 2) { weights.stand += 2; weights.coverLow += 2; }
-    if (dekeCount >= 2) { weights.aggressive += 3; weights.jumpLeft += 1; weights.jumpRight += 1; }
+    // Вратарь учится на твоих бросках
+    if (leftCount >= 2) { weights.left += 3; weights.stand += 1; }
+    if (rightCount >= 2) { weights.right += 3; weights.stand += 1; }
+    if (topCount >= 2) { weights.stand += 2; weights.glove += 2; }
+    if (fiveholeCount >= 2) { weights.low += 3; weights.stand += 1; }
+    if (dekeCount >= 2) { weights.aggressive += 3; weights.stand += 1; }
     if (wristCount >= 2) { weights.glove += 2; weights.stand += 1; }
-    if (slapCount >= 2) { weights.pads += 2; weights.glove += 1; }
+    if (slapCount >= 2) { weights.low += 2; weights.glove += 1; }
   }
   
+  // Сложность
   const difficultyBonus = {
     novice: 0.5,
     amateur: 0.7,
@@ -71,6 +75,7 @@ function getAIAction(playerId, difficulty = 1) {
     weights[key] = weights[key] * factor;
   });
   
+  // Выбор действия
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
   let random = Math.random() * total;
   for (const [action, weight] of Object.entries(weights)) {
@@ -80,20 +85,74 @@ function getAIAction(playerId, difficulty = 1) {
   return actions[Math.floor(Math.random() * actions.length)];
 }
 
+// ============================================
+// РАСЧЁТ БРОСКА (РЕАЛИСТИЧНЫЙ)
+// ============================================
 function calculateShot(playerAction, goalieAction, difficulty = 1) {
+  // Таблица взаимодействия (реалистичная)
   const actionBonus = {
-    'left': { 'jumpRight': 0.8, 'stand': 0.5, 'coverLow': 0.3 },
-    'right': { 'jumpLeft': 0.8, 'stand': 0.5, 'coverLow': 0.3 },
-    'top': { 'stand': 0.3, 'glove': 0.6, 'jumpLeft': 0.5, 'jumpRight': 0.5 },
-    'fivehole': { 'stand': 0.8, 'coverLow': 0.2, 'aggressive': 0.3 },
-    'deke': { 'aggressive': 1.2, 'jumpLeft': 0.6, 'jumpRight': 0.6, 'stand': 0.4 },
-    'wrist': { 'glove': 0.7, 'stand': 0.4, 'jumpLeft': 0.5, 'jumpRight': 0.5 },
-    'slap': { 'pads': 0.4, 'glove': 0.6, 'stand': 0.3 }
+    'left': { 
+      'left': 0.1,      // Вратарь закрыл левый угол → сэйв
+      'right': 0.7,     // Вратарь не там → гол
+      'stand': 0.4, 
+      'low': 0.3, 
+      'glove': 0.3, 
+      'aggressive': 0.6 
+    },
+    'right': { 
+      'left': 0.7, 
+      'right': 0.1,     // Вратарь закрыл правый угол → сэйв
+      'stand': 0.4, 
+      'low': 0.3, 
+      'glove': 0.3, 
+      'aggressive': 0.6 
+    },
+    'top': { 
+      'left': 0.5, 
+      'right': 0.5, 
+      'stand': 0.2,     // Стоя легче поймать верх
+      'low': 0.6, 
+      'glove': 0.6,     // Ловушка хороша для верха
+      'aggressive': 0.3 
+    },
+    'fivehole': { 
+      'left': 0.6, 
+      'right': 0.6, 
+      'stand': 0.8,     // Стоя — щитки закрыты → сэйв
+      'low': 0.2,       // Закрыл низ → сэйв
+      'glove': 0.7, 
+      'aggressive': 0.3 
+    },
+    'deke': { 
+      'left': 0.5, 
+      'right': 0.5, 
+      'stand': 0.3, 
+      'low': 0.4, 
+      'glove': 0.4, 
+      'aggressive': 0.8  // Агрессивный выход против финта → сэйв
+    },
+    'wrist': { 
+      'left': 0.4, 
+      'right': 0.4, 
+      'stand': 0.3, 
+      'low': 0.5, 
+      'glove': 0.2,     // Ловушка против кистевого → сэйв
+      'aggressive': 0.5 
+    },
+    'slap': { 
+      'left': 0.4, 
+      'right': 0.4, 
+      'stand': 0.3, 
+      'low': 0.2,       // Щитки против щелчка → сэйв
+      'glove': 0.5, 
+      'aggressive': 0.5 
+    }
   };
 
   const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
   const randomFactor = 0.7 + Math.random() * 0.6;
   
+  // Сложность
   const difficultyBonus = {
     novice: 1.5,
     amateur: 1.2,
@@ -102,7 +161,7 @@ function calculateShot(playerAction, goalieAction, difficulty = 1) {
   };
   const defenseFactor = difficultyBonus[difficulty] || 1;
   
-  let probability = multiplier / (0.5 + 0.1) * randomFactor * defenseFactor;
+  let probability = multiplier * randomFactor * defenseFactor;
   probability = Math.max(0.05, Math.min(0.95, probability));
   
   return {
@@ -211,12 +270,12 @@ module.exports = (bot) => {
     };
     
     const goalieNames = {
-      jumpLeft: '⬅️ Прыжок влево',
-      jumpRight: '➡️ Прыжок вправо',
-      stand: '🧍 Стоять',
-      coverLow: '⬇️ Закрыть низ',
+      left: '🧤 Закрыл левый угол',
+      right: '🧤 Закрыл правый угол',
+      stand: '🧍 Стоя',
+      low: '🛡️ Опустил щитки',
       glove: '🧤 Ловушка',
-      aggressive: '💪 Агрессивный'
+      aggressive: '💪 Агрессивный выход'
     };
     
     if (result.isGoal) {
@@ -225,7 +284,6 @@ module.exports = (bot) => {
       data.rating += 25;
     } else {
       data.losses++;
-      // ✅ РЕЙТИНГ НЕ УХОДИТ В МИНУС!
       data.rating = Math.max(0, data.rating - 10);
     }
     data.matches++;
