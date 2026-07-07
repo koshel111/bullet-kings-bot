@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - С ОТОБРАЖЕНИЕМ ХОДА ИИ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -124,9 +124,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ВЫБОР СЛОЖНОСТИ (ИСПРАВЛЕНО)
-  // ============================================
   bot.action('play_ai', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -144,9 +141,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // НАЧАЛО МАТЧА (ИСПРАВЛЕНО)
-  // ============================================
   bot.action(/ai_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
@@ -185,9 +179,6 @@ module.exports = (bot) => {
     await showPlayerSelection(ctx, user, matches[user.id]);
   });
 
-  // ============================================
-  // ПОКАЗ ВЫБОРА ИГРОКА
-  // ============================================
   async function showPlayerSelection(ctx, user, match) {
     const team = match.team;
     const buttons = [];
@@ -214,9 +205,6 @@ module.exports = (bot) => {
     );
   }
 
-  // ============================================
-  // ВЫБОР ИГРОКА
-  // ============================================
   bot.action(/select_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -249,9 +237,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ХОД ИГРОКА
-  // ============================================
   bot.action(/shot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerAction = ctx.match[1];
@@ -324,7 +309,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ХОД ИИ
+  // ХОД ИИ (С ОТОБРАЖЕНИЕМ РЕЗУЛЬТАТА)
   // ============================================
   bot.action(/goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -344,15 +329,19 @@ module.exports = (bot) => {
     
     const difficulty = match.difficulty;
     
+    // ИИ выбирает бросок
     const aiAction = getAIShot(user.id, difficulty);
     const result = calculateShot(aiAction, goalieAction, difficulty);
     
-    if (result.isGoal) {
+    // Сохраняем результат
+    const aiGoal = result.isGoal;
+    if (aiGoal) {
       match.aiScore++;
     }
     
     match.isPlayerTurn = true;
     
+    // Проверяем окончание матча
     const isMatchOver = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -364,18 +353,41 @@ module.exports = (bot) => {
       match.isSuddenDeath = true;
     }
     
+    // ✅ ПОКАЗЫВАЕМ РЕЗУЛЬТАТ ХОДА ИИ
+    let resultText = '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
+    resultText += '🧤 *Твой вратарь:* ' + goalieNames[goalieAction] + '\n';
+    resultText += (aiGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
+    resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
+    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+    
     if (match.isFinished) {
       await finishMatch(ctx, user, match);
       return;
     }
     
-    let resultText = '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
-    resultText += '🧤 *Твой вратарь:* ' + goalieNames[goalieAction] + '\n';
-    resultText += (result.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
-    resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
-    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+    // Переходим к выбору следующего игрока
+    resultText += '*Выбери следующего игрока для буллита:*';
     
-    await showPlayerSelection(ctx, user, match);
+    const team = match.team;
+    const buttons = [];
+    
+    team.forEach((player, index) => {
+      const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
+      buttons.push([Markup.button.callback(
+        emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
+        'select_player_' + index
+      )]);
+    });
+    
+    buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
+    
+    await ctx.editMessageText(
+      resultText,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(buttons)
+      }
+    );
   });
 
   // ============================================
