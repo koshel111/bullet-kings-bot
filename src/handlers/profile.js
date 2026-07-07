@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
+// src/handlers/profile.js - ИСПРАВЛЕННАЯ ЛОГИКА СОСТАВА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -26,9 +26,9 @@ function saveUsers(users) {
 }
 
 // ============================================
-// ФУНКЦИЯ ПОКАЗА РЕДАКТИРОВАНИЯ СОСТАВА
+// ПОКАЗ РЕДАКТИРОВАНИЯ СОСТАВА
 // ============================================
-async function showEditTeam(ctx, bot) {
+async function showEditTeam(ctx) {
   const user = ctx.from;
   const users = getUsers();
   const data = users[user.id];
@@ -46,6 +46,7 @@ async function showEditTeam(ctx, bot) {
   
   const buttons = [];
   
+  // ⚠️ ВАЖНО: Используем forEach с индексом
   forwards.forEach((player, index) => {
     const emoji = getRarityEmoji(player.rarity);
     const isSelected = teamForwards.some(p => p.id === player.id);
@@ -147,13 +148,13 @@ module.exports = (bot) => {
   // ============================================
   bot.action('edit_team', async (ctx) => {
     await ctx.answerCbQuery();
-    await showEditTeam(ctx, bot);
+    await showEditTeam(ctx);
   });
 
   // ============================================
-  // ВЫБОР ПОЛЕВОГО ИГРОКА
+  // ВЫБОР ПОЛЕВОГО ИГРОКА (ИСПРАВЛЕНО!)
   // ============================================
-  bot.action(/select_forward_(.+)/, async (ctx) => {
+  bot.action(/select_forward_(\d+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const index = parseInt(ctx.match[1]);
     const user = ctx.from;
@@ -161,36 +162,59 @@ module.exports = (bot) => {
     const data = users[user.id];
     const allCards = data.cards || [];
     const forwards = allCards.filter(c => c.position !== 'G');
-    const player = forwards[index];
     
-    if (!player) {
+    // ✅ ПРОВЕРЯЕМ, ЧТО ИНДЕКС СУЩЕСТВУЕТ
+    if (index >= forwards.length) {
       await ctx.editMessageText('❌ Игрок не найден!');
       return;
     }
     
+    const player = forwards[index];
+    
+    // ✅ КОПИРУЕМ ИГРОКА ЦЕЛИКОМ
+    const playerCopy = {
+      id: player.id,
+      name: player.name,
+      overall: player.overall,
+      rarity: player.rarity,
+      position: player.position,
+      league: player.league,
+      ability: player.ability,
+      accuracy: player.accuracy || 0,
+      power: player.power || 0,
+      dribbling: player.dribbling || 0,
+      speed: player.speed || 0,
+      composure: player.composure || 0,
+      skating: player.skating || 0,
+      count: 1
+    };
+    
+    // Проверяем, есть ли игрок в составе
     const isInTeam = data.team.some(p => p.id === player.id && p.position !== 'G');
     const forwardsCount = data.team.filter(p => p.position !== 'G').length;
     
     if (isInTeam) {
+      // ✅ УБИРАЕМ ТОЛЬКО ЭТОГО ИГРОКА
       data.team = data.team.filter(p => p.id !== player.id);
     } else {
+      // ✅ ДОБАВЛЯЕМ ТОЛЬКО ЭТОГО ИГРОКА
       if (forwardsCount >= 5) {
         await ctx.editMessageText('❌ *В команде уже 5 полевых игроков!*\n\nУбери кого-то перед добавлением.', {
           parse_mode: 'Markdown'
         });
         return;
       }
-      data.team.push({ ...player, count: 1 });
+      data.team.push(playerCopy);
     }
     
     saveUsers(users);
-    await showEditTeam(ctx, bot);
+    await showEditTeam(ctx);
   });
 
   // ============================================
-  // ВЫБОР ВРАТАРЯ
+  // ВЫБОР ВРАТАРЯ (ИСПРАВЛЕНО!)
   // ============================================
-  bot.action(/select_goalie_(.+)/, async (ctx) => {
+  bot.action(/select_goalie_(\d+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const index = parseInt(ctx.match[1]);
     const user = ctx.from;
@@ -198,12 +222,30 @@ module.exports = (bot) => {
     const data = users[user.id];
     const allCards = data.cards || [];
     const goalies = allCards.filter(c => c.position === 'G');
-    const player = goalies[index];
     
-    if (!player) {
+    if (index >= goalies.length) {
       await ctx.editMessageText('❌ Вратарь не найден!');
       return;
     }
+    
+    const player = goalies[index];
+    
+    const playerCopy = {
+      id: player.id,
+      name: player.name,
+      overall: player.overall,
+      rarity: player.rarity,
+      position: player.position,
+      league: player.league,
+      ability: player.ability,
+      reaction: player.reaction || 0,
+      glove: player.glove || 0,
+      pads: player.pads || 0,
+      reading: player.reading || 0,
+      movement: player.movement || 0,
+      psychology: player.psychology || 0,
+      count: 1
+    };
     
     const currentGoalie = data.team.find(p => p.position === 'G');
     
@@ -211,11 +253,11 @@ module.exports = (bot) => {
       data.team = data.team.filter(p => p.id !== player.id);
     } else {
       data.team = data.team.filter(p => p.position !== 'G');
-      data.team.push({ ...player, count: 1 });
+      data.team.push(playerCopy);
     }
     
     saveUsers(users);
-    await showEditTeam(ctx, bot);
+    await showEditTeam(ctx);
   });
 
   // ============================================
