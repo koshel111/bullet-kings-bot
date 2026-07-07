@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ (ВЫБОР СЛОЖНОСТИ)
+// src/handlers/game.js - С ВЛИЯНИЕМ СЛОЖНОСТИ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -20,7 +20,7 @@ function saveUsers(users) {
 const matches = {};
 
 // ============================================
-// УМНЫЙ ИИ
+// УМНЫЙ ИИ (С УЧЁТОМ СЛОЖНОСТИ)
 // ============================================
 function getAIShot(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
@@ -47,9 +47,18 @@ function getAIShot(playerId, difficulty = 1) {
     if (slapCount >= 2) { weights.low += 2; }
   }
   
-  const difficultyBonus = { novice: 0.5, amateur: 0.7, pro: 1.0, legend: 1.5 };
+  // ВЛИЯНИЕ СЛОЖНОСТИ НА ВЫБОР БРОСКА
+  const difficultyBonus = { 
+    novice: 0.5,
+    amateur: 0.7,
+    pro: 1.0,
+    legend: 1.3
+  };
   const factor = difficultyBonus[difficulty] || 1;
-  Object.keys(weights).forEach(key => { weights[key] = weights[key] * factor; });
+  
+  Object.keys(weights).forEach(key => { 
+    weights[key] = weights[key] * factor; 
+  });
   
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
   let random = Math.random() * total;
@@ -61,7 +70,7 @@ function getAIShot(playerId, difficulty = 1) {
 }
 
 // ============================================
-// РАСЧЁТ БРОСКА
+// РАСЧЁТ БРОСКА (С ВЛИЯНИЕМ СЛОЖНОСТИ)
 // ============================================
 function calculateShot(playerAction, goalieAction, difficulty = 1) {
   const actionBonus = {
@@ -76,7 +85,14 @@ function calculateShot(playerAction, goalieAction, difficulty = 1) {
 
   const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
   const randomFactor = 0.7 + Math.random() * 0.6;
-  const difficultyBonus = { novice: 1.5, amateur: 1.2, pro: 0.9, legend: 0.6 };
+  
+  // ВЛИЯНИЕ СЛОЖНОСТИ НА ШАНС ГОЛА
+  const difficultyBonus = { 
+    novice: 1.4,
+    amateur: 1.1,
+    pro: 0.85,
+    legend: 0.6
+  };
   const defenseFactor = difficultyBonus[difficulty] || 1;
   
   let probability = multiplier * randomFactor * defenseFactor;
@@ -121,9 +137,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ВЫБОР СЛОЖНОСТИ
-  // ============================================
   bot.action('play_ai', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -141,9 +154,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // НАЧАЛО МАТЧА (ПО ВЫБРАННОЙ СЛОЖНОСТИ)
-  // ============================================
   bot.action(/difficulty_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
@@ -182,9 +192,6 @@ module.exports = (bot) => {
     await showPlayerSelection(ctx, user, matches[user.id]);
   });
 
-  // ============================================
-  // ПОКАЗ ВЫБОРА ИГРОКА
-  // ============================================
   async function showPlayerSelection(ctx, user, match) {
     const team = match.team;
     const buttons = [];
@@ -211,9 +218,6 @@ module.exports = (bot) => {
     );
   }
 
-  // ============================================
-  // ВЫБОР ИГРОКА
-  // ============================================
   bot.action(/select_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -246,9 +250,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ХОД ИГРОКА
-  // ============================================
   bot.action(/shot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerAction = ctx.match[1];
@@ -320,9 +321,6 @@ module.exports = (bot) => {
     await finishMatch(ctx, user, match);
   });
 
-  // ============================================
-  // ХОД ИИ
-  // ============================================
   bot.action(/goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const goalieAction = ctx.match[1];
@@ -396,9 +394,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ЗАВЕРШЕНИЕ МАТЧА
-  // ============================================
   async function finishMatch(ctx, user, match) {
     const users = getUsers();
     const data = users[user.id];
