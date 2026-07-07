@@ -1,10 +1,11 @@
 ﻿// ============================================
-// src/handlers/profile.js - ПРОФИЛЬ
+// src/handlers/profile.js - ПРОФИЛЬ (С ЭМОДЗИ РЕДКОСТИ)
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
+const { getRarityEmoji } = require('../data/players');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -38,7 +39,8 @@ module.exports = (bot) => {
       text += 'У тебя пока нет игроков в команде!';
     } else {
       data.team.forEach((p, i) => {
-        text += (i+1) + '. ' + p.name + ' - ' + p.rarity + ' (' + p.overall + ' OVR)\n';
+        const emoji = getRarityEmoji(p.rarity);
+        text += (i+1) + '. ' + emoji + ' ' + p.name + ' - ' + p.rarity + ' (' + p.overall + ' OVR)\n';
       });
     }
     
@@ -57,7 +59,8 @@ module.exports = (bot) => {
       text += 'У тебя пока нет карточек!';
     } else {
       data.cards.forEach((c) => {
-        text += c.name + ' - ' + c.rarity + ' (' + c.overall + ' OVR) x' + (c.count || 1) + '\n';
+        const emoji = getRarityEmoji(c.rarity);
+        text += emoji + ' ' + c.name + ' - ' + c.rarity + ' (' + c.overall + ' OVR) x' + (c.count || 1) + '\n';
       });
       text += '\nВсего карт: ' + data.cards.length;
     }
@@ -72,6 +75,21 @@ module.exports = (bot) => {
     const users = getUsers();
     const data = users[user.id];
     
+    // Подсчёт карт по редкостям
+    const rarityCount = {};
+    data.cards.forEach(c => {
+      rarityCount[c.rarity] = (rarityCount[c.rarity] || 0) + (c.count || 1);
+    });
+    
+    let rarityText = '';
+    const rarities = ['Обычный', 'Редкий', 'Элитный', 'Эпический', 'Легендарный', 'Икона'];
+    rarities.forEach(r => {
+      if (rarityCount[r]) {
+        const emoji = getRarityEmoji(r);
+        rarityText += emoji + ' ' + r + ': ' + rarityCount[r] + '\n';
+      }
+    });
+    
     await ctx.editMessageText(
       '👤 *Профиль*\n\n' +
       'Имя: ' + user.first_name + '\n' +
@@ -85,7 +103,8 @@ module.exports = (bot) => {
       '⭐ Монет: ' + data.coins + '\n' +
       '💎 Кристаллов: ' + data.crystals + '\n' +
       '📚 Карт: ' + data.cards.length + '\n' +
-      '📊 Матчей: ' + data.matches,
+      '📊 Матчей: ' + data.matches + '\n\n' +
+      '📋 *Карты по редкостям:*\n' + rarityText,
       { parse_mode: 'Markdown' }
     );
     await ctx.reply('🔙 Назад', Markup.inlineKeyboard([Markup.button.callback('🔙 Назад', 'back')]));
