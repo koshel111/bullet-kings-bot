@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИГРА
+// src/handlers/game.js - ИГРА (ИСПРАВЛЕНО)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -71,13 +71,17 @@ module.exports = (bot) => {
     
     saveUsers(users);
     
-    await ctx.editMessageText(resultText, {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Сыграть ещё', 'play_ai')],
-        [Markup.button.callback('🔙 Назад', 'back')],
-      ])
-    });
+    // ✅ ИСПРАВЛЕНО: Добавляем уникальный текст, чтобы избежать ошибки "message is not modified"
+    await ctx.editMessageText(
+      resultText + '\n\n📊 Рейтинг: ' + data.rating + ' | Лига: ' + data.league,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('🔄 Сыграть ещё', 'play_ai')],
+          [Markup.button.callback('🔙 Назад', 'back')],
+        ])
+      }
+    );
   });
 
   bot.action('play_pvp', async (ctx) => {
