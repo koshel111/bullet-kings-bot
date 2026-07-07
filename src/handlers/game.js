@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - С ВЫБОРОМ ИГРОКА
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -20,7 +20,7 @@ function saveUsers(users) {
 const matches = {};
 
 // ============================================
-// УМНЫЙ ИИ (выбирает бросок)
+// УМНЫЙ ИИ
 // ============================================
 function getAIShot(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
@@ -124,6 +124,9 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // ВЫБОР СЛОЖНОСТИ (ИСПРАВЛЕНО)
+  // ============================================
   bot.action('play_ai', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -141,13 +144,20 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // НАЧАЛО МАТЧА (ИСПРАВЛЕНО)
+  // ============================================
   bot.action(/ai_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
-    const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
+    const difficultyNames = { 
+      novice: 'Новичок', 
+      amateur: 'Любитель', 
+      pro: 'Профессионал', 
+      legend: 'Легенда' 
+    };
     const user = ctx.from;
     
-    // Получаем команду игрока
     const users = getUsers();
     const data = users[user.id];
     const team = data.team || [];
@@ -159,6 +169,7 @@ module.exports = (bot) => {
     
     matches[user.id] = {
       difficulty: difficulty,
+      difficultyName: difficultyNames[difficulty] || 'Профессионал',
       playerScore: 0,
       aiScore: 0,
       round: 0,
@@ -171,7 +182,6 @@ module.exports = (bot) => {
       team: team
     };
     
-    // Показываем выбор игрока
     await showPlayerSelection(ctx, user, matches[user.id]);
   });
 
@@ -193,7 +203,7 @@ module.exports = (bot) => {
     buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
     
     await ctx.editMessageText(
-      '🤖 *Матч против ИИ (' + match.difficultyNames + ')*\n\n' +
+      '🤖 *Матч против ИИ (' + match.difficultyName + ')*\n\n' +
       '📊 Счёт: Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n' +
       '🔢 Раунд ' + (match.round + 1) + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n' +
       '*Выбери игрока, который будет бить буллит:*',
@@ -240,7 +250,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ХОД ИГРОКА (ВЫБОР БРОСКА)
+  // ХОД ИГРОКА
   // ============================================
   bot.action(/shot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -314,7 +324,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ХОД ИИ (ИГРОК ВЫБИРАЕТ ДЕЙСТВИЕ ВРАТАРЯ)
+  // ХОД ИИ
   // ============================================
   bot.action(/goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
