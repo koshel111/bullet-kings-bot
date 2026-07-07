@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННАЯ ЛОГИКА СОСТАВА
+// src/handlers/profile.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -46,7 +46,6 @@ async function showEditTeam(ctx) {
   
   const buttons = [];
   
-  // ⚠️ ВАЖНО: Используем forEach с индексом
   forwards.forEach((player, index) => {
     const emoji = getRarityEmoji(player.rarity);
     const isSelected = teamForwards.some(p => p.id === player.id);
@@ -152,7 +151,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ВЫБОР ПОЛЕВОГО ИГРОКА (ИСПРАВЛЕНО!)
+  // ВЫБОР ПОЛЕВОГО ИГРОКА
   // ============================================
   bot.action(/select_forward_(\d+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -163,7 +162,6 @@ module.exports = (bot) => {
     const allCards = data.cards || [];
     const forwards = allCards.filter(c => c.position !== 'G');
     
-    // ✅ ПРОВЕРЯЕМ, ЧТО ИНДЕКС СУЩЕСТВУЕТ
     if (index >= forwards.length) {
       await ctx.editMessageText('❌ Игрок не найден!');
       return;
@@ -171,7 +169,6 @@ module.exports = (bot) => {
     
     const player = forwards[index];
     
-    // ✅ КОПИРУЕМ ИГРОКА ЦЕЛИКОМ
     const playerCopy = {
       id: player.id,
       name: player.name,
@@ -189,15 +186,12 @@ module.exports = (bot) => {
       count: 1
     };
     
-    // Проверяем, есть ли игрок в составе
     const isInTeam = data.team.some(p => p.id === player.id && p.position !== 'G');
     const forwardsCount = data.team.filter(p => p.position !== 'G').length;
     
     if (isInTeam) {
-      // ✅ УБИРАЕМ ТОЛЬКО ЭТОГО ИГРОКА
       data.team = data.team.filter(p => p.id !== player.id);
     } else {
-      // ✅ ДОБАВЛЯЕМ ТОЛЬКО ЭТОГО ИГРОКА
       if (forwardsCount >= 5) {
         await ctx.editMessageText('❌ *В команде уже 5 полевых игроков!*\n\nУбери кого-то перед добавлением.', {
           parse_mode: 'Markdown'
@@ -212,7 +206,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ВЫБОР ВРАТАРЯ (ИСПРАВЛЕНО!)
+  // ВЫБОР ВРАТАРЯ
   // ============================================
   bot.action(/select_goalie_(\d+)/, async (ctx) => {
     await ctx.answerCbQuery();
