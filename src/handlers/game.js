@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - СЕРИЯ БУЛЛИТОВ
+// src/handlers/game.js - СЕРИЯ БУЛЛИТОВ (БЕЗ ЛИШНИХ СООБЩЕНИЙ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -17,14 +17,8 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// ============================================
-// ХРАНИМ СОСТОЯНИЕ МАТЧЕЙ
-// ============================================
 const matches = {};
 
-// ============================================
-// УМНЫЙ ИИ (РЕАЛИСТИЧНЫЙ ВРАТАРЬ)
-// ============================================
 function getAIAction(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'];
   const history = matches[playerId]?.history || [];
@@ -63,9 +57,6 @@ function getAIAction(playerId, difficulty = 1) {
   return actions[Math.floor(Math.random() * actions.length)];
 }
 
-// ============================================
-// РАСЧЁТ БРОСКА (ПОЛНАЯ ТАБЛИЦА 42 КОМБИНАЦИИ)
-// ============================================
 function calculateShot(playerAction, goalieAction, difficulty = 1) {
   const actionBonus = {
     'left': { 'left': 0.05, 'right': 0.75, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
@@ -88,9 +79,6 @@ function calculateShot(playerAction, goalieAction, difficulty = 1) {
   return { isGoal: Math.random() < probability, probability: Math.round(probability * 100) };
 }
 
-// ============================================
-// НАЗВАНИЯ ДЕЙСТВИЙ
-// ============================================
 const actionNames = {
   left: '⬅️ Влево',
   right: '➡️ Вправо',
@@ -150,7 +138,6 @@ module.exports = (bot) => {
     const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
     const user = ctx.from;
     
-    // Создаём новый матч
     matches[user.id] = {
       difficulty: difficulty,
       playerScore: 0,
@@ -190,14 +177,12 @@ module.exports = (bot) => {
     const match = matches[user.id];
     
     if (!match || match.isFinished) {
-      await ctx.editMessageText('❌ Матч завершён! Начни новый.');
+      await ctx.editMessageText('❌ Матч завершён!');
       return;
     }
     
     const difficulty = match.difficulty;
-    const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
     
-    // Ход игрока
     const goalieAction = getAIAction(user.id, difficulty);
     const result = calculateShot(playerAction, goalieAction, difficulty);
     
@@ -208,7 +193,6 @@ module.exports = (bot) => {
       match.playerScore++;
     }
     
-    // Ход ИИ (только если матч ещё не закончен)
     let aiResult = null;
     let aiAction = null;
     let aiGoalieAction = null;
@@ -222,11 +206,11 @@ module.exports = (bot) => {
       }
     }
     
-    // Проверка окончания матча
-    const isMatchEnd = match.round >= match.maxRounds || match.playerScore !== match.aiScore;
+    if (match.round >= match.maxRounds && match.playerScore !== match.aiScore) {
+      match.isFinished = true;
+    }
     
     if (match.round >= match.maxRounds && match.playerScore === match.aiScore) {
-      // Ничья → переход в режим "до гола"
       match.isSuddenDeath = true;
     }
     
@@ -234,19 +218,19 @@ module.exports = (bot) => {
       match.isFinished = true;
     }
     
-    if (match.round >= match.maxRounds && match.playerScore !== match.aiScore) {
-      match.isFinished = true;
-    }
-    
-    // Сохраняем данные
     const users = getUsers();
     const data = users[user.id];
+    
     if (match.isFinished) {
       const isWin = match.playerScore > match.aiScore;
+      const isDraw = match.playerScore === match.aiScore;
+      
       if (isWin) {
         data.wins++;
         data.coins += 20;
         data.rating += 25;
+      } else if (isDraw) {
+        data.draws++;
       } else {
         data.losses++;
         data.rating = Math.max(0, data.rating - 10);
@@ -259,9 +243,53 @@ module.exports = (bot) => {
                     data.rating >= 1200 ? 'Золото' :
                     data.rating >= 1000 ? 'Серебро' : 'Бронза';
       saveUsers(users);
+      
+      const matchResult = {
+        playerScore: match.playerScore,
+        aiScore: match.aiScore,
+        isWin: isWin,
+        isDraw: isDraw,
+        rounds: match.round
+      };
+      
+      delete matches[user.id];
+      
+      let resultText = '🏁 *МАТЧ ЗАВЕРШЁН!*\n\n';
+      resultText += '📊 *Итоговый счёт:*\n';
+      resultText += '🔥 Ты: ' + matchResult.playerScore + '\n';
+      resultText += '🤖 ИИ: ' + matchResult.aiScore + '\n';
+      resultText += '🔢 Раундов: ' + matchResult.rounds + '\n\n';
+      
+      if (isWin) {
+        resultText += '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга\n';
+      } else if (isDraw) {
+        resultText += '⚖️ *НИЧЬЯ!*\n';
+      } else {
+        resultText += '😔 *ПОРАЖЕНИЕ...* -10 рейтинга\n';
+      }
+      
+      resultText += '\n📊 *Твоя статистика:*\n';
+      resultText += '🏆 Рейтинг: ' + data.rating + '\n';
+      resultText += '🥇 Лига: ' + data.league + '\n';
+      resultText += '⭐ Монет: ' + data.coins + '\n';
+      resultText += '✅ Побед: ' + data.wins + '\n';
+      resultText += '❌ Поражений: ' + data.losses + '\n';
+      resultText += '⚖️ Ничьих: ' + data.draws + '\n\n';
+      resultText += 'Выбери действие:';
+      
+      await ctx.editMessageText(
+        resultText,
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔄 Сыграть ещё', 'play_ai')],
+            [Markup.button.callback('🔙 Назад', 'back')],
+          ])
+        }
+      );
+      return;
     }
     
-    // Формируем результат
     let resultText = '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
     resultText += '🧤 *Вратарь:* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
@@ -275,47 +303,27 @@ module.exports = (bot) => {
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n';
     
-    if (match.isFinished) {
-      const isWin = match.playerScore > match.aiScore;
-      resultText += '\n🏁 *МАТЧ ЗАВЕРШЁН!*\n';
-      resultText += (isWin ? '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга' : '😔 *ПОРАЖЕНИЕ...* -10 рейтинга') + '\n';
-      resultText += '🏆 Рейтинг: ' + data.rating + '\n';
-      resultText += '🥇 Лига: ' + data.league + '\n';
-      resultText += '⭐ Монет: ' + data.coins;
-      
-      await ctx.editMessageText(
-        resultText,
-        {
-          parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('🔄 Сыграть ещё', 'play_ai')],
-            [Markup.button.callback('🔙 Назад', 'back')],
-          ])
-        }
-      );
-    } else {
-      const nextRound = match.round + 1;
-      const roundText = match.isSuddenDeath ? 'ДО ГОЛА!' : (nextRound + ' из ' + match.maxRounds);
-      
-      resultText += '\n*Выбери действие для раунда ' + roundText + ':*';
-      
-      await ctx.editMessageText(
-        resultText,
-        {
-          parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('⬅️ Влево', 'shot_left')],
-            [Markup.button.callback('➡️ Вправо', 'shot_right')],
-            [Markup.button.callback('⬆️ Верхний', 'shot_top')],
-            [Markup.button.callback('⬇️ Между щитков', 'shot_fivehole')],
-            [Markup.button.callback('🔄 Финт', 'shot_deke')],
-            [Markup.button.callback('✋ Кистевой', 'shot_wrist')],
-            [Markup.button.callback('💥 Щелчок', 'shot_slap')],
-            [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
-          ])
-        }
-      );
-    }
+    const nextRound = match.round + 1;
+    const roundText = match.isSuddenDeath ? 'ДО ГОЛА!' : (nextRound + ' из ' + match.maxRounds);
+    
+    resultText += '\n*Выбери действие для раунда ' + roundText + ':*';
+    
+    await ctx.editMessageText(
+      resultText,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('⬅️ Влево', 'shot_left')],
+          [Markup.button.callback('➡️ Вправо', 'shot_right')],
+          [Markup.button.callback('⬆️ Верхний', 'shot_top')],
+          [Markup.button.callback('⬇️ Между щитков', 'shot_fivehole')],
+          [Markup.button.callback('🔄 Финт', 'shot_deke')],
+          [Markup.button.callback('✋ Кистевой', 'shot_wrist')],
+          [Markup.button.callback('💥 Щелчок', 'shot_slap')],
+          [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
+        ])
+      }
+    );
   });
 
   bot.action('forfeit', async (ctx) => {
@@ -324,6 +332,7 @@ module.exports = (bot) => {
     const match = matches[user.id];
     if (match) {
       match.isFinished = true;
+      delete matches[user.id];
     }
     await ctx.editMessageText(
       '🏳️ *Матч завершён досрочно!*\n\nТы сдался 😔',
@@ -354,4 +363,3 @@ module.exports = (bot) => {
     );
   });
 };
-
