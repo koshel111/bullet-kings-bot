@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ПРОФИЛЬ (С ЭМОДЗИ И КНОПКОЙ НАЗАД)
+// src/handlers/profile.js - С ВРАТАРЁМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -37,13 +37,25 @@ module.exports = (bot) => {
     const data = users[user.id];
     
     let text = '👥 *Твоя команда:*\n\n';
-    if (data.team.length === 0) {
+    
+    // Полевые игроки
+    const forwards = data.team.filter(p => p.position !== 'G');
+    const goalie = data.team.find(p => p.position === 'G');
+    
+    if (forwards.length === 0 && !goalie) {
       text += 'У тебя пока нет игроков в команде!';
     } else {
-      data.team.forEach((p, i) => {
+      text += '🏒 *Полевые игроки:*\n';
+      forwards.forEach((p, i) => {
         const emoji = getRarityEmoji(p.rarity);
         text += (i+1) + '. ' + emoji + ' ' + p.name + ' - ' + p.rarity + ' (' + p.overall + ' OVR)\n';
       });
+      
+      if (goalie) {
+        const emoji = getRarityEmoji(goalie.rarity);
+        text += '\n🧤 *Вратарь:*\n';
+        text += '  ' + emoji + ' ' + goalie.name + ' - ' + goalie.rarity + ' (' + goalie.overall + ' OVR)\n';
+      }
     }
     
     await ctx.editMessageText(text, {
@@ -64,7 +76,8 @@ module.exports = (bot) => {
     } else {
       data.cards.forEach((c) => {
         const emoji = getRarityEmoji(c.rarity);
-        text += emoji + ' ' + c.name + ' - ' + c.rarity + ' (' + c.overall + ' OVR) x' + (c.count || 1) + '\n';
+        const position = c.position === 'G' ? '🧤' : '🏒';
+        text += emoji + ' ' + position + ' ' + c.name + ' - ' + c.rarity + ' (' + c.overall + ' OVR) x' + (c.count || 1) + '\n';
       });
       text += '\nВсего карт: ' + data.cards.length;
     }
@@ -95,6 +108,9 @@ module.exports = (bot) => {
       }
     });
     
+    const forwards = data.team.filter(p => p.position !== 'G').length;
+    const goalie = data.team.find(p => p.position === 'G');
+    
     await ctx.editMessageText(
       '👤 *Профиль*\n\n' +
       'Имя: ' + user.first_name + '\n' +
@@ -108,7 +124,8 @@ module.exports = (bot) => {
       '⭐ Монет: ' + data.coins + '\n' +
       '💎 Кристаллов: ' + data.crystals + '\n' +
       '📚 Карт: ' + data.cards.length + '\n' +
-      '📊 Матчей: ' + data.matches + '\n\n' +
+      '📊 Матчей: ' + data.matches + '\n' +
+      '👥 В команде: ' + forwards + ' полевых, ' + (goalie ? '1 вратарь' : '0 вратарей') + '\n\n' +
       '📋 *Карты по редкостям:*\n' + rarityText,
       {
         parse_mode: 'Markdown',
