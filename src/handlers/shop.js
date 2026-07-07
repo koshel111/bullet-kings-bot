@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shop.js - С ПРАВИЛЬНЫМИ ПОЗИЦИЯМИ
+// src/handlers/shop.js - КАРТЫ ТОЛЬКО В КОЛЛЕКЦИЮ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -18,9 +18,6 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// ============================================
-// ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ НАЗВАНИЯ ПОЗИЦИИ
-// ============================================
 function getPositionName(position) {
   if (position === 'G') return 'Вратарь';
   if (position === 'LW' || position === 'RW' || position === 'C') return 'Нападающий';
@@ -28,9 +25,6 @@ function getPositionName(position) {
   return 'Полевой';
 }
 
-// ============================================
-// ШАНСЫ ВЫПАДЕНИЯ ДЛЯ КАЖДОГО ПАКА
-// ============================================
 const PACKS = {
   basic: {
     name: 'Базовый',
@@ -107,9 +101,6 @@ function openPack(packType) {
 
 module.exports = (bot) => {
   
-  // ============================================
-  // МАГАЗИН
-  // ============================================
   bot.action('shop', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -136,9 +127,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ПОКУПКА ПАКА
-  // ============================================
   bot.action(/buy_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const packType = ctx.match[1];
@@ -162,30 +150,27 @@ module.exports = (bot) => {
         'У тебя: ' + balance,
         {
           parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('🔙 Назад', 'shop')]
-          ])
+          ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'shop')]])
         }
       );
       return;
     }
     
-    // Списываем валюту
     if (pack.currency === 'coins') {
       data.coins -= pack.price;
     } else {
       data.crystals -= pack.price;
     }
     
-    // Открываем пак
     const cards = openPack(packType);
     if (!cards || cards.length === 0) {
       await ctx.editMessageText('❌ Ошибка открытия пака!');
       return;
     }
     
-    // Добавляем карту в коллекцию
     const card = cards[0];
+    
+    // ✅ ТОЛЬКО В КОЛЛЕКЦИЮ! НЕ В СОСТАВ!
     const existing = data.cards.find(c => c.name === card.name && c.position === card.position);
     if (existing) {
       existing.count = (existing.count || 1) + 1;
@@ -195,7 +180,6 @@ module.exports = (bot) => {
     
     saveUsers(users);
     
-    // Формируем результат
     const emoji = getRarityEmoji(card.rarity);
     const positionEmoji = card.position === 'G' ? '🧤' : '🏒';
     const positionName = getPositionName(card.position);
@@ -207,12 +191,15 @@ module.exports = (bot) => {
       'Редкость: ' + card.rarity + '\n' +
       'Рейтинг: ' + card.overall + ' OVR\n' +
       'Позиция: ' + positionName + '\n\n' +
-      '📊 Всего карт: ' + data.cards.length,
+      '📊 Всего карт: ' + data.cards.length + '\n\n' +
+      '💡 *Карта добавлена в коллекцию!*\n' +
+      'Чтобы добавить её в состав — зайди в 👥 Команда и собери состав.',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
           [Markup.button.callback('🔄 Открыть ещё', 'buy_' + packType)],
           [Markup.button.callback('🔙 В магазин', 'shop')],
+          [Markup.button.callback('👥 Перейти в команду', 'team')],
         ])
       }
     );
