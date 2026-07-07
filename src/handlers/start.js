@@ -61,7 +61,8 @@ async function showMainMenu(ctx, bot) {
     '📚 Карт: ' + data.cards.length + '\n\n' +
     'Выбери действие:';
   
-  await ctx.editMessageText(text, {
+  // ✅ ИСПРАВЛЕНО: Используем reply вместо editMessageText
+  await ctx.reply(text, {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard([
       [Markup.button.callback('🎮 Играть', 'play')],
