@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
+// src/handlers/profile.js - С ЛОГАМИ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -16,24 +16,36 @@ function getUsers() {
   }
   try {
     return JSON.parse(fs.readFileSync(DB_PATH));
-  } catch {
+  } catch (e) {
+    console.error('❌ Ошибка чтения БД:', e.message);
     return {};
   }
 }
 
 function saveUsers(users) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
+    console.log('✅ БД сохранена');
+  } catch (e) {
+    console.error('❌ Ошибка сохранения БД:', e.message);
+  }
 }
 
 // ============================================
 // ПОКАЗ РЕДАКТИРОВАНИЯ СОСТАВА
 // ============================================
 async function showEditTeam(ctx) {
+  console.log('🔍 showEditTeam вызван');
+  
   const user = ctx.from;
   const users = getUsers();
   const data = users[user.id];
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
+  
+  console.log('📊 Всего карт:', allCards.length);
+  console.log('📊 В составе:', currentTeam.length);
+  console.log('📊 Состав:', JSON.stringify(currentTeam, null, 2));
   
   const forwards = allCards.filter(c => c.position !== 'G');
   const goalies = allCards.filter(c => c.position === 'G');
@@ -51,6 +63,7 @@ async function showEditTeam(ctx) {
     const isSelected = teamForwards.some(p => p.id === player.id);
     const label = (isSelected ? '✅' : '➕') + ' ' + emoji + ' ' + player.name + ' (' + player.overall + ' OVR)';
     buttons.push([Markup.button.callback(label, 'select_forward_' + index)]);
+    console.log(  Кнопка :  ());
   });
   
   buttons.push([Markup.button.callback('───────────', 'separator')]);
@@ -90,16 +103,17 @@ module.exports = (bot) => {
     });
   });
 
-  // ============================================
-  // КОМАНДА
-  // ============================================
   bot.action('team', async (ctx) => {
+    console.log('🔍 КОМАНДА: начало');
     await ctx.answerCbQuery();
     const user = ctx.from;
     const users = getUsers();
     const data = users[user.id];
     const allCards = data.cards || [];
     const currentTeam = data.team || [];
+    
+    console.log('📊 Всего карт:', allCards.length);
+    console.log('📊 В составе:', currentTeam.length);
     
     const forwards = allCards.filter(c => c.position !== 'G');
     const goalies = allCards.filter(c => c.position === 'G');
@@ -142,10 +156,8 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // РЕДАКТИРОВАНИЕ СОСТАВА
-  // ============================================
   bot.action('edit_team', async (ctx) => {
+    console.log('🔍 EDIT_TEAM: начало');
     await ctx.answerCbQuery();
     await showEditTeam(ctx);
   });
@@ -154,7 +166,9 @@ module.exports = (bot) => {
   // ВЫБОР ПОЛЕВОГО ИГРОКА
   // ============================================
   bot.action(/select_forward_(\d+)/, async (ctx) => {
+    console.log('🔍 SELECT_FORWARD:', ctx.match[1]);
     await ctx.answerCbQuery();
+    
     const index = parseInt(ctx.match[1]);
     const user = ctx.from;
     const users = getUsers();
@@ -162,54 +176,47 @@ module.exports = (bot) => {
     const allCards = data.cards || [];
     const forwards = allCards.filter(c => c.position !== 'G');
     
+    console.log('📊 Индекс:', index, 'Всего полевых:', forwards.length);
+    
     if (index >= forwards.length) {
+      console.error('❌ Игрок с индексом', index, 'не найден!');
       await ctx.editMessageText('❌ Игрок не найден!');
       return;
     }
     
     const player = forwards[index];
+    console.log('🎯 Выбран игрок:', player.name);
     
-    const playerCopy = {
-      id: player.id,
-      name: player.name,
-      overall: player.overall,
-      rarity: player.rarity,
-      position: player.position,
-      league: player.league,
-      ability: player.ability,
-      accuracy: player.accuracy || 0,
-      power: player.power || 0,
-      dribbling: player.dribbling || 0,
-      speed: player.speed || 0,
-      composure: player.composure || 0,
-      skating: player.skating || 0,
-      count: 1
-    };
-    
+    // Проверяем, есть ли игрок в составе
     const isInTeam = data.team.some(p => p.id === player.id && p.position !== 'G');
     const forwardsCount = data.team.filter(p => p.position !== 'G').length;
     
+    console.log('📊 В составе:', isInTeam ? '✅' : '❌');
+    console.log('📊 Всего полевых в составе:', forwardsCount);
+    
     if (isInTeam) {
       data.team = data.team.filter(p => p.id !== player.id);
+      console.log('🗑️ Игрок удалён из состава');
     } else {
       if (forwardsCount >= 5) {
+        console.log('❌ Слишком много игроков!');
         await ctx.editMessageText('❌ *В команде уже 5 полевых игроков!*\n\nУбери кого-то перед добавлением.', {
           parse_mode: 'Markdown'
         });
         return;
       }
-      data.team.push(playerCopy);
+      data.team.push({ ...player, count: 1 });
+      console.log('➕ Игрок добавлен в состав');
     }
     
     saveUsers(users);
     await showEditTeam(ctx);
   });
 
-  // ============================================
-  // ВЫБОР ВРАТАРЯ
-  // ============================================
   bot.action(/select_goalie_(\d+)/, async (ctx) => {
+    console.log('🔍 SELECT_GOALIE:', ctx.match[1]);
     await ctx.answerCbQuery();
+    
     const index = parseInt(ctx.match[1]);
     const user = ctx.from;
     const users = getUsers();
@@ -218,46 +225,31 @@ module.exports = (bot) => {
     const goalies = allCards.filter(c => c.position === 'G');
     
     if (index >= goalies.length) {
+      console.error('❌ Вратарь с индексом', index, 'не найден!');
       await ctx.editMessageText('❌ Вратарь не найден!');
       return;
     }
     
     const player = goalies[index];
-    
-    const playerCopy = {
-      id: player.id,
-      name: player.name,
-      overall: player.overall,
-      rarity: player.rarity,
-      position: player.position,
-      league: player.league,
-      ability: player.ability,
-      reaction: player.reaction || 0,
-      glove: player.glove || 0,
-      pads: player.pads || 0,
-      reading: player.reading || 0,
-      movement: player.movement || 0,
-      psychology: player.psychology || 0,
-      count: 1
-    };
+    console.log('🎯 Выбран вратарь:', player.name);
     
     const currentGoalie = data.team.find(p => p.position === 'G');
     
     if (currentGoalie && currentGoalie.id === player.id) {
       data.team = data.team.filter(p => p.id !== player.id);
+      console.log('🗑️ Вратарь удалён');
     } else {
       data.team = data.team.filter(p => p.position !== 'G');
-      data.team.push(playerCopy);
+      data.team.push({ ...player, count: 1 });
+      console.log('➕ Вратарь добавлен');
     }
     
     saveUsers(users);
     await showEditTeam(ctx);
   });
 
-  // ============================================
-  // СОХРАНЕНИЕ СОСТАВА
-  // ============================================
   bot.action('save_team', async (ctx) => {
+    console.log('🔍 SAVE_TEAM');
     await ctx.answerCbQuery();
     const user = ctx.from;
     const users = getUsers();
@@ -266,6 +258,8 @@ module.exports = (bot) => {
     
     const forwards = team.filter(p => p.position !== 'G');
     const goalie = team.find(p => p.position === 'G');
+    
+    console.log('📊 Сохранение: полевых', forwards.length, 'вратарь', goalie ? 'есть' : 'нет');
     
     if (forwards.length !== 5) {
       await ctx.editMessageText(
@@ -297,6 +291,8 @@ module.exports = (bot) => {
       return;
     }
     
+    saveUsers(users);
+    
     let text = '✅ *Состав сохранён!*\n\n';
     text += '🏒 *Полевые игроки:*\n';
     forwards.forEach((p, i) => {
@@ -318,9 +314,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // КОЛЛЕКЦИЯ
-  // ============================================
   bot.action('collection', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -345,9 +338,6 @@ module.exports = (bot) => {
     });
   });
 
-  // ============================================
-  // ПРОФИЛЬ
-  // ============================================
   bot.action('profile', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
