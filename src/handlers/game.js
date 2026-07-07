@@ -71,8 +71,13 @@ module.exports = (bot) => {
     
     saveUsers(users);
     
-    await ctx.editMessageText(resultText, { parse_mode: 'Markdown' });
-    await ctx.reply('🔙 Назад', Markup.inlineKeyboard([Markup.button.callback('🔙 Назад', 'back')]));
+    await ctx.editMessageText(resultText, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Сыграть ещё', 'play_ai')],
+        [Markup.button.callback('🔙 Назад', 'back')],
+      ])
+    });
   });
 
   bot.action('play_pvp', async (ctx) => {

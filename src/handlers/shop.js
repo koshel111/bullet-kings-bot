@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shop.js - МАГАЗИН (С ПАКАМИ ИЗ JSON)
+// src/handlers/shop.js - МАГАЗИН
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -84,7 +84,10 @@ module.exports = (bot) => {
     const currencyName = pack.currency === 'coins' ? 'монет' : 'кристаллов';
     
     if (balance < pack.price) {
-      await ctx.editMessageText('❌ *Недостаточно ' + currencyName + '!*\n\nНужно: ' + pack.price + '\nУ тебя: ' + balance, { parse_mode: 'Markdown' });
+      await ctx.editMessageText('❌ *Недостаточно ' + currencyName + '!*\n\nНужно: ' + pack.price + '\nУ тебя: ' + balance, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'shop')]])
+      });
       return;
     }
     
@@ -115,8 +118,13 @@ module.exports = (bot) => {
       '🎉 *' + pack.name + ' пак открыт!*\n\n' +
       'Получено карт: ' + pack.cards + '\n\n' +
       '📋 *Твои карты:*\n' + cardsText,
-      { parse_mode: 'Markdown' }
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 В магазин', 'shop')],
+          [Markup.button.callback('🔙 Назад', 'back')],
+        ])
+      }
     );
-    await ctx.reply('🔙 Назад', Markup.inlineKeyboard([Markup.button.callback('🔙 Назад', 'back')]));
   });
 };

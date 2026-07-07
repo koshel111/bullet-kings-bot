@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/start.js - ГЛАВНОЕ МЕНЮ (РЕЙТИНГ 0)
+// src/handlers/start.js - ГЛАВНОЕ МЕНЮ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -32,7 +32,7 @@ module.exports = (bot) => {
         name: user.first_name,
         coins: 100,
         crystals: 10,
-        rating: 0,              // ← ИЗМЕНЕНО! БЫЛО 1000
+        rating: 0,
         league: 'Бронза',
         wins: 0,
         losses: 0,

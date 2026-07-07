@@ -6,7 +6,7 @@
       "price": 100,
       "currency": "coins",
       "cards": 3,
-      "description": "3 карты, шанс на редкую"
+      "description": "3 карты"
     },
     {
       "id": "premium",
@@ -14,7 +14,7 @@
       "price": 500,
       "currency": "coins",
       "cards": 5,
-      "description": "5 карт, гарантированный редкий"
+      "description": "5 карт"
     },
     {
       "id": "legendary",
@@ -22,7 +22,7 @@
       "price": 50,
       "currency": "crystals",
       "cards": 1,
-      "description": "1 карта, шанс на легендарку"
+      "description": "1 карта"
     }
   ]
 }

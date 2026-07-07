@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ПРОФИЛЬ (С ЭМОДЗИ РЕДКОСТИ)
+// src/handlers/profile.js - ПРОФИЛЬ (С ЭМОДЗИ И КНОПКОЙ НАЗАД)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -24,8 +24,10 @@ module.exports = (bot) => {
     const bonus = Math.floor(Math.random() * 50) + 10;
     data.coins += bonus;
     fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
-    await ctx.editMessageText('🎁 *Бонус получен!*\n\n⭐ +' + bonus + ' монет', { parse_mode: 'Markdown' });
-    await ctx.reply('🔙 Назад', Markup.inlineKeyboard([Markup.button.callback('🔙 Назад', 'back')]));
+    await ctx.editMessageText('🎁 *Бонус получен!*\n\n⭐ +' + bonus + ' монет', {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+    });
   });
 
   bot.action('team', async (ctx) => {
@@ -44,8 +46,10 @@ module.exports = (bot) => {
       });
     }
     
-    await ctx.editMessageText(text, { parse_mode: 'Markdown' });
-    await ctx.reply('🔙 Назад', Markup.inlineKeyboard([Markup.button.callback('🔙 Назад', 'back')]));
+    await ctx.editMessageText(text, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+    });
   });
 
   bot.action('collection', async (ctx) => {
@@ -65,8 +69,10 @@ module.exports = (bot) => {
       text += '\nВсего карт: ' + data.cards.length;
     }
     
-    await ctx.editMessageText(text, { parse_mode: 'Markdown' });
-    await ctx.reply('🔙 Назад', Markup.inlineKeyboard([Markup.button.callback('🔙 Назад', 'back')]));
+    await ctx.editMessageText(text, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+    });
   });
 
   bot.action('profile', async (ctx) => {
@@ -75,7 +81,6 @@ module.exports = (bot) => {
     const users = getUsers();
     const data = users[user.id];
     
-    // Подсчёт карт по редкостям
     const rarityCount = {};
     data.cards.forEach(c => {
       rarityCount[c.rarity] = (rarityCount[c.rarity] || 0) + (c.count || 1);
@@ -105,8 +110,10 @@ module.exports = (bot) => {
       '📚 Карт: ' + data.cards.length + '\n' +
       '📊 Матчей: ' + data.matches + '\n\n' +
       '📋 *Карты по редкостям:*\n' + rarityText,
-      { parse_mode: 'Markdown' }
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+      }
     );
-    await ctx.reply('🔙 Назад', Markup.inlineKeyboard([Markup.button.callback('🔙 Назад', 'back')]));
   });
 };
