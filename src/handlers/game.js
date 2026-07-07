@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - С ВЫБОРОМ ВРАТАРЯ
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ ПОРЯДОК ХОДОВ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -230,7 +230,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ХОД ИГРОКА (ВЫБОР БРОСКА)
+  // ХОД ИГРОКА
   // ============================================
   bot.action(/shot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -251,7 +251,6 @@ module.exports = (bot) => {
     const difficulty = match.difficulty;
     const player = match.team[match.currentShooter];
     
-    // ИИ вратарь выбирает действие
     const goalieAction = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'][Math.floor(Math.random() * 6)];
     const result = calculateShot(playerAction, goalieAction, difficulty);
     
@@ -262,28 +261,11 @@ module.exports = (bot) => {
       match.playerScore++;
     }
     
-    // ПЕРЕКЛЮЧАЕМ ХОД НА ИИ
     match.isPlayerTurn = false;
     match.waitingForGoalie = true;
     
-    // Проверяем окончание матча
-    const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
-    const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
+    // ✅ НЕ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ ДО ХОДА ИИ!
     
-    if (isSuddenDeath) {
-      match.isSuddenDeath = true;
-    }
-    
-    if (isFinishedAfterRounds) {
-      match.isFinished = true;
-    }
-    
-    if (match.isFinished) {
-      await finishMatch(ctx, user, match);
-      return;
-    }
-    
-    // ПОКАЗЫВАЕМ РЕЗУЛЬТАТ ХОДА ИГРОКА И ПРЕДЛАГАЕМ ВЫБРАТЬ ВРАТАРЯ
     let resultText = '🎯 *' + player.name + ' бросает!*\n';
     resultText += '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
     resultText += '🧤 *Вратарь ИИ:* ' + goalieNames[goalieAction] + '\n';
@@ -309,7 +291,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ХОД ИИ (ИГРОК ВЫБИРАЕТ ДЕЙСТВИЕ ВРАТАРЯ)
+  // ХОД ИИ
   // ============================================
   bot.action(/goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -329,7 +311,6 @@ module.exports = (bot) => {
     
     const difficulty = match.difficulty;
     
-    // ИИ выбирает бросок
     const aiAction = getAIShot(user.id, difficulty);
     const result = calculateShot(aiAction, goalieAction, difficulty);
     
@@ -340,7 +321,7 @@ module.exports = (bot) => {
     match.waitingForGoalie = false;
     match.isPlayerTurn = true;
     
-    // Проверяем окончание матча
+    // ✅ ТОЛЬКО ТЕПЕРЬ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ МАТЧА!
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -348,8 +329,7 @@ module.exports = (bot) => {
       match.isSuddenDeath = true;
     }
     
-    // В режиме "до гола" матч заканчивается, если кто-то забил в этом раунде
-    if (match.isSuddenDeath && (result.isGoal)) {
+    if (match.isSuddenDeath && result.isGoal) {
       match.isFinished = true;
     }
     
@@ -357,17 +337,18 @@ module.exports = (bot) => {
       match.isFinished = true;
     }
     
-    if (match.isFinished) {
-      await finishMatch(ctx, user, match);
-      return;
-    }
-    
-    // ПОКАЗЫВАЕМ РЕЗУЛЬТАТ ХОДА ИИ
+    // ✅ ПОКАЗЫВАЕМ РЕЗУЛЬТАТ ХОДА ИИ
     let resultText = '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
     resultText += '🧤 *Твой вратарь:* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+    
+    if (match.isFinished) {
+      await finishMatch(ctx, user, match);
+      return;
+    }
+    
     resultText += '*Выбери следующего игрока для буллита:*';
     
     const team = match.team;
@@ -392,9 +373,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ЗАВЕРШЕНИЕ МАТЧА
-  // ============================================
   async function finishMatch(ctx, user, match) {
     const users = getUsers();
     const data = users[user.id];
