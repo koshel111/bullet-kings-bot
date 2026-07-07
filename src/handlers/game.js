@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИГРА (УМНЫЙ ИИ)
+// src/handlers/game.js - ИГРА (РЕЙТИНГ НЕ УХОДИТ В МИНУС)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -28,11 +28,9 @@ const playerHistory = {};
 function getAIAction(playerId, difficulty = 1) {
   const actions = ['jumpLeft', 'jumpRight', 'stand', 'coverLow', 'glove', 'aggressive'];
   
-  // Получаем историю игрока
   const history = playerHistory[playerId] || [];
   const lastAction = history.length > 0 ? history[history.length - 1] : null;
   
-  // Веса для действий (изменяются в зависимости от истории)
   let weights = {
     jumpLeft: 1,
     jumpRight: 1,
@@ -42,7 +40,6 @@ function getAIAction(playerId, difficulty = 1) {
     aggressive: 1
   };
   
-  // Если игрок часто бросает в определённые зоны — ИИ адаптируется
   if (history.length > 3) {
     const lastThree = history.slice(-3);
     const leftCount = lastThree.filter(a => a === 'left').length;
@@ -53,7 +50,6 @@ function getAIAction(playerId, difficulty = 1) {
     const wristCount = lastThree.filter(a => a === 'wrist').length;
     const slapCount = lastThree.filter(a => a === 'slap').length;
     
-    // Увеличиваем вес действий, которые противостоят частым броскам
     if (leftCount >= 2) { weights.jumpRight += 2; weights.stand += 1; }
     if (rightCount >= 2) { weights.jumpLeft += 2; weights.stand += 1; }
     if (topCount >= 2) { weights.stand += 2; weights.glove += 1; }
@@ -63,7 +59,6 @@ function getAIAction(playerId, difficulty = 1) {
     if (slapCount >= 2) { weights.pads += 2; weights.glove += 1; }
   }
   
-  // Сложность влияет на точность ИИ
   const difficultyBonus = {
     novice: 0.5,
     amateur: 0.7,
@@ -71,13 +66,11 @@ function getAIAction(playerId, difficulty = 1) {
     legend: 1.5
   };
   
-  // Умножение весов на сложность
   const factor = difficultyBonus[difficulty] || 1;
   Object.keys(weights).forEach(key => {
     weights[key] = weights[key] * factor;
   });
   
-  // Выбор действия с весами
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
   let random = Math.random() * total;
   for (const [action, weight] of Object.entries(weights)) {
@@ -87,9 +80,6 @@ function getAIAction(playerId, difficulty = 1) {
   return actions[Math.floor(Math.random() * actions.length)];
 }
 
-// ============================================
-// РАСЧЁТ БРОСКА (С УЧЁТОМ СЛОЖНОСТИ)
-// ============================================
 function calculateShot(playerAction, goalieAction, difficulty = 1) {
   const actionBonus = {
     'left': { 'jumpRight': 0.8, 'stand': 0.5, 'coverLow': 0.3 },
@@ -104,7 +94,6 @@ function calculateShot(playerAction, goalieAction, difficulty = 1) {
   const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
   const randomFactor = 0.7 + Math.random() * 0.6;
   
-  // Сложность ИИ влияет на защиту
   const difficultyBonus = {
     novice: 1.5,
     amateur: 1.2,
@@ -166,7 +155,6 @@ module.exports = (bot) => {
     const difficulty = ctx.match[1];
     const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
     
-    // Инициализируем историю для игрока
     const user = ctx.from;
     if (!playerHistory[user.id]) {
       playerHistory[user.id] = [];
@@ -198,27 +186,20 @@ module.exports = (bot) => {
     const users = getUsers();
     const data = users[user.id];
     
-    // Сохраняем действие игрока в историю
     if (!playerHistory[user.id]) {
       playerHistory[user.id] = [];
     }
     playerHistory[user.id].push(playerAction);
-    // Ограничиваем историю 10 последними действиями
     if (playerHistory[user.id].length > 10) {
       playerHistory[user.id].shift();
     }
     
-    // Сложность (по умолчанию Профессионал)
     const difficulty = 'pro';
     const difficultyNames = { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' };
     
-    // Действие вратаря (ИИ с анализом истории)
     const goalieAction = getAIAction(user.id, difficulty);
-    
-    // Расчёт броска
     const result = calculateShot(playerAction, goalieAction, difficulty);
     
-    // Названия действий
     const actionNames = {
       left: '⬅️ Влево',
       right: '➡️ Вправо',
@@ -238,14 +219,14 @@ module.exports = (bot) => {
       aggressive: '💪 Агрессивный'
     };
     
-    // Обновление статистики
     if (result.isGoal) {
       data.wins++;
       data.coins += 20;
       data.rating += 25;
     } else {
       data.losses++;
-      data.rating -= 10;
+      // ✅ РЕЙТИНГ НЕ УХОДИТ В МИНУС!
+      data.rating = Math.max(0, data.rating - 10);
     }
     data.matches++;
     data.league = data.rating >= 2000 ? 'Легенда' :
@@ -257,7 +238,6 @@ module.exports = (bot) => {
     
     saveUsers(users);
     
-    // Эмодзи в зависимости от результата
     const resultEmoji = result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*';
     const ratingChange = result.isGoal ? '+25' : '-10';
     const coinsChange = result.isGoal ? '+20' : '0';
