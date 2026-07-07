@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - С ПОСЛЕДНИМ БРОСКОМ
+// src/handlers/game.js - ПОЛНАЯ ВЕРСИЯ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -100,6 +100,9 @@ const goalieNames = {
 
 module.exports = (bot) => {
   
+  // ============================================
+  // ГЛАВНОЕ МЕНЮ
+  // ============================================
   bot.action('play', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -115,6 +118,9 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // ВЫБОР СЛОЖНОСТИ
+  // ============================================
   bot.action('play_ai', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -132,6 +138,9 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // НАЧАЛО МАТЧА
+  // ============================================
   bot.action(/difficulty_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
@@ -145,10 +154,142 @@ module.exports = (bot) => {
     
     const users = getUsers();
     const data = users[user.id];
+    const allCards = data.cards || [];
+    const currentTeam = data.team || [];
+    
+    await showTeamSelection(ctx, user, difficulty, difficultyNames, allCards, currentTeam);
+  });
+
+  // ============================================
+  // ПОКАЗ ВЫБОРА СОСТАВА
+  // ============================================
+  async function showTeamSelection(ctx, user, difficulty, difficultyNames, allCards, currentTeam) {
+    const forwards = allCards.filter(c => c.position !== 'G');
+    const goalies = allCards.filter(c => c.position === 'G');
+    
+    let text = '🧑‍🏫 *Выбери состав на матч!*\n\n';
+    text += '📋 *Выбери 5 полевых игроков:*\n';
+    
+    const buttons = [];
+    
+    forwards.forEach((player, index) => {
+      const emoji = getRarityEmoji(player.rarity);
+      const isSelected = currentTeam.some(p => p.id === player.id && p.position !== 'G');
+      buttons.push([Markup.button.callback(
+        (isSelected ? '✅ ' : '➕ ') + emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
+        'select_forward_' + index
+      )]);
+    });
+    
+    text += '\n🧤 *Выбери вратаря:*\n';
+    goalies.forEach((player, index) => {
+      const emoji = getRarityEmoji(player.rarity);
+      const isSelected = currentTeam.some(p => p.id === player.id && p.position === 'G');
+      buttons.push([Markup.button.callback(
+        (isSelected ? '✅ ' : '🧤 ') + emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
+        'select_goalie_' + index
+      )]);
+    });
+    
+    buttons.push([Markup.button.callback('✅ Готово! Начать матч', 'start_match_' + difficulty)]);
+    buttons.push([Markup.button.callback('🔙 Назад', 'play_ai')]);
+    
+    await ctx.editMessageText(
+      text,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(buttons)
+      }
+    );
+  }
+
+  // ============================================
+  // ВЫБОР ПОЛЕВОГО ИГРОКА
+  // ============================================
+  bot.action(/select_forward_(.+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const index = parseInt(ctx.match[1]);
+    const user = ctx.from;
+    const users = getUsers();
+    const data = users[user.id];
+    const allCards = data.cards || [];
+    const forwards = allCards.filter(c => c.position !== 'G');
+    const player = forwards[index];
+    
+    if (!player) {
+      await ctx.editMessageText('❌ Игрок не найден!');
+      return;
+    }
+    
+    const isInTeam = data.team.some(p => p.id === player.id);
+    const forwardsCount = data.team.filter(p => p.position !== 'G').length;
+    
+    if (isInTeam) {
+      data.team = data.team.filter(p => p.id !== player.id);
+    } else {
+      if (forwardsCount >= 5) {
+        await ctx.editMessageText('❌ В команде уже 5 полевых игроков!');
+        return;
+      }
+      data.team.push({ ...player, count: 1 });
+    }
+    
+    saveUsers(users);
+    await showTeamSelection(ctx, user, 'pro', { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' }, allCards, data.team);
+  });
+
+  // ============================================
+  // ВЫБОР ВРАТАРЯ
+  // ============================================
+  bot.action(/select_goalie_(.+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const index = parseInt(ctx.match[1]);
+    const user = ctx.from;
+    const users = getUsers();
+    const data = users[user.id];
+    const allCards = data.cards || [];
+    const goalies = allCards.filter(c => c.position === 'G');
+    const player = goalies[index];
+    
+    if (!player) {
+      await ctx.editMessageText('❌ Вратарь не найден!');
+      return;
+    }
+    
+    data.team = data.team.filter(p => p.position !== 'G');
+    data.team.push({ ...player, count: 1 });
+    
+    saveUsers(users);
+    await showTeamSelection(ctx, user, 'pro', { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' }, allCards, data.team);
+  });
+
+  // ============================================
+  // НАЧАЛО МАТЧА
+  // ============================================
+  bot.action(/start_match_(.+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const difficulty = ctx.match[1];
+    const difficultyNames = { 
+      novice: 'Новичок', 
+      amateur: 'Любитель', 
+      pro: 'Профессионал', 
+      legend: 'Легенда' 
+    };
+    const user = ctx.from;
+    const users = getUsers();
+    const data = users[user.id];
     const team = data.team || [];
     
-    if (team.length === 0) {
-      await ctx.editMessageText('❌ У тебя нет игроков в команде! Открой паки в магазине.');
+    const forwards = team.filter(p => p.position !== 'G');
+    const goalie = team.find(p => p.position === 'G');
+    
+    if (forwards.length < 5) {
+      await ctx.editMessageText('❌ Нужно выбрать 5 полевых игроков!');
+      return;
+    }
+    
+    if (!goalie) {
+      await ctx.editMessageText('❌ Нужно выбрать вратаря!');
       return;
     }
     
@@ -172,8 +313,12 @@ module.exports = (bot) => {
     await showPlayerSelection(ctx, user, matches[user.id]);
   });
 
+  // ============================================
+  // ПОКАЗ ВЫБОРА ИГРОКА ДЛЯ БУЛЛИТА
+  // ============================================
   async function showPlayerSelection(ctx, user, match) {
-    const team = match.team;
+    // ✅ ТОЛЬКО ПОЛЕВЫЕ ИГРОКИ (НЕ ВРАТАРИ!)
+    const team = match.team.filter(p => p.position !== 'G');
     const buttons = [];
     
     team.forEach((player, index) => {
@@ -193,7 +338,7 @@ module.exports = (bot) => {
     }
     text += '📊 Счёт: Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
     text += '🔢 Раунд ' + (match.round + 1) + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
-    text += '*Выбери игрока, который будет бить буллит:*';
+    text += '*Выбери полевого игрока, который будет бить буллит:*';
     
     await ctx.editMessageText(
       text,
@@ -204,6 +349,9 @@ module.exports = (bot) => {
     );
   }
 
+  // ============================================
+  // ВЫБОР ИГРОКА ДЛЯ БУЛЛИТА
+  // ============================================
   bot.action(/select_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -215,11 +363,18 @@ module.exports = (bot) => {
       return;
     }
     
-    const player = match.team[playerIndex];
+    const forwards = match.team.filter(p => p.position !== 'G');
+    const player = forwards[playerIndex];
+    
+    if (!player) {
+      await ctx.editMessageText('❌ Игрок не найден!');
+      return;
+    }
+    
     match.currentShooter = playerIndex;
     
     await ctx.editMessageText(
-      '🎯 *Выбран игрок:* ' + player.name + ' (' + player.overall + ' OVR)\n\n' +
+      '🎯 *Выбран полевой игрок:* ' + player.name + ' (' + player.overall + ' OVR)\n\n' +
       '*Выбери действие:*',
       {
         parse_mode: 'Markdown',
@@ -236,6 +391,9 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // ХОД ИГРОКА
+  // ============================================
   bot.action(/shot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerAction = ctx.match[1];
@@ -253,7 +411,13 @@ module.exports = (bot) => {
     }
     
     const difficulty = match.difficulty;
-    const player = match.team[match.currentShooter];
+    const forwards = match.team.filter(p => p.position !== 'G');
+    const player = forwards[match.currentShooter];
+    
+    if (!player) {
+      await ctx.editMessageText('❌ Ошибка: игрок не найден!');
+      return;
+    }
     
     const goalieAction = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'][Math.floor(Math.random() * 6)];
     const result = calculateShot(playerAction, goalieAction, difficulty);
@@ -268,7 +432,6 @@ module.exports = (bot) => {
     match.isPlayerTurn = false;
     match.waitingForGoalie = true;
     
-    // Сохраняем информацию о последнем броске
     match.lastShot = '🎯 ' + player.name + ' — ' + actionNames[playerAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ!' : '😤 СЭЙВ!');
     
     let resultText = '🎯 *' + player.name + ' бросает!*\n';
@@ -295,6 +458,9 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // ХОД ИИ
+  // ============================================
   bot.action(/goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const goalieAction = ctx.match[1];
@@ -323,7 +489,6 @@ module.exports = (bot) => {
     match.waitingForGoalie = false;
     match.isPlayerTurn = true;
     
-    // Сохраняем последний бросок ИИ
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
@@ -348,17 +513,16 @@ module.exports = (bot) => {
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
     
     if (match.isFinished) {
-      // Добавляем информацию о последнем броске в завершение
       await finishMatch(ctx, user, match);
       return;
     }
     
-    resultText += '*Выбери следующего игрока для буллита:*';
+    resultText += '*Выбери следующего полевого игрока для буллита:*';
     
-    const team = match.team;
+    const forwards = match.team.filter(p => p.position !== 'G');
     const buttons = [];
     
-    team.forEach((player, index) => {
+    forwards.forEach((player, index) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
@@ -377,6 +541,9 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // ЗАВЕРШЕНИЕ МАТЧА
+  // ============================================
   async function finishMatch(ctx, user, match) {
     const users = getUsers();
     const data = users[user.id];
@@ -411,7 +578,6 @@ module.exports = (bot) => {
     
     let resultText = '🏁 *МАТЧ ЗАВЕРШЁН!*\n\n';
     
-    // Показываем последний бросок
     if (match.lastShot) {
       resultText += '⚡ *Последний бросок:*\n';
       resultText += '  ' + match.lastShot + '\n\n';
@@ -449,6 +615,9 @@ module.exports = (bot) => {
     );
   }
 
+  // ============================================
+  // СДАЧА
+  // ============================================
   bot.action('forfeit', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -468,6 +637,9 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // PVP (В РАЗРАБОТКЕ)
+  // ============================================
   bot.action('play_pvp', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -485,4 +657,19 @@ module.exports = (bot) => {
       }
     );
   });
+
+  // ============================================
+  // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ
+  // ============================================
+  function getRarityEmoji(rarity) {
+    const map = {
+      'Обычный': '⬜',
+      'Редкий': '🟩',
+      'Элитный': '🔵',
+      'Эпический': '🟣',
+      'Легендарный': '⭐',
+      'Икона': '🔥'
+    };
+    return map[rarity] || '⬜';
+  }
 };
