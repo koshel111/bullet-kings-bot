@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ ПОРЯДОК ХОДОВ
+// src/handlers/game.js - С ПОСЛЕДНИМ БРОСКОМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -165,7 +165,8 @@ module.exports = (bot) => {
       isPlayerTurn: true,
       currentShooter: 0,
       team: team,
-      waitingForGoalie: false
+      waitingForGoalie: false,
+      lastShot: null
     };
     
     await showPlayerSelection(ctx, user, matches[user.id]);
@@ -185,11 +186,17 @@ module.exports = (bot) => {
     
     buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
     
+    let text = '🤖 *Матч против ИИ (' + match.difficultyName + ')*\n\n';
+    if (match.lastShot) {
+      text += '⚡ *Последний бросок:*\n';
+      text += '  ' + match.lastShot + '\n\n';
+    }
+    text += '📊 Счёт: Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
+    text += '🔢 Раунд ' + (match.round + 1) + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+    text += '*Выбери игрока, который будет бить буллит:*';
+    
     await ctx.editMessageText(
-      '🤖 *Матч против ИИ (' + match.difficultyName + ')*\n\n' +
-      '📊 Счёт: Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n' +
-      '🔢 Раунд ' + (match.round + 1) + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n' +
-      '*Выбери игрока, который будет бить буллит:*',
+      text,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard(buttons)
@@ -229,9 +236,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ХОД ИГРОКА
-  // ============================================
   bot.action(/shot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerAction = ctx.match[1];
@@ -264,7 +268,8 @@ module.exports = (bot) => {
     match.isPlayerTurn = false;
     match.waitingForGoalie = true;
     
-    // ✅ НЕ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ ДО ХОДА ИИ!
+    // Сохраняем информацию о последнем броске
+    match.lastShot = '🎯 ' + player.name + ' — ' + actionNames[playerAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ!' : '😤 СЭЙВ!');
     
     let resultText = '🎯 *' + player.name + ' бросает!*\n';
     resultText += '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
@@ -290,9 +295,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ХОД ИИ
-  // ============================================
   bot.action(/goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const goalieAction = ctx.match[1];
@@ -321,7 +323,9 @@ module.exports = (bot) => {
     match.waitingForGoalie = false;
     match.isPlayerTurn = true;
     
-    // ✅ ТОЛЬКО ТЕПЕРЬ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ МАТЧА!
+    // Сохраняем последний бросок ИИ
+    match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
+    
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -337,7 +341,6 @@ module.exports = (bot) => {
       match.isFinished = true;
     }
     
-    // ✅ ПОКАЗЫВАЕМ РЕЗУЛЬТАТ ХОДА ИИ
     let resultText = '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
     resultText += '🧤 *Твой вратарь:* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
@@ -345,6 +348,7 @@ module.exports = (bot) => {
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
     
     if (match.isFinished) {
+      // Добавляем информацию о последнем броске в завершение
       await finishMatch(ctx, user, match);
       return;
     }
@@ -406,6 +410,13 @@ module.exports = (bot) => {
     delete matches[user.id];
     
     let resultText = '🏁 *МАТЧ ЗАВЕРШЁН!*\n\n';
+    
+    // Показываем последний бросок
+    if (match.lastShot) {
+      resultText += '⚡ *Последний бросок:*\n';
+      resultText += '  ' + match.lastShot + '\n\n';
+    }
+    
     resultText += '📊 *Итоговый счёт:*\n';
     resultText += '🔥 Ты: ' + matchResult.playerScore + '\n';
     resultText += '🤖 ИИ: ' + matchResult.aiScore + '\n';
