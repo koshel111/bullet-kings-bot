@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ПОЛНАЯ ВЕРСИЯ
+// src/handlers/game.js - С ИМЕНЕМ ВРАТАРЯ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -100,9 +100,6 @@ const goalieNames = {
 
 module.exports = (bot) => {
   
-  // ============================================
-  // ГЛАВНОЕ МЕНЮ
-  // ============================================
   bot.action('play', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -118,9 +115,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ВЫБОР СЛОЖНОСТИ
-  // ============================================
   bot.action('play_ai', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -138,9 +132,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // НАЧАЛО МАТЧА
-  // ============================================
   bot.action(/difficulty_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
@@ -160,9 +151,6 @@ module.exports = (bot) => {
     await showTeamSelection(ctx, user, difficulty, difficultyNames, allCards, currentTeam);
   });
 
-  // ============================================
-  // ПОКАЗ ВЫБОРА СОСТАВА
-  // ============================================
   async function showTeamSelection(ctx, user, difficulty, difficultyNames, allCards, currentTeam) {
     const forwards = allCards.filter(c => c.position !== 'G');
     const goalies = allCards.filter(c => c.position === 'G');
@@ -203,9 +191,6 @@ module.exports = (bot) => {
     );
   }
 
-  // ============================================
-  // ВЫБОР ПОЛЕВОГО ИГРОКА
-  // ============================================
   bot.action(/select_forward_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const index = parseInt(ctx.match[1]);
@@ -238,9 +223,6 @@ module.exports = (bot) => {
     await showTeamSelection(ctx, user, 'pro', { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' }, allCards, data.team);
   });
 
-  // ============================================
-  // ВЫБОР ВРАТАРЯ
-  // ============================================
   bot.action(/select_goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const index = parseInt(ctx.match[1]);
@@ -263,9 +245,6 @@ module.exports = (bot) => {
     await showTeamSelection(ctx, user, 'pro', { novice: 'Новичок', amateur: 'Любитель', pro: 'Профессионал', legend: 'Легенда' }, allCards, data.team);
   });
 
-  // ============================================
-  // НАЧАЛО МАТЧА
-  // ============================================
   bot.action(/start_match_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
@@ -313,11 +292,7 @@ module.exports = (bot) => {
     await showPlayerSelection(ctx, user, matches[user.id]);
   });
 
-  // ============================================
-  // ПОКАЗ ВЫБОРА ИГРОКА ДЛЯ БУЛЛИТА
-  // ============================================
   async function showPlayerSelection(ctx, user, match) {
-    // ✅ ТОЛЬКО ПОЛЕВЫЕ ИГРОКИ (НЕ ВРАТАРИ!)
     const team = match.team.filter(p => p.position !== 'G');
     const buttons = [];
     
@@ -349,9 +324,6 @@ module.exports = (bot) => {
     );
   }
 
-  // ============================================
-  // ВЫБОР ИГРОКА ДЛЯ БУЛЛИТА
-  // ============================================
   bot.action(/select_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -392,7 +364,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ХОД ИГРОКА
+  // ХОД ИГРОКА — С ИМЕНЕМ ВРАТАРЯ
   // ============================================
   bot.action(/shot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -413,6 +385,7 @@ module.exports = (bot) => {
     const difficulty = match.difficulty;
     const forwards = match.team.filter(p => p.position !== 'G');
     const player = forwards[match.currentShooter];
+    const goalie = match.team.find(p => p.position === 'G');
     
     if (!player) {
       await ctx.editMessageText('❌ Ошибка: игрок не найден!');
@@ -436,7 +409,14 @@ module.exports = (bot) => {
     
     let resultText = '🎯 *' + player.name + ' бросает!*\n';
     resultText += '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
-    resultText += '🧤 *Вратарь ИИ:* ' + goalieNames[goalieAction] + '\n';
+    
+    // ✅ ВМЕСТО "ДЕЙСТВИЕ ВРАТАРЯ" — ИМЯ ВРАТАРЯ!
+    if (goalie) {
+      resultText += '🧤 *' + goalie.name + ':* ' + goalieNames[goalieAction] + '\n';
+    } else {
+      resultText += '🧤 *Вратарь:* ' + goalieNames[goalieAction] + '\n';
+    }
+    
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
@@ -459,7 +439,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ХОД ИИ
+  // ХОД ИИ — С ИМЕНЕМ ВРАТАРЯ
   // ============================================
   bot.action(/goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -478,6 +458,7 @@ module.exports = (bot) => {
     }
     
     const difficulty = match.difficulty;
+    const goalie = match.team.find(p => p.position === 'G');
     
     const aiAction = getAIShot(user.id, difficulty);
     const result = calculateShot(aiAction, goalieAction, difficulty);
@@ -507,7 +488,14 @@ module.exports = (bot) => {
     }
     
     let resultText = '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
-    resultText += '🧤 *Твой вратарь:* ' + goalieNames[goalieAction] + '\n';
+    
+    // ✅ ВМЕСТО "ДЕЙСТВИЕ ВРАТАРЯ" — ИМЯ ВРАТАРЯ!
+    if (goalie) {
+      resultText += '🧤 *' + goalie.name + ':* ' + goalieNames[goalieAction] + '\n';
+    } else {
+      resultText += '🧤 *Вратарь:* ' + goalieNames[goalieAction] + '\n';
+    }
+    
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
@@ -541,9 +529,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ЗАВЕРШЕНИЕ МАТЧА
-  // ============================================
   async function finishMatch(ctx, user, match) {
     const users = getUsers();
     const data = users[user.id];
@@ -615,9 +600,6 @@ module.exports = (bot) => {
     );
   }
 
-  // ============================================
-  // СДАЧА
-  // ============================================
   bot.action('forfeit', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -637,9 +619,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // PVP (В РАЗРАБОТКЕ)
-  // ============================================
   bot.action('play_pvp', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
@@ -658,9 +637,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ
-  // ============================================
   function getRarityEmoji(rarity) {
     const map = {
       'Обычный': '⬜',
