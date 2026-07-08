@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/start.js - ГЛАВНОЕ МЕНЮ (ИСПРАВЛЕНО)
+// src/handlers/start.js - С БОЕВЫМ ПРОПУСКОМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -21,9 +21,6 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// ============================================
-// ФУНКЦИЯ ПОКАЗА ГЛАВНОГО МЕНЮ
-// ============================================
 async function showMainMenu(ctx, bot) {
   const user = ctx.from;
   const users = getUsers();
@@ -61,7 +58,6 @@ async function showMainMenu(ctx, bot) {
     '📚 Карт: ' + data.cards.length + '\n\n' +
     'Выбери действие:';
   
-  // ✅ ИСПРАВЛЕНО: Используем reply вместо editMessageText
   await ctx.reply(text, {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard([
@@ -71,22 +67,17 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback('🛒 Магазин', 'shop')],
       [Markup.button.callback('👤 Профиль', 'profile')],
       [Markup.button.callback('📅 Бонус', 'bonus')],
+      [Markup.button.callback('🎖️ Боевой пропуск', 'menu_battlepass')],  // ← НОВАЯ КНОПКА!
     ])
   });
 }
 
 module.exports = (bot) => {
   
-  // ============================================
-  // ОБРАБОТЧИК /start
-  // ============================================
   bot.start(async (ctx) => {
     await showMainMenu(ctx, bot);
   });
 
-  // ============================================
-  // КНОПКА НАЗАД - РАБОТАЕТ!
-  // ============================================
   bot.action('back', async (ctx) => {
     await ctx.answerCbQuery();
     await showMainMenu(ctx, bot);
