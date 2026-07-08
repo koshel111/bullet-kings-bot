@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shopCosmetics.js - МАГАЗИН КОСМЕТИКИ
+// src/handlers/shopCosmetics.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -54,7 +54,7 @@ function getTimeUntilNextRotation() {
   const minutes = Math.floor(diff / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
   
-  return ${minutes}м с;
+  return `${minutes}м ${seconds}с`;
 }
 
 async function showCosmeticsMenu(ctx) {
@@ -79,20 +79,20 @@ async function showJerseys(ctx) {
   const timeLeft = getTimeUntilNextRotation();
   
   let text = "🎽 *Формы*\n";
-  text += 🔄 Обновление через: \n\n;
+  text += `🔄 Обновление через: ${timeLeft}\n\n`;
   
   const buttons = [];
   
   rotation.jerseys.forEach((jersey) => {
     const color = getRarityColor(jersey.rarity);
-    const priceText = jersey.priceCoins ? ${jersey.priceCoins}⭐ : ${jersey.priceCrystals}💎;
+    const priceText = jersey.priceCoins ? `${jersey.priceCoins}⭐` : `${jersey.priceCrystals}💎`;
     
-    text += ${color}  — \n;
-    text +=    \n\n;
+    text += `${color} ${jersey.name} — ${jersey.rarity}\n`;
+    text += `   ${priceText}\n\n`;
     
     buttons.push([Markup.button.callback(
-      ${jersey.emoji}  (),
-      uy_jersey_
+      `${jersey.emoji} ${jersey.name} (${priceText})`,
+      `buy_jersey_${jersey.id}`
     )]);
   });
   
@@ -112,20 +112,20 @@ async function showArenas(ctx) {
   const timeLeft = getTimeUntilNextRotation();
   
   let text = "🏟️ *Арены*\n";
-  text += 🔄 Обновление через: \n\n;
+  text += `🔄 Обновление через: ${timeLeft}\n\n`;
   
   const buttons = [];
   
   rotation.arenas.forEach((arena) => {
     const color = getRarityColor(arena.rarity);
-    const priceText = arena.priceCoins ? ${arena.priceCoins}⭐ : ${arena.priceCrystals}💎;
+    const priceText = arena.priceCoins ? `${arena.priceCoins}⭐` : `${arena.priceCrystals}💎`;
     
-    text += ${color}  — \n;
-    text +=    \n\n;
+    text += `${color} ${arena.name} — ${arena.rarity}\n`;
+    text += `   ${priceText}\n\n`;
     
     buttons.push([Markup.button.callback(
-      ${arena.emoji}  (),
-      uy_arena_
+      `${arena.emoji} ${arena.name} (${priceText})`,
+      `buy_arena_${arena.id}`
     )]);
   });
   
@@ -154,7 +154,7 @@ async function buyJersey(ctx, jerseyId) {
   if (data.jerseys && data.jerseys.includes(jerseyId)) {
     await ctx.editMessageText(
       "❌ *У тебя уже есть эта форма!*\n\n" +
-      ${jersey.emoji} ,
+      `${jersey.emoji} ${jersey.name}`,
       {
         parse_mode: "Markdown",
         ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_jerseys")]])
@@ -166,7 +166,7 @@ async function buyJersey(ctx, jerseyId) {
   if (jersey.priceCoins) {
     if ((data.coins || 0) < jersey.priceCoins) {
       await ctx.editMessageText(
-        ❌ *Недостаточно монет!*\n\nНужно: ⭐\nУ тебя: ⭐,
+        `❌ *Недостаточно монет!*\n\nНужно: ${jersey.priceCoins}⭐\nУ тебя: ${data.coins || 0}⭐`,
         {
           parse_mode: "Markdown",
           ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_jerseys")]])
@@ -178,7 +178,7 @@ async function buyJersey(ctx, jerseyId) {
   } else if (jersey.priceCrystals) {
     if ((data.crystals || 0) < jersey.priceCrystals) {
       await ctx.editMessageText(
-        ❌ *Недостаточно кристаллов!*\n\nНужно: 💎\nУ тебя: 💎,
+        `❌ *Недостаточно кристаллов!*\n\nНужно: ${jersey.priceCrystals}💎\nУ тебя: ${data.crystals || 0}💎`,
         {
           parse_mode: "Markdown",
           ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_jerseys")]])
@@ -194,11 +194,11 @@ async function buyJersey(ctx, jerseyId) {
   
   saveUsers(users);
   
-  let text = ✅ *Форма куплена!*\n\n \nРедкость: \nЛига: ;
+  let text = `✅ *Форма куплена!*\n\n${jersey.emoji} ${jersey.name}\nРедкость: ${jersey.rarity}\nЛига: ${jersey.league}`;
   if (jersey.photo) {
-    text += \n\n📸 [Фото формы]();
+    text += `\n\n📸 [Фото формы](${jersey.photo})`;
   }
-  text += \n\n💡 Теперь ты можешь использовать эту форму в матчах!;
+  text += `\n\n💡 Теперь ты можешь использовать эту форму в матчах!`;
   
   await ctx.editMessageText(
     text,
@@ -226,7 +226,7 @@ async function buyArena(ctx, arenaId) {
   if (data.arenas && data.arenas.includes(arenaId)) {
     await ctx.editMessageText(
       "❌ *У тебя уже есть эта арена!*\n\n" +
-      ${arena.emoji} ,
+      `${arena.emoji} ${arena.name}`,
       {
         parse_mode: "Markdown",
         ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_arenas")]])
@@ -238,7 +238,7 @@ async function buyArena(ctx, arenaId) {
   if (arena.priceCoins) {
     if ((data.coins || 0) < arena.priceCoins) {
       await ctx.editMessageText(
-        ❌ *Недостаточно монет!*\n\nНужно: ⭐\nУ тебя: ⭐,
+        `❌ *Недостаточно монет!*\n\nНужно: ${arena.priceCoins}⭐\nУ тебя: ${data.coins || 0}⭐`,
         {
           parse_mode: "Markdown",
           ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_arenas")]])
@@ -250,7 +250,7 @@ async function buyArena(ctx, arenaId) {
   } else if (arena.priceCrystals) {
     if ((data.crystals || 0) < arena.priceCrystals) {
       await ctx.editMessageText(
-        ❌ *Недостаточно кристаллов!*\n\nНужно: 💎\nУ тебя: 💎,
+        `❌ *Недостаточно кристаллов!*\n\nНужно: ${arena.priceCrystals}💎\nУ тебя: ${data.crystals || 0}💎`,
         {
           parse_mode: "Markdown",
           ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_arenas")]])
@@ -267,7 +267,7 @@ async function buyArena(ctx, arenaId) {
   saveUsers(users);
   
   await ctx.editMessageText(
-    ✅ *Арена куплена!*\n\n \nРедкость: \nЛига: \n\n💡 Теперь ты можешь играть на этой арене!,
+    `✅ *Арена куплена!*\n\n${arena.emoji} ${arena.name}\nРедкость: ${arena.rarity}\nЛига: ${arena.league}\n\n💡 Теперь ты можешь играть на этой арене!`,
     {
       parse_mode: "Markdown",
       ...Markup.inlineKeyboard([
