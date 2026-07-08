@@ -33,35 +33,69 @@ function getPositionEmoji(position) {
 }
 
 // ============================================
-// ТАЙМЕР 24 ЧАСА ОТ ПОСЛЕДНЕГО БОНУСА
+// src/handlers/profile.js - ТОЛЬКО БОНУС (ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ)
 // ============================================
-function getTimeUntilNextBonus(lastBonusDate) {
-  const now = new Date();
+
+// ... ВСЁ ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ ...
+
+module.exports = (bot) => {
   
-  // Если бонус не получен — возвращаем "Доступен!"
-  if (!lastBonusDate) {
-    return '🎁 Доступен!';
-  }
-  
-  // Создаём дату следующего бонуса (через 24 часа)
-  const nextBonus = new Date(lastBonusDate);
-  nextBonus.setDate(nextBonus.getDate() + 1);
-  nextBonus.setHours(nextBonus.getHours(), nextBonus.getMinutes(), nextBonus.getSeconds(), 0);
-  
-  // Считаем разницу
-  const diff = nextBonus - now;
-  
-  // Если время вышло — бонус доступен
-  if (diff <= 0) {
-    return '🎁 Доступен!';
-  }
-  
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-  
-  return `${hours}ч ${minutes}м ${seconds}с`;
-}
+  // ============================================
+  // БОНУС — ИСПРАВЛЕННЫЙ
+  // ============================================
+  bot.action('bonus', async (ctx) => {
+    await ctx.answerCbQuery();
+    const user = ctx.from;
+    const users = getUsers();
+    const data = users[user.id];
+    
+    const now = new Date();
+    
+    // Проверяем, есть ли lastBonus
+    if (data.lastBonus) {
+      const lastBonusDate = new Date(data.lastBonus);
+      const nextBonus = new Date(lastBonusDate);
+      nextBonus.setHours(nextBonus.getHours() + 24);
+      
+      const diff = nextBonus - now;
+      
+      // Если время ещё не вышло
+      if (diff > 0) {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        await ctx.editMessageText(
+          `⏳ *Бонус уже получен!*\n\n` +
+          `🕐 Следующий бонус через: ${hours}ч ${minutes}м ${seconds}с`,
+          {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+          }
+        );
+        return;
+      }
+    }
+    
+    // Даём бонус
+    const bonus = Math.floor(Math.random() * 50) + 10;
+    data.coins += bonus;
+    data.lastBonus = now.toISOString();  // ← СОХРАНЯЕМ!
+    saveUsers(users);
+    
+    await ctx.editMessageText(
+      `🎁 *Бонус получен!*\n\n` +
+      `⭐ +${bonus} монет\n` +
+      `🕐 Следующий бонус через: 24ч 0м 0с`,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+      }
+    );
+  });
+
+  // ... ВСЁ ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ ...
+};
 
 // ============================================
 // ГЛАВНЫЙ ЭКРАН КОМАНДЫ
