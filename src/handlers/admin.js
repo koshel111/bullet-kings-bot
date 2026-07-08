@@ -1,10 +1,11 @@
 ﻿// ============================================
-// src/handlers/admin.js - АДМИНКА
+// src/handlers/admin.js - ПОЛНАЯ АДМИНКА
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
+const { getRandomCard, getRarityEmoji } = require('../data/players');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -36,18 +37,24 @@ async function showAdminMenu(ctx) {
   const totalUsers = Object.keys(users).length;
   let totalCards = 0;
   let totalMatches = 0;
+  let totalCoins = 0;
+  let totalCrystals = 0;
   
   Object.values(users).forEach(data => {
     totalCards += data.cards?.length || 0;
     totalMatches += data.matches || 0;
+    totalCoins += data.coins || 0;
+    totalCrystals += data.crystals || 0;
   });
   
   const text = 
     '👑 *АДМИН-ПАНЕЛЬ*\n\n' +
-    `📊 *Статистика:*\n` +
+    `📊 *СТАТИСТИКА:*\n` +
     `👥 Пользователей: ${totalUsers}\n` +
     `📚 Всего карт: ${totalCards}\n` +
-    `⚔️ Матчей: ${totalMatches}\n\n` +
+    `⚔️ Матчей: ${totalMatches}\n` +
+    `⭐ Монет в игре: ${totalCoins}\n` +
+    `💎 Кристаллов: ${totalCrystals}\n\n` +
     '*Выбери действие:*';
   
   await ctx.reply(text, {
@@ -56,6 +63,7 @@ async function showAdminMenu(ctx) {
       [Markup.button.callback('💰 Выдать монеты', 'admin_coins')],
       [Markup.button.callback('💎 Выдать кристаллы', 'admin_crystals')],
       [Markup.button.callback('📦 Выдать карту', 'admin_card')],
+      [Markup.button.callback('🎁 Сезонный пак', 'admin_season')],
       [Markup.button.callback('📢 Рассылка', 'admin_broadcast')],
       [Markup.button.callback('🗑️ Очистить БД', 'admin_clear_db')],
       [Markup.button.callback('🔙 Назад', 'back')],
@@ -66,8 +74,9 @@ async function showAdminMenu(ctx) {
     reply_markup: {
       keyboard: [
         ['💰 Выдать монеты', '💎 Выдать кристаллы'],
-        ['📦 Выдать карту', '📢 Рассылка'],
-        ['🗑️ Очистить БД', '🔙 Назад'],
+        ['📦 Выдать карту', '🎁 Сезонный пак'],
+        ['📢 Рассылка', '🗑️ Очистить БД'],
+        ['🔙 Назад'],
       ],
       resize_keyboard: true,
       one_time_keyboard: false
@@ -96,10 +105,7 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await ctx.reply(
       '💰 *Выдать монеты*\n\nОтправь ID и сумму через пробел:\n`123456789 500`\nИли `all 100`',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
-      }
+      { parse_mode: 'Markdown' }
     );
   });
 
@@ -107,10 +113,7 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await ctx.reply(
       '💎 *Выдать кристаллы*\n\nОтправь ID и сумму через пробел:\n`123456789 50`\nИли `all 10`',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
-      }
+      { parse_mode: 'Markdown' }
     );
   });
 
@@ -118,10 +121,15 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await ctx.reply(
       '📦 *Выдать карту*\n\nОтправь ID пользователя и название карты:\n`123456789 Александр Овечкин`',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
-      }
+      { parse_mode: 'Markdown' }
+    );
+  });
+
+  bot.action('admin_season', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(
+      '🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all` для всех.',
+      { parse_mode: 'Markdown' }
     );
   });
 
@@ -129,10 +137,7 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await ctx.reply(
       '📢 *Рассылка*\n\nОтправь сообщение для рассылки всем пользователям.',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
-      }
+      { parse_mode: 'Markdown' }
     );
   });
 
@@ -164,7 +169,7 @@ module.exports = (bot) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply(
-      '💰 *Выдать монеты*\n\nОтправь ID и сумму через пробел:\n`123456789 500`\nИли `all 100`',
+      '💰 *Выдать монеты*\n\nОтправь ID и сумму:\n`123456789 500`\nИли `all 100`',
       { parse_mode: 'Markdown' }
     );
   });
@@ -173,7 +178,7 @@ module.exports = (bot) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply(
-      '💎 *Выдать кристаллы*\n\nОтправь ID и сумму через пробел:\n`123456789 50`\nИли `all 10`',
+      '💎 *Выдать кристаллы*\n\nОтправь ID и сумму:\n`123456789 50`\nИли `all 10`',
       { parse_mode: 'Markdown' }
     );
   });
@@ -182,7 +187,16 @@ module.exports = (bot) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply(
-      '📦 *Выдать карту*\n\nОтправь ID пользователя и название карты:\n`123456789 Александр Овечкин`',
+      '📦 *Выдать карту*\n\nОтправь ID и название:\n`123456789 Александр Овечкин`',
+      { parse_mode: 'Markdown' }
+    );
+  });
+
+  bot.hears('🎁 Сезонный пак', async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply(
+      '🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all`',
       { parse_mode: 'Markdown' }
     );
   });
@@ -190,7 +204,7 @@ module.exports = (bot) => {
   bot.hears('📢 Рассылка', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
-    await ctx.reply('📢 *Рассылка*\n\nОтправь сообщение для рассылки.', { parse_mode: 'Markdown' });
+    await ctx.reply('📢 *Рассылка*\n\nОтправь сообщение.', { parse_mode: 'Markdown' });
   });
 
   bot.hears('🗑️ Очистить БД', async (ctx) => {
@@ -205,6 +219,75 @@ module.exports = (bot) => {
     if (!isAdmin(userId)) return;
     await ctx.reply('🔙 Возвращаюсь...', { reply_markup: { remove_keyboard: true } });
     await showAdminMenu(ctx);
+  });
+
+  // ОБРАБОТКА ТЕКСТА
+  bot.on('text', async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    
+    const text = ctx.text;
+    const parts = text.split(' ');
+    
+    // Выдача монет
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      const users = getUsers();
+      if (parts[0] === 'all') {
+        Object.keys(users).forEach(id => {
+          users[id].coins = (users[id].coins || 0) + parseInt(parts[1]);
+        });
+        saveUsers(users);
+        await ctx.reply(`✅ Выдано ${parts[1]}⭐ всем!`);
+        return;
+      }
+      if (users[parts[0]]) {
+        users[parts[0]].coins = (users[parts[0]].coins || 0) + parseInt(parts[1]);
+        saveUsers(users);
+        await ctx.reply(`✅ Выдано ${parts[1]}⭐ пользователю ${parts[0]}!`);
+        return;
+      }
+    }
+    
+    // Сезонный пак
+    if (text === 'all' || !isNaN(text)) {
+      const users = getUsers();
+      const target = text;
+      const { PLAYERS } = require('../data/players');
+      const rareCards = PLAYERS.filter(p => p.rarity === 'Эпический' || p.rarity === 'Легендарный' || p.rarity === 'Икона');
+      
+      const targets = target === 'all' ? Object.keys(users) : [target];
+      
+      for (const id of targets) {
+        if (!users[id]) continue;
+        for (let i = 0; i < 3; i++) {
+          const card = rareCards[Math.floor(Math.random() * rareCards.length)];
+          const cardWithId = { ...card, id: Date.now().toString() + Math.random().toString(36).substr(2, 6), count: 1 };
+          const existing = users[id].cards.find(c => c.name === card.name && c.position === card.position);
+          if (existing) existing.count = (existing.count || 1) + 1;
+          else users[id].cards.push(cardWithId);
+        }
+        users[id].coins = (users[id].coins || 0) + 200;
+        users[id].crystals = (users[id].crystals || 0) + 20;
+      }
+      
+      saveUsers(users);
+      await ctx.reply(`✅ Сезонный пак выдан ${target === 'all' ? 'всем' : target}!`);
+      return;
+    }
+    
+    // Рассылка
+    if (text.length > 10 && !text.startsWith('/')) {
+      const users = getUsers();
+      let sent = 0;
+      for (const [id] of Object.entries(users)) {
+        try {
+          await bot.telegram.sendMessage(id, `📢 *РАССЫЛКА*\n\n${text}`, { parse_mode: 'Markdown' });
+          sent++;
+        } catch (e) {}
+        await new Promise(r => setTimeout(r, 100));
+      }
+      await ctx.reply(`✅ Рассылка отправлена ${sent} пользователям!`);
+    }
   });
 
 };
