@@ -95,15 +95,23 @@ async function showEditTeam(ctx) {
   );
 }
 
-function getTimeUntilMidnight() {
+// 🔥 ФИКСИМ ТАЙМЕР: считаем до 24 часов
+function getTimeUntilNextBonus() {
   const now = new Date();
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
+  
   const diff = tomorrow - now;
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  return `${hours}ч ${minutes}м`;
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  
+  if (hours > 0) {
+    return `${hours}ч ${minutes}м ${seconds}с`;
+  } else {
+    return `${minutes}м ${seconds}с`;
+  }
 }
 
 module.exports = (bot) => {
@@ -114,13 +122,16 @@ module.exports = (bot) => {
     const users = getUsers();
     const data = users[user.id];
     
-    const today = new Date().toDateString();
+    const now = new Date();
+    const today = now.toDateString();
+    
+    // Проверяем, был ли бонус сегодня
     if (data.lastBonus === today) {
-      const timeLeft = getTimeUntilMidnight();
+      const timeLeft = getTimeUntilNextBonus();
       await ctx.editMessageText(
         '⏳ *Бонус уже получен сегодня!*\n\n' +
         '🕐 Следующий бонус через: ' + timeLeft + '\n' +
-        '🗓️ Возвращайся завтра!',
+        '📅 Возвращайся через 24 часа!',
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
@@ -134,7 +145,7 @@ module.exports = (bot) => {
     data.lastBonus = today;
     saveUsers(users);
     
-    const timeLeft = getTimeUntilMidnight();
+    const timeLeft = getTimeUntilNextBonus();
     await ctx.editMessageText(
       '🎁 *Бонус получен!*\n\n' +
       '⭐ +' + bonus + ' монет\n' +
@@ -300,29 +311,40 @@ module.exports = (bot) => {
     }
     
     // 🔥 УБИРАЕМ ИГРОКА ИЗ ВСЕХ СЛОТОВ
-    data.team = data.team.filter(p => p.id !== player.id);
+    const currentTeam = data.team || [];
+    const otherPlayers = currentTeam.filter(p => p.id !== player.id);
     
+    // 🔥 СОХРАНЯЕМ ВСЕХ, КРОМЕ ВЫБРАННОГО
+    data.team = otherPlayers;
+    
+    // 🔥 ДОБАВЛЯЕМ ИГРОКА В НУЖНЫЙ СЛОТ
     if (isGoalie) {
-      // 🔥 УБИРАЕМ ВСЕХ ВРАТАРЕЙ И ДОБАВЛЯЕМ НОВОГО
+      // Убираем всех вратарей
       data.team = data.team.filter(p => p.position !== 'G');
       data.team.push({ ...player, count: 1 });
     } else {
       const slotIndex = parseInt(slotType);
       
-      // 🔥 СОХРАНЯЕМ ВСЕХ ПОЛЕВЫХ КРОМЕ ТЕХ, КТО В ЭТОМ СЛОТЕ
-      const currentForwards = data.team.filter(p => p.position !== 'G');
-      const otherForwards = currentForwards.filter((p, i) => i !== slotIndex);
+      // Получаем всех полевых
+      const forwards = data.team.filter(p => p.position !== 'G');
       
-      // 🔥 УБИРАЕМ ВСЕХ ПОЛЕВЫХ ИЗ СОСТАВА
+      // Убираем всех полевых из состава
       data.team = data.team.filter(p => p.position === 'G');
       
-      // 🔥 ДОБАВЛЯЕМ ВСЕХ ОСТАЛЬНЫХ ПОЛЕВЫХ
-      data.team.push(...otherForwards);
+      // Добавляем всех полевых обратно
+      data.team.push(...forwards);
       
-      // 🔥 ВСТАВЛЯЕМ НОВОГО ИГРОКА В НУЖНЫЙ СЛОТ
+      // Вставляем нового игрока в нужный слот
+      const insertIndex = Math.min(slotIndex, forwards.length);
       const newPlayer = { ...player, count: 1 };
-      const insertIndex = Math.min(slotIndex, data.team.length);
-      data.team.splice(insertIndex, 0, newPlayer);
+      
+      // Пересобираем с правильным порядком
+      const allForwards = [...forwards];
+      allForwards.splice(insertIndex, 0, newPlayer);
+      
+      // Добавляем всех полевых обратно
+      data.team = data.team.filter(p => p.position === 'G');
+      data.team.push(...allForwards);
     }
     
     saveUsers(users);
@@ -378,10 +400,11 @@ module.exports = (bot) => {
     const forwards = data.team.filter(p => p.position !== 'G').length;
     const goalie = data.team.find(p => p.position === 'G');
     
-    const today = new Date().toDateString();
+    const now = new Date();
+    const today = now.toDateString();
     let bonusText = '';
     if (data.lastBonus === today) {
-      const timeLeft = getTimeUntilMidnight();
+      const timeLeft = getTimeUntilNextBonus();
       bonusText = '✅ Получен сегодня (через ' + timeLeft + ')';
     } else {
       bonusText = '🎁 Доступен!';
