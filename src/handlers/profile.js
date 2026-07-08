@@ -32,22 +32,35 @@ function getPositionEmoji(position) {
   return '🏒';
 }
 
-function getTimeUntilNextBonus() {
+// ============================================
+// ТАЙМЕР 24 ЧАСА ОТ ПОСЛЕДНЕГО БОНУСА
+// ============================================
+function getTimeUntilNextBonus(lastBonusDate) {
   const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
   
-  const diff = tomorrow - now;
+  // Если бонус не получен — возвращаем "Доступен!"
+  if (!lastBonusDate) {
+    return '🎁 Доступен!';
+  }
+  
+  // Создаём дату следующего бонуса (через 24 часа)
+  const nextBonus = new Date(lastBonusDate);
+  nextBonus.setDate(nextBonus.getDate() + 1);
+  nextBonus.setHours(nextBonus.getHours(), nextBonus.getMinutes(), nextBonus.getSeconds(), 0);
+  
+  // Считаем разницу
+  const diff = nextBonus - now;
+  
+  // Если время вышло — бонус доступен
+  if (diff <= 0) {
+    return '🎁 Доступен!';
+  }
+  
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
   
-  if (hours > 0) {
-    return `${hours}ч ${minutes}м ${seconds}с`;
-  } else {
-    return `${minutes}м ${seconds}с`;
-  }
+  return `${hours}ч ${minutes}м ${seconds}с`;
 }
 
 // ============================================
