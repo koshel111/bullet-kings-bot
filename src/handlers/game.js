@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ (С ПРОВЕРКОЙ ВРАТАРЯ)
+// src/handlers/game.js - С НОВЫМ ИМЕНЕМ ОБРАБОТЧИКА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -204,7 +204,6 @@ module.exports = (bot) => {
     const team = match.team.filter(p => p.position !== 'G');
     const buttons = [];
     
-    // 🔥 ПОКАЗЫВАЕМ ТОЛЬКО ПОЛЕВЫХ ИГРОКОВ
     if (team.length === 0) {
       await ctx.editMessageText(
         '❌ *Нет полевых игроков в составе!*\n\n' +
@@ -224,7 +223,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'match_select_player_' + index
+        'match_player_' + index   // 🔥 НОВОЕ ИМЯ!
       )]);
     });
     
@@ -248,8 +247,8 @@ module.exports = (bot) => {
     );
   }
 
-  // 🔥 ИСПРАВЛЕНО: Проверяем, что игрок существует и он полевой
-  bot.action(/match_select_player_(.+)/, async (ctx) => {
+  // 🔥 НОВОЕ ИМЯ: match_player_ (НЕ пересекается с profile.js)
+  bot.action(/match_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
     const user = ctx.from;
@@ -262,7 +261,6 @@ module.exports = (bot) => {
     
     const forwards = match.team.filter(p => p.position !== 'G');
     
-    // 🔥 ПРОВЕРЯЕМ, ЧТО ИГРОК СУЩЕСТВУЕТ
     if (playerIndex >= forwards.length) {
       await ctx.editMessageText('❌ Игрок не найден!');
       return;
@@ -275,7 +273,6 @@ module.exports = (bot) => {
       return;
     }
     
-    // 🔥 ПРОВЕРЯЕМ, ЧТО ЭТО НЕ ВРАТАРЬ
     if (player.position === 'G') {
       await ctx.editMessageText('❌ Вратарь не может бить буллит! Выбери полевого игрока.');
       return;
@@ -444,7 +441,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'match_select_player_' + index
+        'match_player_' + index   // 🔥 НОВОЕ ИМЯ!
       )]);
     });
     
