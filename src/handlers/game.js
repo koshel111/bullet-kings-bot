@@ -208,7 +208,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'select_player_' + index
+        'game_select_player_' + index
       )]);
     });
     
@@ -232,7 +232,8 @@ module.exports = (bot) => {
     );
   }
 
-  bot.action(/select_player_(.+)/, async (ctx) => {
+  // 🔥 ИЗМЕНЕНО: game_select_player вместо select_player
+  bot.action(/game_select_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
     const user = ctx.from;
@@ -414,7 +415,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'select_player_' + index
+        'game_select_player_' + index
       )]);
     });
     
