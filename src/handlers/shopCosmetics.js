@@ -26,11 +26,10 @@ module.exports = (bot) => {
     });
   });
 
-  bot.action(/test_buy_(.+)/, async (ctx) => {
+  bot.action('test_buy_csk', async (ctx) => {
     await ctx.answerCbQuery();
-    const id = ctx.match[1];
-    console.log(`🔴 НАЖАТА КНОПКА: test_buy_${id}`);
-    await ctx.editMessageText(`✅ Ты купил: ${id}`);
+    console.log('🔴 НАЖАТА КНОПКА: test_buy_csk');
+    await ctx.editMessageText('✅ Ты купил: csk (тест)');
   });
 
 };
