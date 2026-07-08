@@ -9,7 +9,7 @@ const path = require('path');
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
 const ADMINS = [
-  1205576607, // КОШЕЛЬ¹¹
+  1205576607,
 ];
 
 function getUsers() {
