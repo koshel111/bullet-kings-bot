@@ -5,7 +5,7 @@
       "name": "Базовый",
       "price": 100,
       "currency": "coins",
-      "cards": 3,
+      "cards": 1,
       "description": "3 карты"
     },
     {
@@ -13,7 +13,7 @@
       "name": "Премиум",
       "price": 500,
       "currency": "coins",
-      "cards": 5,
+      "cards": 1,
       "description": "5 карт"
     },
     {

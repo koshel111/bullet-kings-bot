@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ВЫБОР СОСТАВА (ПОЛНАЯ ВЕРСИЯ)
+// src/handlers/profile.js - ВЫБОР СОСТАВА (ИСПРАВЛЕННЫЙ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -42,7 +42,6 @@ async function showTeam(ctx, bot, userId) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
-  // Разделяем
   const forwards = allCards.filter(c => c.position !== 'G');
   const goalies = allCards.filter(c => c.position === 'G');
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
@@ -51,25 +50,23 @@ async function showTeam(ctx, bot, userId) {
   let text = '👥 *Твоя команда*\n\n';
   text += '📋 *Текущий состав:*\n\n';
   
-  // 5 полевых слотов
   text += '🏒 *Полевые игроки (слоты 1-5):*\n';
   for (let i = 0; i < 5; i++) {
     const player = teamForwards[i];
     if (player) {
       const emoji = getRarityEmoji(player.rarity);
-      text += (i+1) + '. ' + emoji + ' ' + player.name + ' - ' + player.rarity + ' (' + player.overall + ' OVR)\n';
+      text += `${i+1}. ${emoji} ${player.name} - ${player.rarity} (${player.overall} OVR)\n`;
     } else {
-      text +=   . [0] | Игрок не добавлен\n;
+      text += `${i+1}. [0] | Игрок не добавлен\n`;
     }
   }
   
-  // Вратарь (слот 6)
   text += '\n🧤 *Вратарь (слот 6):*\n';
   if (teamGoalie) {
     const emoji = getRarityEmoji(teamGoalie.rarity);
-    text +=   6.   -  ( OVR)\n;
+    text += `6. ${emoji} ${teamGoalie.name} - ${teamGoalie.rarity} (${teamGoalie.overall} OVR)\n`;
   } else {
-    text +=   6. [0] | Игрок не добавлен\n;
+    text += `6. [0] | Игрок не добавлен\n`;
   }
   
   text += '\n📊 *Всего карт:* ' + allCards.length + '\n';
@@ -153,18 +150,18 @@ module.exports = (bot) => {
       const player = teamForwards[i];
       if (player) {
         const emoji = getRarityEmoji(player.rarity);
-        text +=   .   -  ( OVR)\n;
+        text += `${i+1}. ${emoji} ${player.name} - ${player.rarity} (${player.overall} OVR)\n`;
       } else {
-        text +=   . [0] | Игрок не добавлен\n;
+        text += `${i+1}. [0] | Игрок не добавлен\n`;
       }
     }
     
     text += '\n🧤 *Вратарь (слот 6):*\n';
     if (teamGoalie) {
       const emoji = getRarityEmoji(teamGoalie.rarity);
-      text +=   6.   -  ( OVR)\n;
+      text += `6. ${emoji} ${teamGoalie.name} - ${teamGoalie.rarity} (${teamGoalie.overall} OVR)\n`;
     } else {
-      text +=   6. [0] | Игрок не добавлен\n;
+      text += `6. [0] | Игрок не добавлен\n`;
     }
     
     text += '\n📊 *Нажми на номер слота, чтобы заполнить или заменить игрока:*';
@@ -201,36 +198,31 @@ module.exports = (bot) => {
     
     let filteredCards = [];
     let slotName = '';
-    let maxSlots = 5;
     
     if (slotType === 'goalie') {
-      // Вратари
       filteredCards = allCards.filter(c => c.position === 'G');
       slotName = 'вратаря';
-      maxSlots = 1;
     } else {
-      // Полевые игроки
       const slotIndex = parseInt(slotType);
       filteredCards = allCards.filter(c => c.position !== 'G');
-      slotName = слот ;
-      maxSlots = 5;
+      slotName = `слот ${slotIndex + 1}`;
     }
     
     // Убираем игроков, которые уже в составе (кроме текущего слота)
     const currentTeam = data.team || [];
-    const currentSlotPlayer = currentTeam[parseInt(slotType)];
-    const otherTeam = currentTeam.filter((p, i) => i !== parseInt(slotType) && p.position !== 'G');
+    const otherTeam = currentTeam.filter((p, i) => {
+      if (slotType === 'goalie') return p.position !== 'G';
+      return i !== parseInt(slotType) && p.position !== 'G';
+    });
     
     filteredCards = filteredCards.filter(c => {
-      // Если игрок уже в составе и не в текущем слоте — скрываем
       if (otherTeam.some(p => p.id === c.id)) return false;
       return true;
     });
     
     if (filteredCards.length === 0) {
       await ctx.editMessageText(
-        '❌ *Нет доступных игроков для ' + slotName + '!*\n\n' +
-        'Открой паки в магазине, чтобы получить новых игроков. 🛒',
+        `❌ *Нет доступных игроков для ${slotName}!*\n\nОткрой паки в магазине, чтобы получить новых игроков. 🛒`,
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([
@@ -241,16 +233,16 @@ module.exports = (bot) => {
       return;
     }
     
-    let text = 📋 *Выбери игрока для :*\n\n;
-    text += Всего доступно: \n\n;
+    let text = `📋 *Выбери игрока для ${slotName}:*\n\n`;
+    text += `Всего доступно: ${filteredCards.length}\n\n`;
     
     const buttons = [];
     filteredCards.forEach((player, index) => {
       const emoji = getRarityEmoji(player.rarity);
       const posEmoji = getPositionEmoji(player.position);
       const posName = getPositionName(player.position);
-      text += ${index + 1}.    -  ( OVR) []\n;
-      buttons.push([Markup.button.callback(${index + 1}️⃣ , select_player__)]);
+      text += `${index + 1}. ${posEmoji} ${emoji} ${player.name} - ${player.rarity} (${player.overall} OVR) [${posName}]\n`;
+      buttons.push([Markup.button.callback(`${index + 1}️⃣`, `select_player_${slotType}_${index}`)]);
     });
     
     text += '\n📊 *Нажми на номер карты, чтобы добавить в состав:*';
@@ -279,7 +271,6 @@ module.exports = (bot) => {
     const allCards = data.cards || [];
     
     let player;
-    let slotIndex;
     let isGoalie = false;
     
     if (slotType === 'goalie') {
@@ -289,7 +280,6 @@ module.exports = (bot) => {
     } else {
       const forwards = allCards.filter(c => c.position !== 'G');
       player = forwards[playerIndex];
-      slotIndex = parseInt(slotType);
     }
     
     if (!player) {
@@ -302,6 +292,7 @@ module.exports = (bot) => {
       data.team = data.team.filter(p => p.position !== 'G');
       data.team.push({ ...player, count: 1 });
     } else {
+      const slotIndex = parseInt(slotType);
       // Убираем из других полевых слотов
       data.team = data.team.filter(p => p.id !== player.id || p.position === 'G');
       
