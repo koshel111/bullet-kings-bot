@@ -57,18 +57,17 @@ async function showEditTeam(ctx) {
     if (player) {
       const emoji = getRarityEmoji(player.rarity);
       const posName = getPositionName(player.position);
-      text += ${i+1}. []  |  ()\n;
+      text += `${i+1}. [${player.overall}] ${emoji} | ${player.name} (${posName})\n`;
     } else {
-      text += ${i+1}. [0] | Игрок не добавлен\n;
+      text += `${i+1}. [0] | Игрок не добавлен\n`;
     }
   }
-  
   text += '\n🧤 *Вратарь (слот 6):*\n';
   if (teamGoalie) {
     const emoji = getRarityEmoji(teamGoalie.rarity);
-    text += 6. []  |  (Вратарь)\n;
+    text += `6. [${teamGoalie.overall}] ${emoji} | ${teamGoalie.name} (Вратарь)\n`;
   } else {
-    text += 6. [0] | Игрок не добавлен\n;
+    text += `6. [0] | Игрок не добавлен\n`;
   }
   
   const goaliesInCollection = allCards.filter(c => c.position === 'G');
