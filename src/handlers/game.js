@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ (БЕЗ КОНФЛИКТОВ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -208,7 +208,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'game_select_player_' + index
+        'match_select_player_' + index  // 🔥 ИЗМЕНЕНО!
       )]);
     });
     
@@ -232,8 +232,8 @@ module.exports = (bot) => {
     );
   }
 
-  // 🔥 ИЗМЕНЕНО: game_select_player вместо select_player
-  bot.action(/game_select_player_(.+)/, async (ctx) => {
+  // 🔥 ИЗМЕНЕНО: match_select_player вместо game_select_player
+  bot.action(/match_select_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
     const user = ctx.from;
@@ -415,7 +415,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'game_select_player_' + index
+        'match_select_player_' + index  // 🔥 ИЗМЕНЕНО!
       )]);
     });
     
