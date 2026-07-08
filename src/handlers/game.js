@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - БЕЗ ВЫБОРА СОСТАВА
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -132,9 +132,6 @@ module.exports = (bot) => {
     );
   });
 
-  // ============================================
-  // НАЧАЛО МАТЧА — ИСПОЛЬЗУЕТ ГОТОВЫЙ СОСТАВ ИЗ data.team
-  // ============================================
   bot.action(/difficulty_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
@@ -153,7 +150,6 @@ module.exports = (bot) => {
     const forwards = team.filter(p => p.position !== 'G');
     const goalie = team.find(p => p.position === 'G');
     
-    // Проверяем состав
     if (forwards.length < 5) {
       await ctx.editMessageText(
         '❌ *В команде меньше 5 полевых игроков!*\n\n' +
@@ -204,9 +200,6 @@ module.exports = (bot) => {
     await showPlayerSelection(ctx, user, matches[user.id]);
   });
 
-  // ============================================
-  // ПОКАЗ ВЫБОРА ИГРОКА ДЛЯ БУЛЛИТА
-  // ============================================
   async function showPlayerSelection(ctx, user, match) {
     const team = match.team.filter(p => p.position !== 'G');
     const buttons = [];
@@ -239,9 +232,6 @@ module.exports = (bot) => {
     );
   }
 
-  // ============================================
-  // ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (select_player, shot, goalie, finish, forfeit)
-  // ============================================
   bot.action(/select_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);

@@ -39,18 +39,18 @@ async function showEditTeam(ctx) {
     const player = teamForwards[i] || null;
     if (player) {
       const emoji = getRarityEmoji(player.rarity);
-      text += `${i+1}. [${player.overall}] ${emoji} | ${player.name} (${player.rarity})\n`;
+      text += ${i+1}. []  |  ()\n;
     } else {
-      text += `${i+1}. [0] | Игрок не добавлен\n`;
+      text += ${i+1}. [0] | Игрок не добавлен\n;
     }
   }
   
   text += '\n🧤 *Вратарь (слот 6):*\n';
   if (teamGoalie) {
     const emoji = getRarityEmoji(teamGoalie.rarity);
-    text += `6. [${teamGoalie.overall}] ${emoji} | ${teamGoalie.name} (${teamGoalie.rarity})\n`;
+    text += 6. []  |  ()\n;
   } else {
-    text += `6. [0] | Игрок не добавлен\n`;
+    text += 6. [0] | Игрок не добавлен\n;
   }
   
   const goaliesInCollection = allCards.filter(c => c.position === 'G');
@@ -182,7 +182,7 @@ module.exports = (bot) => {
     } else {
       const slotIndex = parseInt(slotType);
       filteredCards = allCards.filter(c => c.position !== 'G');
-      slotName = `слот ${slotIndex + 1}`;
+      slotName = слот ;
     }
     
     if (slotType === 'goalie') {
@@ -218,7 +218,7 @@ module.exports = (bot) => {
           }
           text += '\n📋 Все вратари:\n';
           allGoalies.forEach(p => {
-            text += `  • ${p.name} (${p.overall} OVR)\n`;
+            text +=   •  ( OVR)\n;
           });
         }
       } else {
@@ -230,7 +230,7 @@ module.exports = (bot) => {
         } else {
           text += '\n📋 Все полевые игроки:\n';
           allForwards.forEach(p => {
-            text += `  • ${p.name} (${p.overall} OVR)\n`;
+            text +=   •  ( OVR)\n;
           });
         }
       }
@@ -249,17 +249,17 @@ module.exports = (bot) => {
       return;
     }
     
-    let text = `📋 *Выбери игрока для ${slotName}:*\n\n`;
-    text += `Всего доступно: ${filteredCards.length}\n\n`;
+    let text = 📋 *Выбери игрока для :*\n\n;
+    text += Всего доступно: \n\n;
     
     const buttons = [];
     filteredCards.forEach((player, index) => {
       const emoji = getRarityEmoji(player.rarity);
       const posEmoji = player.position === 'G' ? '🧤' : '🏒';
-      text += `${index + 1}. ${posEmoji} ${emoji} ${player.name} - ${player.rarity} (${player.overall} OVR)\n`;
+      text += ${index + 1}.    -  ( OVR)\n;
       buttons.push([Markup.button.callback(
-        `${index + 1}`, 
-        `select_player_${slotType}_${index}`
+        ${index + 1}, 
+        select_player__
       )]);
     });
     
@@ -317,7 +317,7 @@ module.exports = (bot) => {
     }
     
     saveUsers(users);
-    await ctx.answerCbQuery(`✅ ${player.name} добавлен в состав!`);
+    await ctx.answerCbQuery(✅  добавлен в состав!);
     await showEditTeam(ctx);
   });
 
