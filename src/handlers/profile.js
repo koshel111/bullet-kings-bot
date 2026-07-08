@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННАЯ ЛОГИКА СОСТАВА
+// src/handlers/profile.js - ПОЛНАЯ ПЕРЕЗАПИСЬ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -26,9 +26,9 @@ function saveUsers(users) {
 }
 
 // ============================================
-// ПОКАЗ РЕДАКТИРОВАНИЯ СОСТАВА
+// ФУНКЦИЯ ДЛЯ ОБНОВЛЕНИЯ ЭКРАНА СОСТАВА
 // ============================================
-async function showEditTeam(ctx) {
+async function renderTeamEditor(ctx, bot) {
   const user = ctx.from;
   const users = getUsers();
   const data = users[user.id];
@@ -46,7 +46,7 @@ async function showEditTeam(ctx) {
   
   const buttons = [];
   
-  // ⚠️ ВАЖНО: Используем forEach с индексом
+  // Полевые игроки
   forwards.forEach((player, index) => {
     const emoji = getRarityEmoji(player.rarity);
     const isSelected = teamForwards.some(p => p.id === player.id);
@@ -54,8 +54,10 @@ async function showEditTeam(ctx) {
     buttons.push([Markup.button.callback(label, 'select_forward_' + index)]);
   });
   
+  // Разделитель
   buttons.push([Markup.button.callback('───────────', 'separator')]);
   
+  // Вратари
   goalies.forEach((player, index) => {
     const emoji = getRarityEmoji(player.rarity);
     const isSelected = teamGoalie && teamGoalie.id === player.id;
@@ -148,13 +150,13 @@ module.exports = (bot) => {
   // ============================================
   bot.action('edit_team', async (ctx) => {
     await ctx.answerCbQuery();
-    await showEditTeam(ctx);
+    await renderTeamEditor(ctx, bot);
   });
 
   // ============================================
   // ВЫБОР ПОЛЕВОГО ИГРОКА (ИСПРАВЛЕНО!)
   // ============================================
-  bot.action(/select_forward_(\d+)/, async (ctx) => {
+  bot.action(/select_forward_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const index = parseInt(ctx.match[1]);
     const user = ctx.from;
@@ -162,59 +164,39 @@ module.exports = (bot) => {
     const data = users[user.id];
     const allCards = data.cards || [];
     const forwards = allCards.filter(c => c.position !== 'G');
+    const player = forwards[index];
     
-    // ✅ ПРОВЕРЯЕМ, ЧТО ИНДЕКС СУЩЕСТВУЕТ
-    if (index >= forwards.length) {
+    if (!player) {
       await ctx.editMessageText('❌ Игрок не найден!');
       return;
     }
     
-    const player = forwards[index];
+    // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ УЖЕ ЭТОТ ИГРОК В СОСТАВЕ
+    const existingIndex = data.team.findIndex(p => p.id === player.id && p.position !== 'G');
     
-    // ✅ КОПИРУЕМ ИГРОКА ЦЕЛИКОМ
-    const playerCopy = {
-      id: player.id,
-      name: player.name,
-      overall: player.overall,
-      rarity: player.rarity,
-      position: player.position,
-      league: player.league,
-      ability: player.ability,
-      accuracy: player.accuracy || 0,
-      power: player.power || 0,
-      dribbling: player.dribbling || 0,
-      speed: player.speed || 0,
-      composure: player.composure || 0,
-      skating: player.skating || 0,
-      count: 1
-    };
-    
-    // Проверяем, есть ли игрок в составе
-    const isInTeam = data.team.some(p => p.id === player.id && p.position !== 'G');
-    const forwardsCount = data.team.filter(p => p.position !== 'G').length;
-    
-    if (isInTeam) {
-      // ✅ УБИРАЕМ ТОЛЬКО ЭТОГО ИГРОКА
-      data.team = data.team.filter(p => p.id !== player.id);
+    if (existingIndex !== -1) {
+      // ✅ УДАЛЯЕМ ТОЛЬКО ЭТОГО ИГРОКА
+      data.team.splice(existingIndex, 1);
     } else {
       // ✅ ДОБАВЛЯЕМ ТОЛЬКО ЭТОГО ИГРОКА
+      const forwardsCount = data.team.filter(p => p.position !== 'G').length;
       if (forwardsCount >= 5) {
-        await ctx.editMessageText('❌ *В команде уже 5 полевых игроков!*\n\nУбери кого-то перед добавлением.', {
+        await ctx.editMessageText('❌ *В команде уже 5 полевых игроков!*', {
           parse_mode: 'Markdown'
         });
         return;
       }
-      data.team.push(playerCopy);
+      data.team.push({ ...player, count: 1 });
     }
     
     saveUsers(users);
-    await showEditTeam(ctx);
+    await renderTeamEditor(ctx, bot);
   });
 
   // ============================================
   // ВЫБОР ВРАТАРЯ (ИСПРАВЛЕНО!)
   // ============================================
-  bot.action(/select_goalie_(\d+)/, async (ctx) => {
+  bot.action(/select_goalie_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const index = parseInt(ctx.match[1]);
     const user = ctx.from;
@@ -222,42 +204,30 @@ module.exports = (bot) => {
     const data = users[user.id];
     const allCards = data.cards || [];
     const goalies = allCards.filter(c => c.position === 'G');
+    const player = goalies[index];
     
-    if (index >= goalies.length) {
+    if (!player) {
       await ctx.editMessageText('❌ Вратарь не найден!');
       return;
     }
     
-    const player = goalies[index];
+    // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ УЖЕ ВРАТАРЬ
+    const existingIndex = data.team.findIndex(p => p.id === player.id && p.position === 'G');
     
-    const playerCopy = {
-      id: player.id,
-      name: player.name,
-      overall: player.overall,
-      rarity: player.rarity,
-      position: player.position,
-      league: player.league,
-      ability: player.ability,
-      reaction: player.reaction || 0,
-      glove: player.glove || 0,
-      pads: player.pads || 0,
-      reading: player.reading || 0,
-      movement: player.movement || 0,
-      psychology: player.psychology || 0,
-      count: 1
-    };
-    
-    const currentGoalie = data.team.find(p => p.position === 'G');
-    
-    if (currentGoalie && currentGoalie.id === player.id) {
-      data.team = data.team.filter(p => p.id !== player.id);
+    if (existingIndex !== -1) {
+      // ✅ УДАЛЯЕМ ВРАТАРЯ
+      data.team.splice(existingIndex, 1);
     } else {
-      data.team = data.team.filter(p => p.position !== 'G');
-      data.team.push(playerCopy);
+      // ✅ УБИРАЕМ СТАРОГО ВРАТАРЯ И ДОБАВЛЯЕМ НОВОГО
+      const oldGoalieIndex = data.team.findIndex(p => p.position === 'G');
+      if (oldGoalieIndex !== -1) {
+        data.team.splice(oldGoalieIndex, 1);
+      }
+      data.team.push({ ...player, count: 1 });
     }
     
     saveUsers(users);
-    await showEditTeam(ctx);
+    await renderTeamEditor(ctx, bot);
   });
 
   // ============================================
