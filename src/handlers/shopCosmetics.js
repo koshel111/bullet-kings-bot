@@ -29,8 +29,8 @@ module.exports = (bot) => {
   bot.action(/test_buy_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const id = ctx.match[1];
-    console.log($"🔴 НАЖАТА КНОПКА: test_buy_");
-    await ctx.editMessageText($"✅ Ты купил: ");
+    console.log(`🔴 НАЖАТА КНОПКА: test_buy_${id}`);
+    await ctx.editMessageText(`✅ Ты купил: ${id}`);
   });
 
 };
