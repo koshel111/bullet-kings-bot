@@ -64,7 +64,7 @@ function getTimeUntilNextJerseyRotation() {
   const minutes = Math.floor(diff / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
   
-  return ${minutes}м с;
+  return `${minutes}м ${seconds}с`;
 }
 
 function getTimeUntilNextArenaRotation() {
@@ -77,7 +77,7 @@ function getTimeUntilNextArenaRotation() {
   const minutes = Math.floor(diff / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
   
-  return ${minutes}м с;
+  return `${minutes}м ${seconds}с`;
 }
 
 async function showCosmeticsMenu(ctx) {
