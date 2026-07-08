@@ -39,9 +39,9 @@ async function showEditTeam(ctx) {
     const player = teamForwards[i] || null;
     if (player) {
       const emoji = getRarityEmoji(player.rarity);
-      text += ${i+1}. []  |  ()\n;
+      text += `${i+1}. [0] | Игрок не добавлен\n`;
     } else {
-      text += ${i+1}. [0] | Игрок не добавлен\n;
+      text += `${i+1}. [0] | Игрок не добавлен\n`;
     }
   }
   
