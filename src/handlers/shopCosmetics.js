@@ -355,11 +355,13 @@ module.exports = (bot) => {
   });
 
   bot.action(/buy_jersey_(.+)/, async (ctx) => {
+    console.log(`🔴 НАЖАТА КНОПКА ФОРМЫ: ${ctx.match[1]}`);
     await ctx.answerCbQuery();
     await buyJersey(ctx, ctx.match[1]);
   });
 
   bot.action(/buy_arena_(.+)/, async (ctx) => {
+    console.log(`🟢 НАЖАТА КНОПКА АРЕНЫ: ${ctx.match[1]}`);
     await ctx.answerCbQuery();
     await buyArena(ctx, ctx.match[1]);
   });
