@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - 
+// src/handlers/admin.js - АДМИНКА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -28,7 +28,7 @@ function isAdmin(userId) {
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) {
-    await ctx.reply(' оступ запрещён!');
+    await ctx.reply('⛔ Доступ запрещён!');
     return;
   }
   
@@ -43,31 +43,31 @@ async function showAdminMenu(ctx) {
   });
   
   const text = 
-    ' *-Ь*\n\n' +
-    ` *Статистика:*\n` +
-    ` ользователей: ${totalUsers}\n` +
-    ` сего карт: ${totalCards}\n` +
-    ` атчей: ${totalMatches}\n\n` +
-    '*ыбери действие:*';
+    '👑 *АДМИН-ПАНЕЛЬ*\n\n' +
+    `📊 *Статистика:*\n` +
+    `👥 Пользователей: ${totalUsers}\n` +
+    `📚 Всего карт: ${totalCards}\n` +
+    `⚔️ Матчей: ${totalMatches}\n\n` +
+    '*Выбери действие:*';
   
   await ctx.reply(text, {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard([
-      [Markup.button.callback(' ыдать монеты', 'admin_coins')],
-      [Markup.button.callback(' ыдать кристаллы', 'admin_crystals')],
-      [Markup.button.callback(' ыдать карту', 'admin_card')],
-      [Markup.button.callback(' ассылка', 'admin_broadcast')],
-      [Markup.button.callback(' чистить ', 'admin_clear_db')],
-      [Markup.button.callback(' азад', 'back')],
+      [Markup.button.callback('💰 Выдать монеты', 'admin_coins')],
+      [Markup.button.callback('💎 Выдать кристаллы', 'admin_crystals')],
+      [Markup.button.callback('📦 Выдать карту', 'admin_card')],
+      [Markup.button.callback('📢 Рассылка', 'admin_broadcast')],
+      [Markup.button.callback('🗑️ Очистить БД', 'admin_clear_db')],
+      [Markup.button.callback('🔙 Назад', 'back')],
     ])
   });
   
-  await ctx.reply(' ли используй кнопки под клавиатурой:', {
+  await ctx.reply('📱 Или используй кнопки под клавиатурой:', {
     reply_markup: {
       keyboard: [
-        [' ыдать монеты', ' ыдать кристаллы'],
-        [' ыдать карту', ' ассылка'],
-        [' чистить ', ' азад'],
+        ['💰 Выдать монеты', '💎 Выдать кристаллы'],
+        ['📦 Выдать карту', '📢 Рассылка'],
+        ['🗑️ Очистить БД', '🔙 Назад'],
       ],
       resize_keyboard: true,
       one_time_keyboard: false
@@ -80,10 +80,10 @@ module.exports = (bot) => {
   bot.command('admin', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) {
-      await ctx.reply(' оступ запрещён!');
+      await ctx.reply('⛔ Доступ запрещён!');
       return;
     }
-    await ctx.reply(' обро пожаловать в админ-панель!');
+    await ctx.reply('👑 Добро пожаловать в админ-панель!');
     await showAdminMenu(ctx);
   });
 
@@ -95,10 +95,10 @@ module.exports = (bot) => {
   bot.action('admin_coins', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      ' *ыдать монеты*\n\nтправь ID и сумму через пробел:\n`123456789 500`\nли `all 100`',
+      '💰 *Выдать монеты*\n\nОтправь ID и сумму через пробел:\n`123456789 500`\nИли `all 100`',
       {
         parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback(' азад', 'admin_panel')]])
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
       }
     );
   });
@@ -106,10 +106,10 @@ module.exports = (bot) => {
   bot.action('admin_crystals', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      ' *ыдать кристаллы*\n\nтправь ID и сумму через пробел:\n`123456789 50`\nли `all 10`',
+      '💎 *Выдать кристаллы*\n\nОтправь ID и сумму через пробел:\n`123456789 50`\nИли `all 10`',
       {
         parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback(' азад', 'admin_panel')]])
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
       }
     );
   });
@@ -117,10 +117,10 @@ module.exports = (bot) => {
   bot.action('admin_card', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      ' *ыдать карту*\n\nтправь ID пользователя и название карты:\n`123456789 лександр вечкин`',
+      '📦 *Выдать карту*\n\nОтправь ID пользователя и название карты:\n`123456789 Александр Овечкин`',
       {
         parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback(' азад', 'admin_panel')]])
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
       }
     );
   });
@@ -128,10 +128,10 @@ module.exports = (bot) => {
   bot.action('admin_broadcast', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      ' *ассылка*\n\nтправь сообщение для рассылки всем пользователям.',
+      '📢 *Рассылка*\n\nОтправь сообщение для рассылки всем пользователям.',
       {
         parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback(' азад', 'admin_panel')]])
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
       }
     );
   });
@@ -141,12 +141,12 @@ module.exports = (bot) => {
     if (!isAdmin(userId)) return;
     
     await ctx.reply(
-      ' *чистить ?*\n\nто удалит СХ пользователей!\nействие необратимо!',
+      '⚠️ *Очистить БД?*\n\nЭто удалит ВСЕХ пользователей!\nДействие необратимо!',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback(' , ТЬ', 'admin_confirm_clear')],
-          [Markup.button.callback(' Т, Т', 'admin_panel')],
+          [Markup.button.callback('✅ ДА, УДАЛИТЬ', 'admin_confirm_clear')],
+          [Markup.button.callback('❌ НЕТ, ОТМЕНА', 'admin_panel')],
         ])
       }
     );
@@ -156,54 +156,54 @@ module.exports = (bot) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     saveUsers({});
-    await ctx.editMessageText(' аза данных очищена!');
+    await ctx.editMessageText('✅ База данных очищена!');
   });
 
-  //   Т
-  bot.hears(' ыдать монеты', async (ctx) => {
+  // КНОПКИ ПОД КЛАВИАТУРОЙ
+  bot.hears('💰 Выдать монеты', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply(
-      ' *ыдать монеты*\n\nтправь ID и сумму через пробел:\n`123456789 500`\nли `all 100`',
+      '💰 *Выдать монеты*\n\nОтправь ID и сумму через пробел:\n`123456789 500`\nИли `all 100`',
       { parse_mode: 'Markdown' }
     );
   });
 
-  bot.hears(' ыдать кристаллы', async (ctx) => {
+  bot.hears('💎 Выдать кристаллы', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply(
-      ' *ыдать кристаллы*\n\nтправь ID и сумму через пробел:\n`123456789 50`\nли `all 10`',
+      '💎 *Выдать кристаллы*\n\nОтправь ID и сумму через пробел:\n`123456789 50`\nИли `all 10`',
       { parse_mode: 'Markdown' }
     );
   });
 
-  bot.hears(' ыдать карту', async (ctx) => {
+  bot.hears('📦 Выдать карту', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply(
-      ' *ыдать карту*\n\nтправь ID пользователя и название карты:\n`123456789 лександр вечкин`',
+      '📦 *Выдать карту*\n\nОтправь ID пользователя и название карты:\n`123456789 Александр Овечкин`',
       { parse_mode: 'Markdown' }
     );
   });
 
-  bot.hears(' ассылка', async (ctx) => {
+  bot.hears('📢 Рассылка', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
-    await ctx.reply(' *ассылка*\n\nтправь сообщение для рассылки.', { parse_mode: 'Markdown' });
+    await ctx.reply('📢 *Рассылка*\n\nОтправь сообщение для рассылки.', { parse_mode: 'Markdown' });
   });
 
-  bot.hears(' чистить ', async (ctx) => {
+  bot.hears('🗑️ Очистить БД', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     saveUsers({});
-    await ctx.reply(' аза данных очищена!');
+    await ctx.reply('✅ База данных очищена!');
   });
 
-  bot.hears(' азад', async (ctx) => {
+  bot.hears('🔙 Назад', async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
-    await ctx.reply(' озвращаюсь...', { reply_markup: { remove_keyboard: true } });
+    await ctx.reply('🔙 Возвращаюсь...', { reply_markup: { remove_keyboard: true } });
     await showAdminMenu(ctx);
   });
 
