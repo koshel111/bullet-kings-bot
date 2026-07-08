@@ -95,6 +95,17 @@ async function showEditTeam(ctx) {
   );
 }
 
+function getTimeUntilMidnight() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const diff = tomorrow - now;
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}ч ${minutes}м`;
+}
+
 module.exports = (bot) => {
   
   bot.action('bonus', async (ctx) => {
@@ -105,8 +116,11 @@ module.exports = (bot) => {
     
     const today = new Date().toDateString();
     if (data.lastBonus === today) {
+      const timeLeft = getTimeUntilMidnight();
       await ctx.editMessageText(
-        '⏳ *Бонус уже получен сегодня!*\n\nВозвращайся завтра! 🗓️',
+        '⏳ *Бонус уже получен сегодня!*\n\n' +
+        '🕐 Следующий бонус через: ' + timeLeft + '\n' +
+        '🗓️ Возвращайся завтра!',
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
@@ -120,8 +134,11 @@ module.exports = (bot) => {
     data.lastBonus = today;
     saveUsers(users);
     
+    const timeLeft = getTimeUntilMidnight();
     await ctx.editMessageText(
-      '🎁 *Бонус получен!*\n\n⭐ +' + bonus + ' монет\n📅 Следующий бонус: завтра',
+      '🎁 *Бонус получен!*\n\n' +
+      '⭐ +' + bonus + ' монет\n' +
+      '🕐 Следующий бонус через: ' + timeLeft,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
@@ -206,21 +223,19 @@ module.exports = (bot) => {
     
     let filteredCards = [];
     let slotName = '';
-    let isGoalieSlot = false;
     
     if (slotType === 'goalie') {
       filteredCards = allCards.filter(c => c.position === 'G');
       slotName = 'вратаря';
-      isGoalieSlot = true;
     } else {
       const slotIndex = parseInt(slotType);
       filteredCards = allCards.filter(c => c.position !== 'G');
       slotName = `слот ${slotIndex + 1}`;
     }
     
+    // 🔥 ПОЛУЧАЕМ ID ВСЕХ ИГРОКОВ В СОСТАВЕ
     const teamIds = currentTeam.map(p => p.id);
     
-    // 🔥 ИСПРАВЛЕНО: добавлены обратные кавычки
     let text = `📋 *Выбери игрока для ${slotName}:*\n\n`;
     text += `Всего доступно: ${filteredCards.length}\n\n`;
     
@@ -230,6 +245,7 @@ module.exports = (bot) => {
       const posEmoji = getPositionEmoji(player.position);
       const posName = getPositionName(player.position);
       
+      // 🔥 ПРОВЕРЯЕМ, В СОСТАВЕ ЛИ ИГРОК
       const isInTeam = teamIds.includes(player.id);
       const checkMark = isInTeam ? '✅' : '➕';
       
@@ -254,6 +270,9 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // ВЫБОР ИГРОКА — ПОЛНАЯ ПЕРЕСБОРКА СОСТАВА
+  // ============================================
   bot.action(/select_player_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const slotType = ctx.match[1];
@@ -262,7 +281,6 @@ module.exports = (bot) => {
     const users = getUsers();
     const data = users[userId];
     const allCards = data.cards || [];
-    const currentTeam = data.team || [];
     
     let player;
     let isGoalie = false;
@@ -281,25 +299,30 @@ module.exports = (bot) => {
       return;
     }
     
+    // 🔥 УБИРАЕМ ИГРОКА ИЗ ВСЕХ СЛОТОВ
     data.team = data.team.filter(p => p.id !== player.id);
     
     if (isGoalie) {
+      // 🔥 УБИРАЕМ ВСЕХ ВРАТАРЕЙ И ДОБАВЛЯЕМ НОВОГО
       data.team = data.team.filter(p => p.position !== 'G');
       data.team.push({ ...player, count: 1 });
     } else {
       const slotIndex = parseInt(slotType);
-      const teamForwards = data.team.filter(p => p.position !== 'G');
       
+      // 🔥 СОХРАНЯЕМ ВСЕХ ПОЛЕВЫХ КРОМЕ ТЕХ, КТО В ЭТОМ СЛОТЕ
+      const currentForwards = data.team.filter(p => p.position !== 'G');
+      const otherForwards = currentForwards.filter((p, i) => i !== slotIndex);
+      
+      // 🔥 УБИРАЕМ ВСЕХ ПОЛЕВЫХ ИЗ СОСТАВА
       data.team = data.team.filter(p => p.position === 'G');
       
-      const otherForwards = teamForwards.filter((p, i) => i !== slotIndex);
+      // 🔥 ДОБАВЛЯЕМ ВСЕХ ОСТАЛЬНЫХ ПОЛЕВЫХ
       data.team.push(...otherForwards);
       
-      if (slotIndex < data.team.length) {
-        data.team.splice(slotIndex, 0, { ...player, count: 1 });
-      } else {
-        data.team.push({ ...player, count: 1 });
-      }
+      // 🔥 ВСТАВЛЯЕМ НОВОГО ИГРОКА В НУЖНЫЙ СЛОТ
+      const newPlayer = { ...player, count: 1 };
+      const insertIndex = Math.min(slotIndex, data.team.length);
+      data.team.splice(insertIndex, 0, newPlayer);
     }
     
     saveUsers(users);
@@ -355,12 +378,13 @@ module.exports = (bot) => {
     const forwards = data.team.filter(p => p.position !== 'G').length;
     const goalie = data.team.find(p => p.position === 'G');
     
-    let bonusText = '';
     const today = new Date().toDateString();
+    let bonusText = '';
     if (data.lastBonus === today) {
-      bonusText = '✅ Бонус получен сегодня';
+      const timeLeft = getTimeUntilMidnight();
+      bonusText = '✅ Получен сегодня (через ' + timeLeft + ')';
     } else {
-      bonusText = '🎁 Бонус доступен!';
+      bonusText = '🎁 Доступен!';
     }
     
     await ctx.editMessageText(
