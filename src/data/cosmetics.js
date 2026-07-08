@@ -65,39 +65,54 @@ const ALL_JERSEYS = [
 ];
 
 // ============================================
-// ВСЕ АРЕНЫ (29 ШТУК)
+// ВСЕ АРЕНЫ (29 ШТУК) - ЦЕНЫ УВЕЛИЧЕНЫ В 5 РАЗ!
 // ============================================
 const ALL_ARENAS = [
-  { id: "msg", name: "Мэдисон Сквер Гарден", league: "НХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "bell", name: "Белл Центр", league: "НХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "scotiabank", name: "Скотиабанк Арена", league: "НХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "united", name: "Юнайтед Центр", league: "НХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "crypto", name: "Крипто-ком Арена", league: "НХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "ppg", name: "PPG Пэйнтс Арена", league: "НХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "amalie", name: "Амали Арена", league: "НХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "bridgestone", name: "Бриджстоун Арена", league: "НХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "rogers", name: "Роджерс Плейс", league: "НХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "scottrade", name: "Скоттрейд Центр", league: "НХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "tmobile", name: "Ти-Мобайл Арена", league: "НХЛ", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "little_caesars", name: "Литтл Сизарс Арена", league: "НХЛ", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "wells_fargo", name: "Уэллс Фарго Центр", league: "НХЛ", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "mytischi", name: "Арена Мытищи", league: "КХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "csk_arena", name: "ЦСКА Арена", league: "КХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "platinum", name: "Платинум Арена", league: "КХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "tatneft", name: "Татнефть Арена", league: "КХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "ufa", name: "Уфа-Арена", league: "КХЛ", rarity: "Обычная", priceCoins: 150, emoji: "🏟️" },
-  { id: "ice_palace", name: "Ледовый Дворец", league: "КХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "megasport", name: "Мегаспорт", league: "КХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "traktor_arena", name: "Арена-Трактор", league: "КХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "minsk_arena", name: "Минск-Арена", league: "КХЛ", rarity: "Редкая", priceCoins: 250, emoji: "🏟️" },
-  { id: "lada", name: "Лада-Арена", league: "КХЛ", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "sokolniki", name: "Сокольники", league: "КХЛ", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "vtb", name: "ВТБ Арена", league: "КХЛ", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "ska_arena_spb", name: "СКА Арена (СПб)", league: "Историческая", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "maple_leaf_gardens", name: "Мэпл Лиф Гарденс", league: "Историческая", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "montreal_forum", name: "Монреальский Форум", league: "Историческая", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "spartak_historical", name: "СК «Спартак»", league: "Историческая", rarity: "Эпическая", priceCrystals: 40, emoji: "🏟️" },
-  { id: "tatneft_icon", name: "Татнефть Арена", league: "Икона", rarity: "Икона", priceCrystals: 150, emoji: "🏟️" },
+  // НХЛ Обычные (5) - было 150⭐ → 750⭐
+  { id: "msg", name: "Мэдисон Сквер Гарден", league: "НХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+  { id: "bell", name: "Белл Центр", league: "НХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+  { id: "scotiabank", name: "Скотиабанк Арена", league: "НХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+  { id: "united", name: "Юнайтед Центр", league: "НХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+  { id: "crypto", name: "Крипто-ком Арена", league: "НХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+
+  // НХЛ Редкие (5) - было 250⭐ → 1250⭐
+  { id: "ppg", name: "PPG Пэйнтс Арена", league: "НХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+  { id: "amalie", name: "Амали Арена", league: "НХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+  { id: "bridgestone", name: "Бриджстоун Арена", league: "НХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+  { id: "rogers", name: "Роджерс Плейс", league: "НХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+  { id: "scottrade", name: "Скоттрейд Центр", league: "НХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+
+  // НХЛ Эпические (3) - было 40💎 → 200💎
+  { id: "tmobile", name: "Ти-Мобайл Арена", league: "НХЛ", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+  { id: "little_caesars", name: "Литтл Сизарс Арена", league: "НХЛ", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+  { id: "wells_fargo", name: "Уэллс Фарго Центр", league: "НХЛ", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+
+  // КХЛ Обычные (5) - было 150⭐ → 750⭐
+  { id: "mytischi", name: "Арена Мытищи", league: "КХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+  { id: "csk_arena", name: "ЦСКА Арена", league: "КХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+  { id: "platinum", name: "Платинум Арена", league: "КХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+  { id: "tatneft", name: "Татнефть Арена", league: "КХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+  { id: "ufa", name: "Уфа-Арена", league: "КХЛ", rarity: "Обычная", priceCoins: 750, emoji: "🏟️" },
+
+  // КХЛ Редкие (4) - было 250⭐ → 1250⭐
+  { id: "ice_palace", name: "Ледовый Дворец", league: "КХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+  { id: "megasport", name: "Мегаспорт", league: "КХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+  { id: "traktor_arena", name: "Арена-Трактор", league: "КХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+  { id: "minsk_arena", name: "Минск-Арена", league: "КХЛ", rarity: "Редкая", priceCoins: 1250, emoji: "🏟️" },
+
+  // КХЛ Эпические (3) - было 40💎 → 200💎
+  { id: "lada", name: "Лада-Арена", league: "КХЛ", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+  { id: "sokolniki", name: "Сокольники", league: "КХЛ", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+  { id: "vtb", name: "ВТБ Арена", league: "КХЛ", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+
+  // Исторические Эпические (4) - было 40💎 → 200💎
+  { id: "ska_arena_spb", name: "СКА Арена (СПб)", league: "Историческая", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+  { id: "maple_leaf_gardens", name: "Мэпл Лиф Гарденс", league: "Историческая", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+  { id: "montreal_forum", name: "Монреальский Форум", league: "Историческая", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+  { id: "spartak_historical", name: "СК «Спартак»", league: "Историческая", rarity: "Эпическая", priceCrystals: 200, emoji: "🏟️" },
+
+  // Икона (1) - было 150💎 → 750💎
+  { id: "tatneft_icon", name: "Татнефть Арена", league: "Икона", rarity: "Икона", priceCrystals: 750, emoji: "🏟️" },
 ];
 
 // ============================================
