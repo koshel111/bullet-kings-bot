@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ (БЕЗ КОНФЛИКТОВ)
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ (С ПРОВЕРКОЙ ВРАТАРЯ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -204,11 +204,27 @@ module.exports = (bot) => {
     const team = match.team.filter(p => p.position !== 'G');
     const buttons = [];
     
+    // 🔥 ПОКАЗЫВАЕМ ТОЛЬКО ПОЛЕВЫХ ИГРОКОВ
+    if (team.length === 0) {
+      await ctx.editMessageText(
+        '❌ *Нет полевых игроков в составе!*\n\n' +
+        'Добавь полевых игроков в 👥 Команда',
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('👥 Перейти в команду', 'team')],
+            [Markup.button.callback('🔙 Назад', 'play')],
+          ])
+        }
+      );
+      return;
+    }
+    
     team.forEach((player, index) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'match_select_player_' + index  // 🔥 ИЗМЕНЕНО!
+        'match_select_player_' + index
       )]);
     });
     
@@ -232,7 +248,7 @@ module.exports = (bot) => {
     );
   }
 
-  // 🔥 ИЗМЕНЕНО: match_select_player вместо game_select_player
+  // 🔥 ИСПРАВЛЕНО: Проверяем, что игрок существует и он полевой
   bot.action(/match_select_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -245,10 +261,23 @@ module.exports = (bot) => {
     }
     
     const forwards = match.team.filter(p => p.position !== 'G');
+    
+    // 🔥 ПРОВЕРЯЕМ, ЧТО ИГРОК СУЩЕСТВУЕТ
+    if (playerIndex >= forwards.length) {
+      await ctx.editMessageText('❌ Игрок не найден!');
+      return;
+    }
+    
     const player = forwards[playerIndex];
     
     if (!player) {
       await ctx.editMessageText('❌ Игрок не найден!');
+      return;
+    }
+    
+    // 🔥 ПРОВЕРЯЕМ, ЧТО ЭТО НЕ ВРАТАРЬ
+    if (player.position === 'G') {
+      await ctx.editMessageText('❌ Вратарь не может бить буллит! Выбери полевого игрока.');
       return;
     }
     
@@ -415,7 +444,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'match_select_player_' + index  // 🔥 ИЗМЕНЕНО!
+        'match_select_player_' + index
       )]);
     });
     
