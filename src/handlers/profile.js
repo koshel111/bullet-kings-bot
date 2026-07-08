@@ -57,7 +57,7 @@ async function showTeam(ctx, bot, userId) {
     const player = teamForwards[i];
     if (player) {
       const emoji = getRarityEmoji(player.rarity);
-      text +=   .   -  ( OVR)\n;
+      text += (i+1) + '. ' + emoji + ' ' + player.name + ' - ' + player.rarity + ' (' + player.overall + ' OVR)\n';
     } else {
       text +=   . [0] | Игрок не добавлен\n;
     }
