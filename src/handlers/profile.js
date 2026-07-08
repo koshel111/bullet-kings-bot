@@ -32,30 +32,26 @@ async function showEditTeam(ctx) {
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   
-  let text = '📋 *ТЩ ССТ*\n\n';
+  let text = '📋 *ТЕКУЩИЙ СОСТАВ*\n\n';
   
-  text += '🏒 *ападающие (слоты 1-5):*\n';
+  text += '🏒 *Нападающие (слоты 1-5):*\n';
   for (let i = 0; i < 5; i++) {
     const player = teamForwards[i] || null;
     if (player) {
       const emoji = getRarityEmoji(player.rarity);
-      text +=   . []  |  ()\n;
+      text += `${i+1}. [${player.overall}] ${emoji} | ${player.name} (${player.rarity})\n`;
     } else {
-      text +=   . [0] | грок не добавлен\n;
+      text += `${i+1}. [0] | Игрок не добавлен\n`;
     }
   }
   
-  text += '\n🧤 *ратарь (слот 6):*\n';
-  if (teamGoalie) {
-    const emoji = getRarityEmoji(teamGoalie.rarity);
-    text +=   6. []  |  ()\n;
-  } else {
-    text +=   6. [0] | грок не добавлен\n;
-  }
-  
-  const goaliesInCollection = allCards.filter(c => c.position === 'G');
-  const forwardsInCollection = allCards.filter(c => c.position !== 'G');
-  
+text += '\n🧤 *Вратарь (слот 6):*\n';
+if (teamGoalie) {
+  const emoji = getRarityEmoji(teamGoalie.rarity);
+  text += `6. [${teamGoalie.overall}] ${emoji} | ${teamGoalie.name} (${teamGoalie.rarity})\n`;
+} else {
+  text += `6. [0] | Игрок не добавлен\n`;
+}
   text += '\n📊 *Статистика коллекции:*\n';
   text += '📚 сего карт: ' + allCards.length + '\n';
   text += '🏒 олевых: ' + forwardsInCollection.length + '\n';
