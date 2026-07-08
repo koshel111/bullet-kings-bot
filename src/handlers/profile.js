@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННЫЙ
+// src/handlers/profile.js - ПОЛНАЯ ПЕРЕРАБОТКА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -32,70 +32,6 @@ function getPositionEmoji(position) {
   return '🏒';
 }
 
-async function showEditTeam(ctx) {
-  const userId = ctx.from.id;
-  
-  const users = getUsers();
-  const data = users[userId];
-  const allCards = data.cards || [];
-  const currentTeam = data.team || [];
-  
-  const teamForwards = currentTeam.filter(p => p.position !== 'G');
-  const teamGoalie = currentTeam.find(p => p.position === 'G');
-  
-  let text = '📋 *ТЕКУЩИЙ СОСТАВ*\n\n';
-  
-  text += '🏒 *Нападающие и защитники (слоты 1-5):*\n';
-  for (let i = 0; i < 5; i++) {
-    const player = teamForwards[i] || null;
-    if (player) {
-      const emoji = getRarityEmoji(player.rarity);
-      const posName = getPositionName(player.position);
-      text += `${i+1}. [${player.overall}] ${emoji} | ${player.name} (${posName})\n`;
-    } else {
-      text += `${i+1}. [0] | Игрок не добавлен\n`;
-    }
-  }
-  
-  text += '\n🧤 *Вратарь (слот 6):*\n';
-  if (teamGoalie) {
-    const emoji = getRarityEmoji(teamGoalie.rarity);
-    text += `6. [${teamGoalie.overall}] ${emoji} | ${teamGoalie.name} (Вратарь)\n`;
-  } else {
-    text += `6. [0] | Игрок не добавлен\n`;
-  }
-  
-  const goaliesInCollection = allCards.filter(c => c.position === 'G');
-  const forwardsInCollection = allCards.filter(c => c.position !== 'G');
-  
-  text += '\n📊 *Статистика коллекции:*\n';
-  text += '📚 Всего карт: ' + allCards.length + '\n';
-  text += '🏒 Полевых: ' + forwardsInCollection.length + '\n';
-  text += '🧤 Вратарей: ' + goaliesInCollection.length + '\n';
-  
-  text += '\n📊 *Нажми на номер слота, чтобы заполнить или заменить игрока:*';
-  
-  const buttons = [
-    [Markup.button.callback('1️⃣ Слот 1', 'slot_0')],
-    [Markup.button.callback('2️⃣ Слот 2', 'slot_1')],
-    [Markup.button.callback('3️⃣ Слот 3', 'slot_2')],
-    [Markup.button.callback('4️⃣ Слот 4', 'slot_3')],
-    [Markup.button.callback('5️⃣ Слот 5', 'slot_4')],
-    [Markup.button.callback('6️⃣ Вратарь', 'slot_goalie')],
-    [Markup.button.callback('🗑️ Очистить состав', 'clear_team')],
-    [Markup.button.callback('🔙 Назад', 'team')],
-  ];
-  
-  await ctx.editMessageText(
-    text,
-    {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard(buttons)
-    }
-  );
-}
-
-// 🔥 ФИКСИМ ТАЙМЕР: считаем до 24 часов
 function getTimeUntilNextBonus() {
   const now = new Date();
   const tomorrow = new Date(now);
@@ -114,8 +50,182 @@ function getTimeUntilNextBonus() {
   }
 }
 
+// ============================================
+// ГЛАВНЫЙ ЭКРАН СОСТАВА
+// ============================================
+async function showTeam(ctx) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  const allCards = data.cards || [];
+  const currentTeam = data.team || [];
+  
+  const forwards = allCards.filter(c => c.position !== 'G');
+  const goalies = allCards.filter(c => c.position === 'G');
+  const teamForwards = currentTeam.filter(p => p.position !== 'G');
+  const teamGoalie = currentTeam.find(p => p.position === 'G');
+  
+  let text = '👥 *ТВОЯ КОМАНДА*\n\n';
+  text += '📋 *Текущий состав:*\n\n';
+  
+  if (teamForwards.length === 0 && !teamGoalie) {
+    text += '❌ Состав пуст! Нажми "Собрать состав" ниже.\n\n';
+  } else {
+    text += '🏒 *Полевые игроки:*\n';
+    teamForwards.forEach((p, i) => {
+      const emoji = getRarityEmoji(p.rarity);
+      const posName = getPositionName(p.position);
+      text += `${i+1}. ${emoji} ${p.name} - ${posName} (${p.overall} OVR)\n`;
+    });
+    
+    if (teamGoalie) {
+      const emoji = getRarityEmoji(teamGoalie.rarity);
+      text += `\n🧤 *Вратарь:*\n`;
+      text += `  ${emoji} ${teamGoalie.name} (${teamGoalie.overall} OVR)\n`;
+    }
+  }
+  
+  text += '\n📊 *Коллекция:*\n';
+  text += `📚 Всего карт: ${allCards.length}\n`;
+  text += `🏒 Полевых: ${forwards.length}\n`;
+  text += `🧤 Вратарей: ${goalies.length}\n`;
+  
+  const buttons = [
+    [Markup.button.callback('🔄 Собрать состав', 'edit_team')],
+    [Markup.button.callback('🗑️ Очистить состав', 'clear_team')],
+    [Markup.button.callback('🔙 Назад', 'back')],
+  ];
+  
+  await ctx.editMessageText(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard(buttons)
+  });
+}
+
+// ============================================
+// РЕДАКТИРОВАНИЕ СОСТАВА
+// ============================================
+async function showEditTeam(ctx) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  const currentTeam = data.team || [];
+  
+  const teamForwards = currentTeam.filter(p => p.position !== 'G');
+  const teamGoalie = currentTeam.find(p => p.position === 'G');
+  
+  let text = '📋 *РЕДАКТИРОВАНИЕ СОСТАВА*\n\n';
+  
+  text += '🏒 *Слоты 1-5 (полевые):*\n';
+  for (let i = 0; i < 5; i++) {
+    const player = teamForwards[i] || null;
+    if (player) {
+      const emoji = getRarityEmoji(player.rarity);
+      text += `${i+1}. ${emoji} ${player.name} (${player.overall} OVR)\n`;
+    } else {
+      text += `${i+1}. 🔲 Пусто\n`;
+    }
+  }
+  
+  text += '\n🧤 *Слот 6 (вратарь):*\n';
+  if (teamGoalie) {
+    const emoji = getRarityEmoji(teamGoalie.rarity);
+    text += `6. ${emoji} ${teamGoalie.name} (${teamGoalie.overall} OVR)\n`;
+  } else {
+    text += `6. 🔲 Пусто\n`;
+  }
+  
+  text += '\n📊 *Нажми на номер слота, чтобы выбрать игрока:*';
+  
+  const buttons = [
+    [Markup.button.callback('1️⃣ Слот 1', 'slot_0')],
+    [Markup.button.callback('2️⃣ Слот 2', 'slot_1')],
+    [Markup.button.callback('3️⃣ Слот 3', 'slot_2')],
+    [Markup.button.callback('4️⃣ Слот 4', 'slot_3')],
+    [Markup.button.callback('5️⃣ Слот 5', 'slot_4')],
+    [Markup.button.callback('6️⃣ Вратарь', 'slot_goalie')],
+    [Markup.button.callback('🔙 К составу', 'team')],
+  ];
+  
+  await ctx.editMessageText(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard(buttons)
+  });
+}
+
+// ============================================
+// ВЫБОР СЛОТА
+// ============================================
+async function showSlotPlayers(ctx, slotType) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  const allCards = data.cards || [];
+  const currentTeam = data.team || [];
+  
+  let filteredCards = [];
+  let slotName = '';
+  
+  if (slotType === 'goalie') {
+    filteredCards = allCards.filter(c => c.position === 'G');
+    slotName = 'вратаря';
+  } else {
+    const slotIndex = parseInt(slotType);
+    filteredCards = allCards.filter(c => c.position !== 'G');
+    slotName = `слот ${slotIndex + 1}`;
+  }
+  
+  // ID игроков уже в составе
+  const teamIds = currentTeam.map(p => p.id);
+  
+  let text = `📋 *Выбери игрока для ${slotName}:*\n\n`;
+  
+  if (filteredCards.length === 0) {
+    text += '❌ Нет доступных игроков!\n';
+    text += 'Открой паки в магазине 🛒';
+    
+    await ctx.editMessageText(text, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('🛒 В магазин', 'shop')],
+        [Markup.button.callback('🔙 К составу', 'edit_team')],
+      ])
+    });
+    return;
+  }
+  
+  const buttons = [];
+  filteredCards.forEach((player, index) => {
+    const emoji = getRarityEmoji(player.rarity);
+    const posEmoji = getPositionEmoji(player.position);
+    const posName = getPositionName(player.position);
+    
+    // Проверяем в составе
+    const isInTeam = teamIds.includes(player.id);
+    const checkMark = isInTeam ? '✅' : '➕';
+    
+    text += `${index + 1}. ${checkMark} ${posEmoji} ${emoji} ${player.name} - ${posName} (${player.overall} OVR)\n`;
+    
+    buttons.push([Markup.button.callback(
+      `${index + 1}`,
+      `select_player_${slotType}_${index}`
+    )]);
+  });
+  
+  text += '\n✅ — уже в составе, ➕ — можно добавить';
+  buttons.push([Markup.button.callback('🔙 К составу', 'edit_team')]);
+  
+  await ctx.editMessageText(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard(buttons)
+  });
+}
+
 module.exports = (bot) => {
   
+  // ============================================
+  // БОНУС
+  // ============================================
   bot.action('bonus', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -125,13 +235,11 @@ module.exports = (bot) => {
     const now = new Date();
     const today = now.toDateString();
     
-    // Проверяем, был ли бонус сегодня
     if (data.lastBonus === today) {
       const timeLeft = getTimeUntilNextBonus();
       await ctx.editMessageText(
         '⏳ *Бонус уже получен сегодня!*\n\n' +
-        '🕐 Следующий бонус через: ' + timeLeft + '\n' +
-        '📅 Возвращайся через 24 часа!',
+        `🕐 Следующий бонус через: ${timeLeft}`,
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
@@ -148,8 +256,8 @@ module.exports = (bot) => {
     const timeLeft = getTimeUntilNextBonus();
     await ctx.editMessageText(
       '🎁 *Бонус получен!*\n\n' +
-      '⭐ +' + bonus + ' монет\n' +
-      '🕐 Следующий бонус через: ' + timeLeft,
+      `⭐ +${bonus} монет\n` +
+      `🕐 Следующий бонус через: ${timeLeft}`,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
@@ -157,61 +265,25 @@ module.exports = (bot) => {
     );
   });
 
+  // ============================================
+  // КОМАНДА
+  // ============================================
   bot.action('team', async (ctx) => {
     await ctx.answerCbQuery();
-    const userId = ctx.from.id;
-    const users = getUsers();
-    const data = users[userId];
-    const allCards = data.cards || [];
-    const currentTeam = data.team || [];
-    
-    const forwards = allCards.filter(c => c.position !== 'G');
-    const goalies = allCards.filter(c => c.position === 'G');
-    const teamForwards = currentTeam.filter(p => p.position !== 'G');
-    const teamGoalie = currentTeam.find(p => p.position === 'G');
-    
-    let text = '👥 *Твоя команда*\n\n';
-    text += '📋 *Текущий состав:*\n\n';
-    
-    if (teamForwards.length === 0 && !teamGoalie) {
-      text += 'У тебя пока нет игроков в команде!\n';
-    } else {
-      text += '🏒 *Полевые игроки:*\n';
-      teamForwards.forEach((p, i) => {
-        const emoji = getRarityEmoji(p.rarity);
-        const posName = getPositionName(p.position);
-        text += (i+1) + '. ' + emoji + ' ' + p.name + ' - ' + posName + ' (' + p.overall + ' OVR)\n';
-      });
-      
-      if (teamGoalie) {
-        const emoji = getRarityEmoji(teamGoalie.rarity);
-        text += '\n🧤 *Вратарь:*\n';
-        text += '  ' + emoji + ' ' + teamGoalie.name + ' - Вратарь (' + teamGoalie.overall + ' OVR)\n';
-      }
-    }
-    
-    text += '\n📊 *Всего карт:* ' + allCards.length + '\n';
-    text += '🏒 Полевых: ' + forwards.length + '\n';
-    text += '🧤 Вратарей: ' + goalies.length + '\n\n';
-    text += '*Выбери действие:*';
-    
-    await ctx.editMessageText(
-      text,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Собрать состав', 'edit_team')],
-          [Markup.button.callback('🔙 Назад', 'back')],
-        ])
-      }
-    );
+    await showTeam(ctx);
   });
 
+  // ============================================
+  // РЕДАКТИРОВАНИЕ СОСТАВА
+  // ============================================
   bot.action('edit_team', async (ctx) => {
     await ctx.answerCbQuery();
     await showEditTeam(ctx);
   });
 
+  // ============================================
+  // ОЧИСТКА СОСТАВА
+  // ============================================
   bot.action('clear_team', async (ctx) => {
     await ctx.answerCbQuery();
     const userId = ctx.from.id;
@@ -223,66 +295,17 @@ module.exports = (bot) => {
     await showEditTeam(ctx);
   });
 
+  // ============================================
+  // ВЫБОР СЛОТА
+  // ============================================
   bot.action(/slot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const slotType = ctx.match[1];
-    const userId = ctx.from.id;
-    const users = getUsers();
-    const data = users[userId];
-    const allCards = data.cards || [];
-    const currentTeam = data.team || [];
-    
-    let filteredCards = [];
-    let slotName = '';
-    
-    if (slotType === 'goalie') {
-      filteredCards = allCards.filter(c => c.position === 'G');
-      slotName = 'вратаря';
-    } else {
-      const slotIndex = parseInt(slotType);
-      filteredCards = allCards.filter(c => c.position !== 'G');
-      slotName = `слот ${slotIndex + 1}`;
-    }
-    
-    // 🔥 ПОЛУЧАЕМ ID ВСЕХ ИГРОКОВ В СОСТАВЕ
-    const teamIds = currentTeam.map(p => p.id);
-    
-    let text = `📋 *Выбери игрока для ${slotName}:*\n\n`;
-    text += `Всего доступно: ${filteredCards.length}\n\n`;
-    
-    const buttons = [];
-    filteredCards.forEach((player, index) => {
-      const emoji = getRarityEmoji(player.rarity);
-      const posEmoji = getPositionEmoji(player.position);
-      const posName = getPositionName(player.position);
-      
-      // 🔥 ПРОВЕРЯЕМ, В СОСТАВЕ ЛИ ИГРОК
-      const isInTeam = teamIds.includes(player.id);
-      const checkMark = isInTeam ? '✅' : '➕';
-      
-      text += `${index + 1}. ${checkMark} ${posEmoji} ${emoji} ${player.name} - ${posName} (${player.overall} OVR)\n`;
-      buttons.push([Markup.button.callback(
-        `${index + 1}`, 
-        `select_player_${slotType}_${index}`
-      )]);
-    });
-    
-    text += '\n📊 *Нажми на номер карты, чтобы добавить в состав:*\n';
-    text += '✅ — уже в составе, ➕ — можно добавить';
-    
-    buttons.push([Markup.button.callback('🔙 К составу', 'edit_team')]);
-    
-    await ctx.editMessageText(
-      text,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(buttons)
-      }
-    );
+    await showSlotPlayers(ctx, slotType);
   });
 
   // ============================================
-  // ВЫБОР ИГРОКА — ПОЛНАЯ ПЕРЕСБОРКА СОСТАВА
+  // ВЫБОР ИГРОКА — ПРОСТАЯ ЛОГИКА
   // ============================================
   bot.action(/select_player_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -293,13 +316,11 @@ module.exports = (bot) => {
     const data = users[userId];
     const allCards = data.cards || [];
     
+    // Находим игрока
     let player;
-    let isGoalie = false;
-    
     if (slotType === 'goalie') {
       const goalies = allCards.filter(c => c.position === 'G');
       player = goalies[playerIndex];
-      isGoalie = true;
     } else {
       const forwards = allCards.filter(c => c.position !== 'G');
       player = forwards[playerIndex];
@@ -310,15 +331,12 @@ module.exports = (bot) => {
       return;
     }
     
-    // 🔥 УБИРАЕМ ИГРОКА ИЗ ВСЕХ СЛОТОВ
-    const currentTeam = data.team || [];
-    const otherPlayers = currentTeam.filter(p => p.id !== player.id);
+    // 🔥 ПРОСТАЯ ЛОГИКА:
+    // 1. Убираем игрока из всех слотов
+    data.team = data.team.filter(p => p.id !== player.id);
     
-    // 🔥 СОХРАНЯЕМ ВСЕХ, КРОМЕ ВЫБРАННОГО
-    data.team = otherPlayers;
-    
-    // 🔥 ДОБАВЛЯЕМ ИГРОКА В НУЖНЫЙ СЛОТ
-    if (isGoalie) {
+    // 2. Добавляем в нужный слот
+    if (slotType === 'goalie') {
       // Убираем всех вратарей
       data.team = data.team.filter(p => p.position !== 'G');
       data.team.push({ ...player, count: 1 });
@@ -328,23 +346,21 @@ module.exports = (bot) => {
       // Получаем всех полевых
       const forwards = data.team.filter(p => p.position !== 'G');
       
-      // Убираем всех полевых из состава
+      // Убираем всех полевых
       data.team = data.team.filter(p => p.position === 'G');
       
       // Добавляем всех полевых обратно
-      data.team.push(...forwards);
+      const newForwards = [...forwards];
       
-      // Вставляем нового игрока в нужный слот
-      const insertIndex = Math.min(slotIndex, forwards.length);
-      const newPlayer = { ...player, count: 1 };
+      // Вставляем игрока в нужный слот
+      if (slotIndex < newForwards.length) {
+        newForwards[slotIndex] = { ...player, count: 1 };
+      } else {
+        newForwards.push({ ...player, count: 1 });
+      }
       
-      // Пересобираем с правильным порядком
-      const allForwards = [...forwards];
-      allForwards.splice(insertIndex, 0, newPlayer);
-      
-      // Добавляем всех полевых обратно
-      data.team = data.team.filter(p => p.position === 'G');
-      data.team.push(...allForwards);
+      // Добавляем всех полевых
+      data.team.push(...newForwards);
     }
     
     saveUsers(users);
@@ -352,6 +368,9 @@ module.exports = (bot) => {
     await showEditTeam(ctx);
   });
 
+  // ============================================
+  // КОЛЛЕКЦИЯ
+  // ============================================
   bot.action('collection', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -366,9 +385,9 @@ module.exports = (bot) => {
         const emoji = getRarityEmoji(c.rarity);
         const posEmoji = getPositionEmoji(c.position);
         const posName = getPositionName(c.position);
-        text += emoji + ' ' + posEmoji + ' ' + c.name + ' - ' + posName + ' (' + c.overall + ' OVR)\n';
+        text += `${emoji} ${posEmoji} ${c.name} - ${posName} (${c.overall} OVR)\n`;
       });
-      text += '\n📊 Всего карт: ' + data.cards.length;
+      text += `\n📊 Всего карт: ${data.cards.length}`;
     }
     
     await ctx.editMessageText(text, {
@@ -377,6 +396,9 @@ module.exports = (bot) => {
     });
   });
 
+  // ============================================
+  // ПРОФИЛЬ
+  // ============================================
   bot.action('profile', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -393,7 +415,7 @@ module.exports = (bot) => {
     rarities.forEach(r => {
       if (rarityCount[r]) {
         const emoji = getRarityEmoji(r);
-        rarityText += emoji + ' ' + r + ': ' + rarityCount[r] + '\n';
+        rarityText += `${emoji} ${r}: ${rarityCount[r]}\n`;
       }
     });
     
@@ -405,27 +427,27 @@ module.exports = (bot) => {
     let bonusText = '';
     if (data.lastBonus === today) {
       const timeLeft = getTimeUntilNextBonus();
-      bonusText = '✅ Получен сегодня (через ' + timeLeft + ')';
+      bonusText = `✅ Получен сегодня (через ${timeLeft})`;
     } else {
       bonusText = '🎁 Доступен!';
     }
     
     await ctx.editMessageText(
       '👤 *Профиль*\n\n' +
-      'Имя: ' + user.first_name + '\n' +
-      'ID: ' + user.id + '\n\n' +
+      `Имя: ${user.first_name}\n` +
+      `ID: ${user.id}\n\n` +
       '📊 *Статистика:*\n' +
-      '🏆 Рейтинг: ' + (data.rating || 0) + '\n' +
-      '🥇 Лига: ' + (data.league || 'Бронза') + '\n' +
-      '✅ Побед: ' + (data.wins || 0) + '\n' +
-      '❌ Поражений: ' + (data.losses || 0) + '\n' +
-      '⚖️ Ничьих: ' + (data.draws || 0) + '\n' +
-      '⭐ Монет: ' + (data.coins || 0) + '\n' +
-      '💎 Кристаллов: ' + (data.crystals || 0) + '\n' +
-      '📚 Карт: ' + data.cards.length + '\n' +
-      '📊 Матчей: ' + (data.matches || 0) + '\n' +
-      '👥 В команде: ' + forwards + ' полевых, ' + (goalie ? '1 вратарь' : '0 вратарей') + '\n' +
-      '📅 Бонус: ' + bonusText + '\n\n' +
+      `🏆 Рейтинг: ${data.rating || 0}\n` +
+      `🥇 Лига: ${data.league || 'Бронза'}\n` +
+      `✅ Побед: ${data.wins || 0}\n` +
+      `❌ Поражений: ${data.losses || 0}\n` +
+      `⚖️ Ничьих: ${data.draws || 0}\n` +
+      `⭐ Монет: ${data.coins || 0}\n` +
+      `💎 Кристаллов: ${data.crystals || 0}\n` +
+      `📚 Карт: ${data.cards.length}\n` +
+      `📊 Матчей: ${data.matches || 0}\n` +
+      `👥 В команде: ${forwards} полевых, ${goalie ? '1 вратарь' : '0 вратарей'}\n` +
+      `📅 Бонус: ${bonusText}\n\n` +
       '📋 *Карты по редкостям:*\n' + (rarityText || 'Нет карт'),
       {
         parse_mode: 'Markdown',
