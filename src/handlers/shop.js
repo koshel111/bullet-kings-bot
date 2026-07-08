@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shop.js - КАРТЫ ТОЛЬКО В КОЛЛЕКЦИЮ
+// src/handlers/shop.js - СЫ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -18,60 +18,53 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-function getPositionName(position) {
-  if (position === 'G') return 'Вратарь';
-  if (position === 'LW' || position === 'RW' || position === 'C') return 'Нападающий';
-  if (position === 'D') return 'Защитник';
-  return 'Полевой';
-}
-
 const PACKS = {
   basic: {
-    name: 'Базовый',
+    name: 'азовый',
     price: 100,
     currency: 'coins',
     cards: 1,
     description: '1 карта, шанс на редкую',
     emoji: '📦',
     weights: {
-      'Обычный': 45,
-      'Редкий': 30,
-      'Элитный': 18,
-      'Эпический': 6.9,
-      'Легендарный': 0.1,
-      'Икона': 0
+      'бычный': 45,
+      'едкий': 30,
+      'литный': 18,
+      'пический': 6.9,
+      'егендарный': 0.1,
+      'кона': 0
     }
   },
   premium: {
-    name: 'Премиум',
+    name: 'ремиум',
     price: 500,
     currency: 'coins',
     cards: 1,
     description: '1 карта, шанс на эпическую',
     emoji: '🎁',
     weights: {
-      'Обычный': 0,
-      'Редкий': 30,
-      'Элитный': 35,
-      'Эпический': 25,
-      'Легендарный': 9,
-      'Икона': 1
+      'бычный': 0,
+      'едкий': 30,
+      'литный': 35,
+      'пический': 25,
+      'егендарный': 9,
+      'кона': 1
     }
   },
   legendary: {
-    name: 'Легендарный',
+    name: 'егендарный',
     price: 50,
     currency: 'crystals',
     cards: 1,
     description: '1 карта, шанс на икону',
     emoji: '💎',
     weights: {
-      'Обычный': 0,
-      'Редкий': 0,
-      'Элитный': 15,
-      'Эпический': 35,
-      'Легендарный': 40,
-      'Икона': 10
+      'бычный': 0,
+      'едкий': 0,
+      'литный': 15,
+      'пический': 35,
+      'егендарный': 40,
+      'кона': 10
     }
   }
 };
@@ -94,7 +87,12 @@ function openPack(packType) {
   for (let i = 0; i < pack.cards; i++) {
     const rarity = weightedRandom(pack.weights);
     const player = getRandomCard(rarity);
-    cards.push(player);
+    // 🔥 Я ЬЫ ID Т
+    const cardWithId = {
+      ...player,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6)
+    };
+    cards.push(cardWithId);
   }
   return cards;
 }
@@ -108,20 +106,20 @@ module.exports = (bot) => {
     const data = users[user.id];
     
     await ctx.editMessageText(
-      '🛒 *Магазин*\n\n' +
-      '⭐ Монет: ' + data.coins + '\n' +
-      '💎 Кристаллов: ' + data.crystals + '\n\n' +
-      '*Выбери пак:*\n' +
-      '📦 Базовый (100⭐) — 1 карта\n' +
-      '🎁 Премиум (500⭐) — 1 карта\n' +
-      '💎 Легендарный (50💎) — 1 карта',
+      '🛒 *агазин*\n\n' +
+      '⭐ онет: ' + data.coins + '\n' +
+      '💎 ристаллов: ' + data.crystals + '\n\n' +
+      '*ыбери пак:*\n' +
+      '📦 азовый (100⭐) — 1 карта\n' +
+      '🎁 ремиум (500⭐) — 1 карта\n' +
+      '💎 егендарный (50💎) — 1 карта',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('📦 Базовый (100⭐)', 'buy_basic')],
-          [Markup.button.callback('🎁 Премиум (500⭐)', 'buy_premium')],
-          [Markup.button.callback('💎 Легендарный (50💎)', 'buy_legendary')],
-          [Markup.button.callback('🔙 Назад', 'back')],
+          [Markup.button.callback('📦 азовый (100⭐)', 'buy_basic')],
+          [Markup.button.callback('🎁 ремиум (500⭐)', 'buy_premium')],
+          [Markup.button.callback('💎 егендарный (50💎)', 'buy_legendary')],
+          [Markup.button.callback('🔙 азад', 'back')],
         ])
       }
     );
@@ -136,7 +134,7 @@ module.exports = (bot) => {
     
     const pack = PACKS[packType];
     if (!pack) {
-      await ctx.editMessageText('❌ Пак не найден!');
+      await ctx.editMessageText('❌ ак не найден!');
       return;
     }
     
@@ -145,12 +143,12 @@ module.exports = (bot) => {
     
     if (balance < pack.price) {
       await ctx.editMessageText(
-        '❌ *Недостаточно ' + currencyName + '!*\n\n' +
-        'Нужно: ' + pack.price + '\n' +
-        'У тебя: ' + balance,
+        '❌ *едостаточно ' + currencyName + '!*\n\n' +
+        'ужно: ' + pack.price + '\n' +
+        ' тебя: ' + balance,
         {
           parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'shop')]])
+          ...Markup.inlineKeyboard([[Markup.button.callback('🔙 азад', 'shop')]])
         }
       );
       return;
@@ -164,13 +162,13 @@ module.exports = (bot) => {
     
     const cards = openPack(packType);
     if (!cards || cards.length === 0) {
-      await ctx.editMessageText('❌ Ошибка открытия пака!');
+      await ctx.editMessageText('❌ шибка открытия пака!');
       return;
     }
     
     const card = cards[0];
     
-    // ✅ ТОЛЬКО В КОЛЛЕКЦИЮ! НЕ В СОСТАВ!
+    // 🔥 Я   С ID
     const existing = data.cards.find(c => c.name === card.name && c.position === card.position);
     if (existing) {
       existing.count = (existing.count || 1) + 1;
@@ -182,24 +180,26 @@ module.exports = (bot) => {
     
     const emoji = getRarityEmoji(card.rarity);
     const positionEmoji = card.position === 'G' ? '🧤' : '🏒';
-    const positionName = getPositionName(card.position);
+    
+    let text = '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n';
+    text += '📋 *Твоя карта:*\n';
+    text += emoji + ' ' + positionEmoji + ' ' + card.name + '\n';
+    text += 'едкость: ' + card.rarity + '\n';
+    text += 'ейтинг: ' + card.overall + ' OVR\n';
+    text += 'озиция: ' + (card.position === 'G' ? 'ратарь' : 'олевой') + '\n\n';
+    text += '📊 сего карт: ' + data.cards.length + '\n\n';
+    text += '💡 *арта добавлена в коллекцию!*\n';
+    text += 'тобы добавить её в состав — зайди в 👥 оманда и собери состав.\n\n';
+    text += '🔍 *роверь слот вратаря если выпал вратарь!*';
     
     await ctx.editMessageText(
-      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n' +
-      '📋 *Твоя карта:*\n' +
-      emoji + ' ' + positionEmoji + ' ' + card.name + '\n' +
-      'Редкость: ' + card.rarity + '\n' +
-      'Рейтинг: ' + card.overall + ' OVR\n' +
-      'Позиция: ' + positionName + '\n\n' +
-      '📊 Всего карт: ' + data.cards.length + '\n\n' +
-      '💡 *Карта добавлена в коллекцию!*\n' +
-      'Чтобы добавить её в состав — зайди в 👥 Команда и собери состав.',
+      text,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Открыть ещё', 'buy_' + packType)],
-          [Markup.button.callback('🔙 В магазин', 'shop')],
-          [Markup.button.callback('👥 Перейти в команду', 'team')],
+          [Markup.button.callback('🔄 ткрыть ещё', 'buy_' + packType)],
+          [Markup.button.callback('🔙  магазин', 'shop')],
+          [Markup.button.callback('👥 ерейти в команду', 'team')],
         ])
       }
     );
