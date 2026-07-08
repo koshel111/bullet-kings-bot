@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИДЕАЛЬНАЯ ВЕРСИЯ
+// src/handlers/profile.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -32,74 +32,30 @@ function getPositionEmoji(position) {
   return '🏒';
 }
 
-// ============================================
-// src/handlers/profile.js - ТОЛЬКО БОНУС (ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ)
-// ============================================
-
-// ... ВСЁ ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ ...
-
-module.exports = (bot) => {
+// 🔥 ДОБАВЛЯЕМ ФУНКЦИЮ ТАЙМЕРА!
+function getTimeUntilNextBonus(lastBonusDate) {
+  const now = new Date();
   
-  // ============================================
-  // БОНУС — ИСПРАВЛЕННЫЙ
-  // ============================================
-  bot.action('bonus', async (ctx) => {
-    await ctx.answerCbQuery();
-    const user = ctx.from;
-    const users = getUsers();
-    const data = users[user.id];
-    
-    const now = new Date();
-    
-    // Проверяем, есть ли lastBonus
-    if (data.lastBonus) {
-      const lastBonusDate = new Date(data.lastBonus);
-      const nextBonus = new Date(lastBonusDate);
-      nextBonus.setHours(nextBonus.getHours() + 24);
-      
-      const diff = nextBonus - now;
-      
-      // Если время ещё не вышло
-      if (diff > 0) {
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        
-        await ctx.editMessageText(
-          `⏳ *Бонус уже получен!*\n\n` +
-          `🕐 Следующий бонус через: ${hours}ч ${minutes}м ${seconds}с`,
-          {
-            parse_mode: 'Markdown',
-            ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
-          }
-        );
-        return;
-      }
-    }
-    
-    // Даём бонус
-    const bonus = Math.floor(Math.random() * 50) + 10;
-    data.coins += bonus;
-    data.lastBonus = now.toISOString();  // ← СОХРАНЯЕМ!
-    saveUsers(users);
-    
-    await ctx.editMessageText(
-      `🎁 *Бонус получен!*\n\n` +
-      `⭐ +${bonus} монет\n` +
-      `🕐 Следующий бонус через: 24ч 0м 0с`,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
-      }
-    );
-  });
+  if (!lastBonusDate) {
+    return '🎁 Доступен!';
+  }
+  
+  const nextBonus = new Date(lastBonusDate);
+  nextBonus.setHours(nextBonus.getHours() + 24);
+  
+  const diff = nextBonus - now;
+  
+  if (diff <= 0) {
+    return '🎁 Доступен!';
+  }
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  
+  return `${hours}ч ${minutes}м ${seconds}с`;
+}
 
-  // ... ВСЁ ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ ...
-};
-
-// ============================================
-// ГЛАВНЫЙ ЭКРАН КОМАНДЫ
-// ============================================
 async function showTeam(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -150,9 +106,6 @@ async function showTeam(ctx) {
   });
 }
 
-// ============================================
-// РЕДАКТИРОВАНИЕ СОСТАВА
-// ============================================
 async function showEditTeam(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -193,9 +146,6 @@ async function showEditTeam(ctx) {
   });
 }
 
-// ============================================
-// ПОКАЗ ИГРОКОВ ДЛЯ СЛОТА
-// ============================================
 async function showPlayersForSlot(ctx, slotType) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -214,7 +164,6 @@ async function showPlayersForSlot(ctx, slotType) {
     slotName = `слот ${parseInt(slotType) + 1}`;
   }
   
-  // ID игроков в составе
   const teamIds = currentTeam.map(p => p.id);
   
   let text = `📋 *Выбери игрока для ${slotName}:*\n\n`;
@@ -254,16 +203,12 @@ async function showPlayersForSlot(ctx, slotType) {
   });
 }
 
-// ============================================
-// ДОБАВЛЕНИЕ ИГРОКА В СОСТАВ
-// ============================================
 async function addPlayerToTeam(ctx, slotType, playerIndex) {
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
   const allCards = data.cards || [];
   
-  // Находим игрока
   let player;
   if (slotType === 'goalie') {
     const goalies = allCards.filter(c => c.position === 'G');
@@ -278,32 +223,24 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
     return;
   }
   
-  // 🔥 САМАЯ ПРОСТАЯ ЛОГИКА:
-  // 1. Удаляем игрока из всех слотов
   let newTeam = data.team.filter(p => p.id !== player.id);
   
-  // 2. Удаляем всех, кто уже в этом слоте
   if (slotType === 'goalie') {
     newTeam = newTeam.filter(p => p.position !== 'G');
     newTeam.push({ ...player, count: 1 });
   } else {
     const slotIndex = parseInt(slotType);
-    
-    // Удаляем всех полевых
     const forwards = newTeam.filter(p => p.position !== 'G');
     const goalies = newTeam.filter(p => p.position === 'G');
     
-    // Создаём новый массив полевых с правильным порядком
     const newForwards = [...forwards];
     
-    // Вставляем игрока в нужный слот
     if (slotIndex < newForwards.length) {
       newForwards[slotIndex] = { ...player, count: 1 };
     } else {
       newForwards.push({ ...player, count: 1 });
     }
     
-    // Собираем команду заново
     newTeam = [...goalies, ...newForwards];
   }
   
@@ -317,59 +254,76 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
 module.exports = (bot) => {
   
   // ============================================
-  // БОНУС
+  // БОНУС — С ТАЙМЕРОМ
   // ============================================
   bot.action('bonus', async (ctx) => {
-    await ctx.answerCbQuery();
-    const user = ctx.from;
-    const users = getUsers();
-    const data = users[user.id];
-    
-    const today = new Date().toDateString();
-    if (data.lastBonus === today) {
+    try {
+      await ctx.answerCbQuery();
+      console.log('✅ Бонус нажат!');
+      
+      const user = ctx.from;
+      const users = getUsers();
+      const data = users[user.id];
+      
+      if (!data) {
+        console.log('❌ Пользователь не найден!');
+        await ctx.editMessageText('❌ Ошибка! Попробуй /start');
+        return;
+      }
+      
+      const now = new Date();
+      
+      // Проверяем, есть ли lastBonus
+      if (data.lastBonus) {
+        const timeLeft = getTimeUntilNextBonus(data.lastBonus);
+        
+        // Если бонус ещё не доступен
+        if (timeLeft !== '🎁 Доступен!') {
+          await ctx.editMessageText(
+            `⏳ *Бонус уже получен!*\n\n` +
+            `🕐 Следующий бонус через: ${timeLeft}`,
+            {
+              parse_mode: 'Markdown',
+              ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+            }
+          );
+          return;
+        }
+      }
+      
+      // Даём бонус
+      const bonus = Math.floor(Math.random() * 50) + 10;
+      data.coins += bonus;
+      data.lastBonus = now.toISOString();
+      saveUsers(users);
+      
+      console.log(`✅ Бонус выдан: +${bonus} монет`);
+      
       await ctx.editMessageText(
-        `⏳ *Бонус уже получен!*\n\n🕐 Через: ${getTimeUntilNextBonus()}`,
+        `🎁 *Бонус получен!*\n\n` +
+        `⭐ +${bonus} монет\n` +
+        `🕐 Следующий бонус через: 24ч 0м 0с`,
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
         }
       );
-      return;
+    } catch (error) {
+      console.error('❌ Ошибка в бонусе:', error);
+      await ctx.editMessageText('❌ Произошла ошибка! Попробуй позже.');
     }
-    
-    const bonus = Math.floor(Math.random() * 50) + 10;
-    data.coins += bonus;
-    data.lastBonus = today;
-    saveUsers(users);
-    
-    await ctx.editMessageText(
-      `🎁 *Бонус получен!*\n\n⭐ +${bonus} монет\n🕐 Через: ${getTimeUntilNextBonus()}`,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
-      }
-    );
   });
 
-  // ============================================
-  // КОМАНДА
-  // ============================================
   bot.action('team', async (ctx) => {
     await ctx.answerCbQuery();
     await showTeam(ctx);
   });
 
-  // ============================================
-  // РЕДАКТИРОВАНИЕ
-  // ============================================
   bot.action('edit_team', async (ctx) => {
     await ctx.answerCbQuery();
     await showEditTeam(ctx);
   });
 
-  // ============================================
-  // ОЧИСТКА
-  // ============================================
   bot.action('clear_team', async (ctx) => {
     await ctx.answerCbQuery();
     const userId = ctx.from.id;
@@ -381,25 +335,16 @@ module.exports = (bot) => {
     await showEditTeam(ctx);
   });
 
-  // ============================================
-  // ВЫБОР СЛОТА
-  // ============================================
   bot.action(/slot_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     await showPlayersForSlot(ctx, ctx.match[1]);
   });
 
-  // ============================================
-  // ВЫБОР ИГРОКА
-  // ============================================
   bot.action(/pick_player_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     await addPlayerToTeam(ctx, ctx.match[1], parseInt(ctx.match[2]));
   });
 
-  // ============================================
-  // КОЛЛЕКЦИЯ
-  // ============================================
   bot.action('collection', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -425,9 +370,6 @@ module.exports = (bot) => {
     });
   });
 
-  // ============================================
-  // ПРОФИЛЬ
-  // ============================================
   bot.action('profile', async (ctx) => {
     await ctx.answerCbQuery();
     const user = ctx.from;
@@ -449,8 +391,10 @@ module.exports = (bot) => {
     const forwards = data.team.filter(p => p.position !== 'G').length;
     const goalie = data.team.find(p => p.position === 'G');
     
-    const today = new Date().toDateString();
-    let bonusText = data.lastBonus === today ? `✅ Получен (через ${getTimeUntilNextBonus()})` : '🎁 Доступен!';
+    let bonusText = '🎁 Доступен!';
+    if (data.lastBonus) {
+      bonusText = getTimeUntilNextBonus(data.lastBonus);
+    }
     
     await ctx.editMessageText(
       '👤 *Профиль*\n\n' +
