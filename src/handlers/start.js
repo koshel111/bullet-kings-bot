@@ -67,7 +67,9 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback('🛒 Магазин', 'shop')],
       [Markup.button.callback('👤 Профиль', 'profile')],
       [Markup.button.callback('📅 Бонус', 'bonus')],
-      [Markup.button.callback('🎖️ Боевой пропуск', 'menu_battlepass')],  // ← НОВАЯ КНОПКА!
+      [Markup.button.callback('🎖️ Боевой пропуск', 'menu_battlepass')],
+      // В конце списка кнопок добавь:
+      ...(ADMIN_IDS.includes(user.id) ? [[Markup.button.callback('👑 Админ-панель', 'admin_panel')]] : []),  // ← НОВАЯ КНОПКА!
     ])
   });
 }
