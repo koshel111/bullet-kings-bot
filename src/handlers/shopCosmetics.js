@@ -35,4 +35,12 @@ module.exports = (bot) => {
     await ctx.reply('✅ Ты купил: ЦСКА (тест)');
   });
 
+  bot.action(/cosm_buy_(.+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const id = ctx.match[1];
+    console.log(`🔴 НАЖАТА КНОПКА (regex): cosm_buy_${id}`);
+    await ctx.deleteMessage();
+    await ctx.reply(`✅ Ты купил: ${id} (regex)`);
+  });
+
 };
