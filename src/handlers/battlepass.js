@@ -18,7 +18,6 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// 🔥 XP ЗА УРОВЕНЬ = 20, НО 1 МАТЧ = 20 XP
 const BATTLEPASS = {
   MAX_LEVEL: 30,
   XP_PER_LEVEL: 20,
@@ -60,9 +59,6 @@ const BATTLEPASS = {
   }
 };
 
-// ============================================
-// XP ЗА УРОВЕНЬ = 20, 1 МАТЧ = 20 XP
-// ============================================
 const XP_PER_MATCH = 20;
 
 function getLevelByXP(xp) {
@@ -207,8 +203,8 @@ async function showBattlepass(ctx) {
       text += "🆓 Бесплатный: ";
       const free = reward.free;
       const parts = [];
-      if (free.coins) parts.push(free.coins + "⭐");
-      if (free.crystals) parts.push(free.crystals + "💎");
+      if (free.coins) parts.push(free.coins + " ⭐монет");
+      if (free.crystals) parts.push(free.crystals + " 💎кристаллов");
       if (free.pack) parts.push("📦 " + free.pack + " пак");
       if (free.jersey) parts.push("🎽 Форма: " + free.jersey);
       if (free.arena) parts.push("🏟️ Арена: " + free.arena);
@@ -220,8 +216,8 @@ async function showBattlepass(ctx) {
       text += "💎 Премиум: ";
       const premium = reward.premium;
       const parts = [];
-      if (premium.coins) parts.push(premium.coins + "⭐");
-      if (premium.crystals) parts.push(premium.crystals + "💎");
+      if (premium.coins) parts.push(premium.coins + " ⭐монет");
+      if (premium.crystals) parts.push(premium.crystals + " 💎кристаллов");
       if (premium.pack) parts.push("📦 " + premium.pack + " пак");
       if (premium.jersey) parts.push("🎽 Форма: " + premium.jersey + " (навсегда)");
       if (premium.arena) parts.push("🏟️ Арена: " + premium.arena + " (навсегда)");
@@ -239,9 +235,22 @@ async function showBattlepass(ctx) {
   buttons.push([Markup.button.callback("🔄 Обновить", "bp_refresh")]);
   buttons.push([Markup.button.callback("🔙 Назад", "back")]);
   
+  // 🔥 КНОПКИ ПОД КЛАВИАТУРОЙ
   await ctx.reply(text, {
     parse_mode: "Markdown",
     ...Markup.inlineKeyboard(buttons)
+  });
+  
+  // Кнопки под клавиатурой
+  await ctx.reply("📱 Используй кнопки под клавиатурой:", {
+    reply_markup: {
+      keyboard: [
+        ["🔄 Обновить", "🎖️ Пропуск"],
+        ["🔙 Назад"],
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: false
+    }
   });
 }
 
@@ -298,7 +307,6 @@ async function addXP(userId, amount) {
   saveUsers(users);
 }
 
-// Экспортируем для использования в game.js
 module.exports = {
   addXP,
   XP_PER_MATCH
@@ -319,6 +327,46 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await showBattlepass(ctx);
   });
-};
 
-module.exports.addXP = addXP;
+  // 🔥 КНОПКИ ПОД КЛАВИАТУРОЙ
+  bot.hears("🎖️ Пропуск", async (ctx) => {
+    const userId = ctx.from.id;
+    await showBattlepass(ctx);
+  });
+
+  bot.hears("🔄 Обновить", async (ctx) => {
+    const userId = ctx.from.id;
+    await showBattlepass(ctx);
+  });
+
+  bot.hears("🔙 Назад", async (ctx) => {
+    const userId = ctx.from.id;
+    const mainMenu = Markup.inlineKeyboard([
+      [Markup.button.callback("🎮 Играть", "play")],
+      [Markup.button.callback("👥 Команда", "team")],
+      [Markup.button.callback("📚 Коллекция", "collection")],
+      [Markup.button.callback("🛒 Магазин", "shop")],
+      [Markup.button.callback("👤 Профиль", "profile")],
+      [Markup.button.callback("🎖️ Пропуск", "battlepass")],
+      [Markup.button.callback("📅 Бонус", "bonus")],
+    ]);
+    
+    await ctx.reply("🏒 *Bullet Kings*\n\nГлавное меню:", {
+      parse_mode: "Markdown",
+      ...mainMenu
+    });
+    
+    await ctx.reply("📱 Используй кнопки под клавиатурой:", {
+      reply_markup: {
+        keyboard: [
+          ["🎮 Играть", "👥 Команда"],
+          ["📚 Коллекция", "🛒 Магазин"],
+          ["👤 Профиль", "🎖️ Пропуск", "📅 Бонус"],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      }
+    });
+  });
+
+};
