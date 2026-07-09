@@ -248,7 +248,7 @@ module.exports = (bot) => {
     );
   }
 
-  // 🔥 ИСПРАВЛЕНО: правильная проверка
+  // 🔥 ИСПРАВЛЕНО: проверка match.isFinished
   bot.action(/match_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -256,12 +256,12 @@ module.exports = (bot) => {
     const match = matches[user.id];
     
     if (!match) {
-      await ctx.editMessageText('❌ Матч не найден!');
+      await ctx.editMessageText('❌ Матч не найден! Начни новый матч.');
       return;
     }
     
     if (match.isFinished) {
-      await ctx.editMessageText('❌ Матч завершён!');
+      await ctx.editMessageText('❌ Этот матч уже завершён! Начни новый.');
       return;
     }
     
@@ -279,7 +279,7 @@ module.exports = (bot) => {
       return;
     }
     
-    // Проверяем, что это не вратарь
+    // ПРОВЕРКА: это не вратарь
     if (player.position === 'G') {
       await ctx.editMessageText('❌ Вратарь не может бить буллит! Выбери полевого игрока.');
       return;
@@ -407,7 +407,7 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
-    // Проверяем завершение матча
+    // ПРОВЕРКА ЗАВЕРШЕНИЯ
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -474,12 +474,10 @@ module.exports = (bot) => {
       data.wins++;
       data.coins += 20;
       data.rating += 25;
-      // 🔥 ДОБАВЛЯЕМ XP ЗА ПОБЕДУ
       await addXP(user.id, XP_PER_MATCH);
     } else {
       data.losses++;
       data.rating = Math.max(0, data.rating - 10);
-      // 🔥 ДОБАВЛЯЕМ XP ЗА ПОРАЖЕНИЕ (меньше)
       await addXP(user.id, Math.floor(XP_PER_MATCH / 2));
     }
     data.matches++;
