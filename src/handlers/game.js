@@ -18,6 +18,7 @@ function saveUsers(users) {
 }
 
 const matches = {};
+const { addXP, XP_PER_MATCH } = require('./battlepass');
 
 function getAIShot(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
@@ -478,6 +479,7 @@ module.exports = (bot) => {
                   data.rating >= 1200 ? 'Золото' :
                   data.rating >= 1000 ? 'Серебро' : 'Бронза';
     saveUsers(users);
+    await addXP(user.id, XP_PER_MATCH);
     
     const matchResult = {
       playerScore: match.playerScore,

@@ -18,6 +18,7 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
+// 🔥 XP ЗА УРОВЕНЬ = 20, НО 1 МАТЧ = 20 XP
 const BATTLEPASS = {
   MAX_LEVEL: 30,
   XP_PER_LEVEL: 20,
@@ -29,7 +30,7 @@ const BATTLEPASS = {
     4: { free: { coins: 30 }, premium: { coins: 70, crystals: 5 } },
     5: { free: { crystals: 5 }, premium: { crystals: 10 } },
     6: { free: { coins: 35 }, premium: { coins: 80 } },
-    7: { free: { pack: "basic" }, premium: { pack: "premium" } },
+    7: { free: { pack: "Базовый" }, premium: { pack: "Премиум" } },
     8: { free: { coins: 40 }, premium: { coins: 90, crystals: 10 } },
     9: { free: { crystals: 10 }, premium: { arena: "Обычная" } },
     10: { free: { coins: 50 }, premium: { coins: 100, crystals: 15 } },
@@ -37,7 +38,7 @@ const BATTLEPASS = {
     12: { free: { coins: 60 }, premium: { coins: 120, crystals: 5 } },
     13: { free: { crystals: 15 }, premium: { crystals: 25 } },
     14: { free: { coins: 70 }, premium: { coins: 140 } },
-    15: { free: { pack: "premium" }, premium: { pack: "legendary" } },
+    15: { free: { pack: "Премиум" }, premium: { pack: "Легендарный" } },
     16: { free: { coins: 80 }, premium: { coins: 160, crystals: 10 } },
     17: { free: { arena: "Редкая" }, premium: { arena: "Редкая" } },
     18: { free: { coins: 90 }, premium: { coins: 180, crystals: 15 } },
@@ -47,17 +48,22 @@ const BATTLEPASS = {
     22: { free: { coins: 110 }, premium: { coins: 220, crystals: 10 } },
     23: { free: { crystals: 25 }, premium: { crystals: 35 } },
     24: { free: { coins: 120 }, premium: { coins: 240, crystals: 15 } },
-    25: { free: { pack: "seasonal" }, premium: { pack: "seasonal", crystals: 50 } },
+    25: { free: { pack: "Сезонный" }, premium: { pack: "Сезонный", crystals: 50 } },
     26: { free: { coins: 130 }, premium: { coins: 260, crystals: 20 } },
     27: { free: { arena: "Эпическая" }, premium: { arena: "Эпическая" } },
     28: { free: { coins: 140 }, premium: { coins: 280, crystals: 25 } },
     29: { free: { crystals: 30 }, premium: { crystals: 40 } },
     30: { 
       free: { card: "Семён Кошелев", overall: 93 }, 
-      premium: { card: "Семён Кошелев", overall: 96, pack: "seasonal" } 
+      premium: { card: "Семён Кошелев", overall: 96, pack: "Сезонный" } 
     },
   }
 };
+
+// ============================================
+// XP ЗА УРОВЕНЬ = 20, 1 МАТЧ = 20 XP
+// ============================================
+const XP_PER_MATCH = 20;
 
 function getLevelByXP(xp) {
   let level = 0;
@@ -86,13 +92,13 @@ function giveReward(data, reward, isPremium = false) {
   if (rewards.pack) {
     const { getRandomCard } = require('../data/players');
     const weights = {
-      "basic": { "Обычный": 45, "Редкий": 30, "Элитный": 18, "Эпический": 6.9, "Легендарный": 0.1, "Икона": 0 },
-      "premium": { "Обычный": 0, "Редкий": 30, "Элитный": 35, "Эпический": 25, "Легендарный": 9, "Икона": 1 },
-      "legendary": { "Обычный": 0, "Редкий": 0, "Элитный": 15, "Эпический": 35, "Легендарный": 40, "Икона": 10 },
-      "seasonal": { "Обычный": 0, "Редкий": 0, "Элитный": 5, "Эпический": 10, "Легендарный": 50, "Икона": 35 },
+      "Базовый": { "Обычный": 45, "Редкий": 30, "Элитный": 18, "Эпический": 6.9, "Легендарный": 0.1, "Икона": 0 },
+      "Премиум": { "Обычный": 0, "Редкий": 30, "Элитный": 35, "Эпический": 25, "Легендарный": 9, "Икона": 1 },
+      "Легендарный": { "Обычный": 0, "Редкий": 0, "Элитный": 15, "Эпический": 35, "Легендарный": 40, "Икона": 10 },
+      "Сезонный": { "Обычный": 0, "Редкий": 0, "Элитный": 5, "Эпический": 10, "Легендарный": 50, "Икона": 35 },
     };
     
-    const packWeights = weights[rewards.pack] || weights.basic;
+    const packWeights = weights[rewards.pack] || weights["Базовый"];
     const total = Object.values(packWeights).reduce((a, b) => a + b, 0);
     let random = Math.random() * total;
     let selectedRarity = "Обычный";
@@ -180,7 +186,8 @@ async function showBattlepass(ctx) {
   let text = "🎖️ *БОЕВОЙ ПРОПУСК*\n\n";
   text += "📊 Уровень: " + level + "/" + maxLevel + "\n";
   text += "🔋 XP: " + xp + " / " + ((level + 1) * BATTLEPASS.XP_PER_LEVEL) + "\n";
-  text += "📈 Прогресс: " + progress + "%\n\n";
+  text += "📈 Прогресс: " + progress + "%\n";
+  text += "⚡ 1 матч = " + XP_PER_MATCH + " XP\n\n";
   
   if (isPremium) {
     text += "💎 *Премиум активирован!*\n\n";
@@ -202,9 +209,9 @@ async function showBattlepass(ctx) {
       const parts = [];
       if (free.coins) parts.push(free.coins + "⭐");
       if (free.crystals) parts.push(free.crystals + "💎");
-      if (free.pack) parts.push("📦 " + free.pack);
-      if (free.jersey) parts.push("🎽 " + free.jersey);
-      if (free.arena) parts.push("🏟️ " + free.arena);
+      if (free.pack) parts.push("📦 " + free.pack + " пак");
+      if (free.jersey) parts.push("🎽 Форма: " + free.jersey);
+      if (free.arena) parts.push("🏟️ Арена: " + free.arena);
       if (free.card) parts.push("🃏 " + free.card + " (" + (free.overall || 93) + " OVR)");
       text += parts.join(", ") + "\n";
     }
@@ -215,11 +222,10 @@ async function showBattlepass(ctx) {
       const parts = [];
       if (premium.coins) parts.push(premium.coins + "⭐");
       if (premium.crystals) parts.push(premium.crystals + "💎");
-      if (premium.pack) parts.push("📦 " + premium.pack);
-      if (premium.jersey) parts.push("🎽 " + premium.jersey + " (навсегда)");
-      if (premium.arena) parts.push("🏟️ " + premium.arena + " (навсегда)");
+      if (premium.pack) parts.push("📦 " + premium.pack + " пак");
+      if (premium.jersey) parts.push("🎽 Форма: " + premium.jersey + " (навсегда)");
+      if (premium.arena) parts.push("🏟️ Арена: " + premium.arena + " (навсегда)");
       if (premium.card) parts.push("🃏 " + premium.card + " (" + (premium.overall || 96) + " OVR)");
-      if (premium.pack === "seasonal") parts.push("🎁 Сезонный пак");
       text += parts.join(", ") + "\n";
     }
     
@@ -291,6 +297,12 @@ async function addXP(userId, amount) {
   
   saveUsers(users);
 }
+
+// Экспортируем для использования в game.js
+module.exports = {
+  addXP,
+  XP_PER_MATCH
+};
 
 module.exports = (bot) => {
   bot.action("battlepass", async (ctx) => {
