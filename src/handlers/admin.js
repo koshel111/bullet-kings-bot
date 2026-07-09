@@ -341,6 +341,7 @@ async function givePremium(ctx, target) {
   const users = getUsers();
   const targets = target === "all" ? Object.keys(users) : [target];
   let successCount = 0;
+  let premiumUsers = [];
   
   for (const id of targets) {
     if (!users[id]) continue;
@@ -352,11 +353,12 @@ async function givePremium(ctx, target) {
     await autoClaimRewards(users[id], level, true);
     
     await sendPremiumNotification(ctx, id);
+    premiumUsers.push(id);
     successCount++;
   }
   
   saveUsers(users);
-  return successCount;
+  return { successCount, premiumUsers };
 }
 
 // ============================================
@@ -393,7 +395,6 @@ async function showJerseysManagement(ctx) {
   
   let text = "🎽 *Управление формами*\n\n";
   
-  // Активные формы в магазине
   text += "✅ *В магазине:*\n";
   if (activeJerseys.length === 0) {
     text += "  Нет активных форм\n";
@@ -434,7 +435,6 @@ async function showArenasManagement(ctx) {
   
   let text = "🏟️ *Управление аренами*\n\n";
   
-  // Активные арены в магазине
   text += "✅ *В магазине:*\n";
   if (activeArenas.length === 0) {
     text += "  Нет активных арен\n";
@@ -583,7 +583,6 @@ module.exports = (bot) => {
   bot.action("inventory", async (ctx) => { await ctx.answerCbQuery(); await showInventory(ctx); });
   bot.action("admin_panel", async (ctx) => { await ctx.answerCbQuery(); await showAdminMenu(ctx); });
 
-  // УПРАВЛЕНИЕ КОСМЕТИКОЙ
   bot.action("admin_cosmetics", async (ctx) => {
     await ctx.answerCbQuery();
     await showCosmeticsManagement(ctx);
@@ -612,11 +611,7 @@ module.exports = (bot) => {
   bot.action("admin_coins", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "💰 *Выдать монеты*\n\n" +
-      "📋 *Формат:* `coins_ID_СУММА`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`coins_123456789_500` — пользователю 500 монет\n" +
-      "`coins_all_100` — всем по 100 монет",
+      "💰 *Выдать монеты*\n\n📋 *Формат:* `coins_ID_СУММА`\n\n📌 *Примеры:*\n`coins_123456789_500` — пользователю 500 монет\n`coins_all_100` — всем по 100 монет",
       { parse_mode: "Markdown" }
     );
   });
@@ -624,11 +619,7 @@ module.exports = (bot) => {
   bot.action("admin_crystals", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "💎 *Выдать кристаллы*\n\n" +
-      "📋 *Формат:* `crystals_ID_СУММА`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`crystals_123456789_50` — пользователю 50 кристаллов\n" +
-      "`crystals_all_10` — всем по 10 кристаллов",
+      "💎 *Выдать кристаллы*\n\n📋 *Формат:* `crystals_ID_СУММА`\n\n📌 *Примеры:*\n`crystals_123456789_50` — пользователю 50 кристаллов\n`crystals_all_10` — всем по 10 кристаллов",
       { parse_mode: "Markdown" }
     );
   });
@@ -636,9 +627,7 @@ module.exports = (bot) => {
   bot.action("admin_card", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "🃏 *Выдать карту*\n\n" +
-      "📋 *Формат:* `card_ID_Название_карты`\n\n" +
-      "📌 *Пример:* `card_123456789_Александр_Овечкин`",
+      "🃏 *Выдать карту*\n\n📋 *Формат:* `card_ID_Название_карты`\n\n📌 *Пример:* `card_123456789_Александр_Овечкин`",
       { parse_mode: "Markdown" }
     );
   });
@@ -646,10 +635,7 @@ module.exports = (bot) => {
   bot.action("admin_packs", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "📦 *Выдать паки*\n\n" +
-      "📋 *Формат:* `pack_ID_тип_количество`\n\n" +
-      "📌 *Типы:* basic, premium, legendary\n\n" +
-      "📌 *Пример:* `pack_123456789_basic_3`",
+      "📦 *Выдать паки*\n\n📋 *Формат:* `pack_ID_тип_количество`\n\n📌 *Типы:* basic, premium, legendary\n\n📌 *Пример:* `pack_123456789_basic_3`",
       { parse_mode: "Markdown" }
     );
   });
@@ -657,9 +643,7 @@ module.exports = (bot) => {
   bot.action("admin_season", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "🎁 *Сезонный пак*\n\n" +
-      "📋 *Формат:* `seasonal_ID_количество`\n\n" +
-      "📌 *Пример:* `seasonal_123456789_3`",
+      "🎁 *Сезонный пак*\n\n📋 *Формат:* `seasonal_ID_количество`\n\n📌 *Пример:* `seasonal_123456789_3`",
       { parse_mode: "Markdown" }
     );
   });
@@ -667,12 +651,7 @@ module.exports = (bot) => {
   bot.action("admin_battlepass", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "🎖️ *Пропуск уровней боевого пропуска*\n\n" +
-      "📋 *Формат:* `skip_ID_уровней`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`skip_123456789_5` — пользователю 5 уровней\n" +
-      "`skip_all_10` — всем 10 уровней\n" +
-      "`skip_all_30` — всем 30 уровней",
+      "🎖️ *Пропуск уровней боевого пропуска*\n\n📋 *Формат:* `skip_ID_уровней`\n\n📌 *Примеры:*\n`skip_123456789_5` — пользователю 5 уровней\n`skip_all_10` — всем 10 уровней\n`skip_all_30` — всем 30 уровней",
       { parse_mode: "Markdown" }
     );
   });
@@ -680,11 +659,7 @@ module.exports = (bot) => {
   bot.action("admin_premium", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "💎 *Выдать премиум боевого пропуска*\n\n" +
-      "📋 *Формат:* `premium_ID`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`premium_123456789` — пользователю премиум\n" +
-      "`premium_all` — всем премиум",
+      "💎 *Выдать премиум боевого пропуска*\n\n📋 *Формат:* `premium_ID`\n\n📌 *Примеры:*\n`premium_123456789` — пользователю премиум\n`premium_all` — всем премиум",
       { parse_mode: "Markdown" }
     );
   });
@@ -697,9 +672,7 @@ module.exports = (bot) => {
   bot.action("admin_broadcast", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "📢 *Рассылка*\n\n" +
-      "📋 *Формат:* `broadcast_ID_сообщение`\n\n" +
-      "📌 *Пример:* `broadcast_all_Привет_всем!`",
+      "📢 *Рассылка*\n\n📋 *Формат:* `broadcast_ID_сообщение`\n\n📌 *Пример:* `broadcast_all_Привет_всем!`",
       { parse_mode: "Markdown" }
     );
   });
@@ -971,6 +944,7 @@ module.exports = (bot) => {
         if (target === "all") {
           const ids = Object.keys(users);
           let count = 0;
+          let premiumList = [];
           for (const id of ids) {
             if (!users[id]) continue;
             users[id].battlepass_premium = 1;
@@ -979,10 +953,16 @@ module.exports = (bot) => {
             const { level } = getLevelByXP(xp);
             await autoClaimRewards(users[id], level, true);
             await sendPremiumNotification(ctx, id);
+            premiumList.push(id);
             count++;
           }
           saveUsers(users);
-          await ctx.reply("✅ *Результат:* Премиум выдан всем " + count + " пользователям!");
+          
+          let report = `✅ *Результат:* Премиум выдан всем ${count} пользователям!\n\n📊 *Список:*\n`;
+          premiumList.forEach(id => {
+            report += `👤 ${id}\n`;
+          });
+          await ctx.reply(report, { parse_mode: "Markdown" });
           return;
         } else if (users[target]) {
           users[target].battlepass_premium = 1;
@@ -992,10 +972,10 @@ module.exports = (bot) => {
           await autoClaimRewards(users[target], level, true);
           await sendPremiumNotification(ctx, target);
           saveUsers(users);
-          await ctx.reply("✅ *Результат:* Премиум выдан пользователю " + target + "!");
+          await ctx.reply("✅ *Результат:* Премиум выдан пользователю `" + target + "`!", { parse_mode: "Markdown" });
           return;
         } else {
-          await ctx.reply("❌ Пользователь " + target + " не найден!");
+          await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
           return;
         }
       }
@@ -1045,7 +1025,6 @@ module.exports = (bot) => {
     // 9. УПРАВЛЕНИЕ МАГАЗИНОМ КОСМЕТИКИ
     // ============================================
     
-    // shop_add_form ID
     if (text.startsWith("shop_add_form ")) {
       const id = text.replace("shop_add_form ", "").trim();
       const item = getJerseyById(id);
@@ -1056,7 +1035,6 @@ module.exports = (bot) => {
       return;
     }
     
-    // shop_remove_form ID
     if (text.startsWith("shop_remove_form ")) {
       const id = text.replace("shop_remove_form ", "").trim();
       const item = getJerseyById(id);
@@ -1067,7 +1045,6 @@ module.exports = (bot) => {
       return;
     }
     
-    // shop_add_arena ID
     if (text.startsWith("shop_add_arena ")) {
       const id = text.replace("shop_add_arena ", "").trim();
       const item = getArenaById(id);
@@ -1078,7 +1055,6 @@ module.exports = (bot) => {
       return;
     }
     
-    // shop_remove_arena ID
     if (text.startsWith("shop_remove_arena ")) {
       const id = text.replace("shop_remove_arena ", "").trim();
       const item = getArenaById(id);
@@ -1089,7 +1065,6 @@ module.exports = (bot) => {
       return;
     }
     
-    // shop_list
     if (text === "shop_list") {
       let text2 = "📋 *Все предметы косметики*\n\n";
       text2 += "🎽 *Формы:*\n";
