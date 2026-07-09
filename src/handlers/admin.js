@@ -298,7 +298,6 @@ module.exports = (bot) => {
     await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
   });
 
-  // КНОПКИ ПОД КЛАВИАТУРОЙ
   bot.hears("💰 Выдать монеты", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
@@ -351,14 +350,27 @@ module.exports = (bot) => {
     await ctx.reply("✅ База данных очищена!");
   });
 
-  // bot.hears("🔙 Главное меню", async (ctx) => {
+  bot.hears("🔙 Главное меню", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply("🔙 Возвращаюсь...", { reply_markup: { remove_keyboard: true } });
-    await showAdminMenu(ctx);
+    // Отправляем главное меню
+    const mainMenu = Markup.inlineKeyboard([
+      [Markup.button.callback("🎮 Играть", "play")],
+      [Markup.button.callback("👥 Команда", "team")],
+      [Markup.button.callback("📚 Коллекция", "collection")],
+      [Markup.button.callback("🛒 Магазин", "shop")],
+      [Markup.button.callback("👤 Профиль", "profile")],
+      [Markup.button.callback("🎖️ Пропуск", "battlepass")],
+      [Markup.button.callback("📅 Бонус", "bonus")],
+    ]);
+    
+    await ctx.reply("🏒 *Bullet Kings*\n\nГлавное меню:", {
+      parse_mode: "Markdown",
+      ...mainMenu
+    });
   });
 
-  // 🔥 КОМАНДА ДЛЯ РАССЫЛКИ
   bot.command("broadcast", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) {
@@ -409,4 +421,3 @@ module.exports = (bot) => {
   });
 
 };
-
