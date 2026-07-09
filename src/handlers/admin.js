@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - АДМИНКА
+// src/handlers/admin.js - АДМИНКА (ПОЛНАЯ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -241,9 +241,6 @@ async function showInventory(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown", ...Markup.inlineKeyboard(buttons) });
 }
 
-// ============================================
-// ПОЛУЧИТЬ ВСЕ КАРТЫ С КОЛИЧЕСТВОМ
-// ============================================
 function getAllCardsStats() {
   const users = getUsers();
   const cardStats = {};
@@ -313,57 +310,6 @@ async function showAllCards(ctx) {
   });
 }
 
-async function giveBattlepassLevels(ctx, target, levels) {
-  const users = getUsers();
-  const targets = target === "all" ? Object.keys(users) : [target];
-  let successCount = 0;
-  let skippedUsers = [];
-  
-  for (const id of targets) {
-    if (!users[id]) continue;
-    const currentXp = users[id].battlepass_xp || 0;
-    const oldLevel = Math.floor(currentXp / 20);
-    users[id].battlepass_xp = currentXp + (levels * 20);
-    const newLevel = Math.floor(users[id].battlepass_xp / 20);
-    if (newLevel > oldLevel) {
-      const { autoClaimRewards } = require('./battlepass');
-      const isPremium = users[id].battlepass_premium || 0;
-      await autoClaimRewards(users[id], newLevel, isPremium);
-    }
-    skippedUsers.push({ id, oldLevel, newLevel });
-    successCount++;
-  }
-  saveUsers(users);
-  return { successCount, skippedUsers };
-}
-
-async function givePremium(ctx, target) {
-  const users = getUsers();
-  const targets = target === "all" ? Object.keys(users) : [target];
-  let successCount = 0;
-  let premiumUsers = [];
-  
-  for (const id of targets) {
-    if (!users[id]) continue;
-    users[id].battlepass_premium = 1;
-    
-    const xp = users[id].battlepass_xp || 0;
-    const { getLevelByXP, autoClaimRewards } = require('./battlepass');
-    const { level } = getLevelByXP(xp);
-    await autoClaimRewards(users[id], level, true);
-    
-    await sendPremiumNotification(ctx, id);
-    premiumUsers.push(id);
-    successCount++;
-  }
-  
-  saveUsers(users);
-  return { successCount, premiumUsers };
-}
-
-// ============================================
-// УПРАВЛЕНИЕ МАГАЗИНОМ КОСМЕТИКИ
-// ============================================
 async function showCosmeticsManagement(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) return;
@@ -512,9 +458,6 @@ async function showArenasList(ctx) {
   });
 }
 
-// ============================================
-// ГЛАВНОЕ МЕНЮ АДМИНКИ
-// ============================================
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) { await ctx.reply("⛔ Доступ запрещён!"); return; }
@@ -698,18 +641,18 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ОБРАБОТКА КОМАНД
+  // ОБРАБОТКА ТЕКСТОВЫХ КОМАНД
   // ============================================
   bot.on("text", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     const text = ctx.text.trim();
+    const parts = text.split("_");
     
     // ============================================
     // 1. МОНЕТЫ: coins_ID_СУММА
     // ============================================
     if (text.startsWith("coins_")) {
-      const parts = text.split("_");
       if (parts.length === 3) {
         const target = parts[1];
         const amount = parseInt(parts[2]);
@@ -726,10 +669,10 @@ module.exports = (bot) => {
             users[target].coins = (users[target].coins || 0) + amount;
             saveUsers(users);
             await sendCoinsNotification(ctx, target, amount);
-            await ctx.reply("✅ *Результат:* Выдано " + amount + "⭐ пользователю " + target + "!");
+            await ctx.reply("✅ *Результат:* Выдано " + amount + "⭐ пользователю `" + target + "`!", { parse_mode: "Markdown" });
             return;
           } else {
-            await ctx.reply("❌ Пользователь " + target + " не найден!");
+            await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
             return;
           }
         }
@@ -742,7 +685,6 @@ module.exports = (bot) => {
     // 2. КРИСТАЛЛЫ: crystals_ID_СУММА
     // ============================================
     if (text.startsWith("crystals_")) {
-      const parts = text.split("_");
       if (parts.length === 3) {
         const target = parts[1];
         const amount = parseInt(parts[2]);
@@ -759,10 +701,10 @@ module.exports = (bot) => {
             users[target].crystals = (users[target].crystals || 0) + amount;
             saveUsers(users);
             await sendCrystalsNotification(ctx, target, amount);
-            await ctx.reply("✅ *Результат:* Выдано " + amount + "💎 пользователю " + target + "!");
+            await ctx.reply("✅ *Результат:* Выдано " + amount + "💎 пользователю `" + target + "`!", { parse_mode: "Markdown" });
             return;
           } else {
-            await ctx.reply("❌ Пользователь " + target + " не найден!");
+            await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
             return;
           }
         }
@@ -775,7 +717,6 @@ module.exports = (bot) => {
     // 3. КАРТА: card_ID_Название
     // ============================================
     if (text.startsWith("card_")) {
-      const parts = text.split("_");
       if (parts.length >= 3) {
         const target = parts[1];
         const cardName = parts.slice(2).join(" ");
@@ -795,7 +736,7 @@ module.exports = (bot) => {
         }
         saveUsers(users);
         const emoji = getRarityEmoji(card.rarity);
-        await ctx.reply("✅ *Результат:* Выдана карта " + emoji + " " + card.name + " (" + card.rarity + ") " + (target === "all" ? "всем " + successCount + " пользователям!" : "пользователю " + target + "!"));
+        await ctx.reply("✅ *Результат:* Выдана карта " + emoji + " " + card.name + " (" + card.rarity + ") " + (target === "all" ? "всем " + successCount + " пользователям!" : "пользователю `" + target + "`!"), { parse_mode: "Markdown" });
         return;
       }
       await ctx.reply("❌ Неправильный формат! Используй: `card_ID_Название_карты`");
@@ -806,7 +747,6 @@ module.exports = (bot) => {
     // 4. ПАКИ: pack_ID_тип_количество
     // ============================================
     if (text.startsWith("pack_")) {
-      const parts = text.split("_");
       if (parts.length === 4) {
         const target = parts[1];
         const packType = parts[2];
@@ -843,7 +783,6 @@ module.exports = (bot) => {
     // 5. СЕЗОННЫЙ ПАК: seasonal_ID_количество
     // ============================================
     if (text.startsWith("seasonal_")) {
-      const parts = text.split("_");
       if (parts.length === 3) {
         const target = parts[1];
         const count = parseInt(parts[2]);
@@ -876,7 +815,6 @@ module.exports = (bot) => {
     // 6. ПРОПУСК УРОВНЕЙ: skip_ID_уровней
     // ============================================
     if (text.startsWith("skip_")) {
-      const parts = text.split("_");
       if (parts.length === 3) {
         const target = parts[1];
         const levels = parseInt(parts[2]);
@@ -922,10 +860,10 @@ module.exports = (bot) => {
             await autoClaimRewards(users[target], newLevel, isPremium);
           }
           saveUsers(users);
-          await ctx.reply("✅ *Результат:* Пропущено " + levels + " уровней для пользователя " + target + "!\n📊 " + oldLevel + " → " + newLevel + " уровень", { parse_mode: "Markdown" });
+          await ctx.reply("✅ *Результат:* Пропущено " + levels + " уровней для пользователя `" + target + "`!\n📊 " + oldLevel + " → " + newLevel + " уровень", { parse_mode: "Markdown" });
           return;
         } else {
-          await ctx.reply("❌ Пользователь " + target + " не найден!");
+          await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
           return;
         }
       }
@@ -937,7 +875,6 @@ module.exports = (bot) => {
     // 7. ПРЕМИУМ: premium_ID
     // ============================================
     if (text.startsWith("premium_")) {
-      const parts = text.split("_");
       if (parts.length === 2) {
         const target = parts[1];
         const users = getUsers();
@@ -987,7 +924,6 @@ module.exports = (bot) => {
     // 8. РАССЫЛКА: broadcast_ID_сообщение
     // ============================================
     if (text.startsWith("broadcast_")) {
-      const parts = text.split("_");
       if (parts.length >= 3) {
         const target = parts[1];
         const message = parts.slice(2).join(" ");
@@ -1006,14 +942,14 @@ module.exports = (bot) => {
         } else if (users[target]) {
           try {
             await ctx.telegram.sendMessage(Number(target), "📢 *РАССЫЛКА*\n\n" + message, { parse_mode: "Markdown" });
-            await ctx.reply("✅ *Результат:* Сообщение отправлено пользователю " + target + "!");
+            await ctx.reply("✅ *Результат:* Сообщение отправлено пользователю `" + target + "`!", { parse_mode: "Markdown" });
             return;
           } catch (e) {
-            await ctx.reply("❌ Не удалось отправить сообщение пользователю " + target);
+            await ctx.reply("❌ Не удалось отправить сообщение пользователю `" + target + "`", { parse_mode: "Markdown" });
             return;
           }
         } else {
-          await ctx.reply("❌ Пользователь " + target + " не найден!");
+          await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
           return;
         }
       }
@@ -1024,7 +960,6 @@ module.exports = (bot) => {
     // ============================================
     // 9. УПРАВЛЕНИЕ МАГАЗИНОМ КОСМЕТИКИ
     // ============================================
-    
     if (text.startsWith("shop_add_form ")) {
       const id = text.replace("shop_add_form ", "").trim();
       const item = getJerseyById(id);
