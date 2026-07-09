@@ -306,21 +306,24 @@ async function giveBattlepassLevels(ctx, target, levels) {
   const users = getUsers();
   const targets = target === "all" ? Object.keys(users) : [target];
   let successCount = 0;
+  let skippedUsers = [];
+  
   for (const id of targets) {
     if (!users[id]) continue;
     const currentXp = users[id].battlepass_xp || 0;
-    users[id].battlepass_xp = currentXp + (levels * 20);
     const oldLevel = Math.floor(currentXp / 20);
+    users[id].battlepass_xp = currentXp + (levels * 20);
     const newLevel = Math.floor(users[id].battlepass_xp / 20);
     if (newLevel > oldLevel) {
       const { autoClaimRewards } = require('./battlepass');
       const isPremium = users[id].battlepass_premium || 0;
       await autoClaimRewards(users[id], newLevel, isPremium);
     }
+    skippedUsers.push({ id, oldLevel, newLevel });
     successCount++;
   }
   saveUsers(users);
-  return successCount;
+  return { successCount, skippedUsers };
 }
 
 async function givePremium(ctx, target) {
@@ -346,7 +349,7 @@ async function givePremium(ctx, target) {
 }
 
 // ============================================
-// ГЛАВНОЕ МЕНЮ АДМИНКИ (БЕЗ КНОПОК ПОД КЛАВИАТУРОЙ)
+// ГЛАВНОЕ МЕНЮ АДМИНКИ
 // ============================================
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
@@ -415,7 +418,6 @@ module.exports = (bot) => {
   bot.action("inventory", async (ctx) => { await ctx.answerCbQuery(); await showInventory(ctx); });
   bot.action("admin_panel", async (ctx) => { await ctx.answerCbQuery(); await showAdminMenu(ctx); });
 
-  // КНОПКИ В МЕНЮ
   bot.action("admin_coins", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
@@ -696,26 +698,34 @@ module.exports = (bot) => {
         if (target === "all") {
           const ids = Object.keys(users);
           let count = 0;
+          let levelsInfo = [];
           for (const id of ids) {
             if (!users[id]) continue;
             const currentXp = users[id].battlepass_xp || 0;
-            users[id].battlepass_xp = currentXp + (levels * 20);
             const oldLevel = Math.floor(currentXp / 20);
+            users[id].battlepass_xp = currentXp + (levels * 20);
             const newLevel = Math.floor(users[id].battlepass_xp / 20);
             if (newLevel > oldLevel) {
               const { autoClaimRewards } = require('./battlepass');
               const isPremium = users[id].battlepass_premium || 0;
               await autoClaimRewards(users[id], newLevel, isPremium);
             }
+            levelsInfo.push({ id, oldLevel, newLevel });
             count++;
           }
           saveUsers(users);
-          await ctx.reply("✅ *Результат:* Пропущено " + levels + " уровней для всех " + count + " пользователей!");
+          
+          // Формируем подробный отчёт
+          let report = `✅ *Результат:* Пропущено ${levels} уровней для всех ${count} пользователей!\n\n📊 *Детали:*\n`;
+          levelsInfo.forEach(info => {
+            report += `👤 ${info.id}: ${info.oldLevel} → ${info.newLevel} уровень\n`;
+          });
+          await ctx.reply(report, { parse_mode: "Markdown" });
           return;
         } else if (users[target]) {
           const currentXp = users[target].battlepass_xp || 0;
-          users[target].battlepass_xp = currentXp + (levels * 20);
           const oldLevel = Math.floor(currentXp / 20);
+          users[target].battlepass_xp = currentXp + (levels * 20);
           const newLevel = Math.floor(users[target].battlepass_xp / 20);
           if (newLevel > oldLevel) {
             const { autoClaimRewards } = require('./battlepass');
@@ -723,7 +733,7 @@ module.exports = (bot) => {
             await autoClaimRewards(users[target], newLevel, isPremium);
           }
           saveUsers(users);
-          await ctx.reply("✅ *Результат:* Пропущено " + levels + " уровней для пользователя " + target + "!");
+          await ctx.reply("✅ *Результат:* Пропущено " + levels + " уровней для пользователя " + target + "!\n📊 " + oldLevel + " → " + newLevel + " уровень", { parse_mode: "Markdown" });
           return;
         } else {
           await ctx.reply("❌ Пользователь " + target + " не найден!");
