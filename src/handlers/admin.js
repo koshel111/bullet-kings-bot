@@ -59,19 +59,18 @@ function openSeasonalPack() {
   return filtered[Math.floor(Math.random() * filtered.length)];
 }
 
-async function sendSeasonalPackNotification(ctx, userId) {
+async function sendSeasonalPackNotification(ctx, userId, count = 1) {
   try {
-    await ctx.telegram.sendMessage(Number(userId), 
-      "🎁 *Вам выдан СЕЗОННЫЙ ПАК!*\n\n" +
-      "👑 Выдал: администратор\n\n" +
-      "🔥 Нажми кнопку, чтобы открыть пак!",
-      {
-        parse_mode: "Markdown",
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback("🎁 Открыть сезонный пак", "open_seasonal_" + userId)]
-        ])
-      }
-    );
+    const text = count > 1 
+      ? `🎁 *Вам выдан СЕЗОННЫЙ ПАК (x${count})!*\n\n👑 Выдал: администратор\n\n🔥 Нажми кнопку, чтобы открыть пак!`
+      : `🎁 *Вам выдан СЕЗОННЫЙ ПАК!*\n\n👑 Выдал: администратор\n\n🔥 Нажми кнопку, чтобы открыть пак!`;
+    
+    await ctx.telegram.sendMessage(Number(userId), text, {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("🎁 Открыть сезонный пак", "open_seasonal_" + userId)]
+      ])
+    });
   } catch (e) {
     console.log("❌ Не удалось отправить уведомление " + userId + ":", e.message);
   }
@@ -117,12 +116,14 @@ async function openSeasonalPackByButton(ctx) {
     return;
   }
   
-  if (!data.seasonal_pack) {
+  if (!data.seasonal_packs || data.seasonal_packs.length === 0) {
     await ctx.editMessageText("❌ У тебя нет сезонных паков!");
     return;
   }
   
-  const cardData = data.seasonal_pack;
+  // Берём первый пак из очереди
+  const cardData = data.seasonal_packs[0];
+  data.seasonal_packs.shift(); // Удаляем первый пак
   
   const cardWithId = {
     name: cardData.name,
@@ -140,19 +141,22 @@ async function openSeasonalPackByButton(ctx) {
     data.cards.push(cardWithId);
   }
   
-  delete data.seasonal_pack;
-  
   saveUsers(users);
   
   const emoji = getRarityEmoji(cardWithId.rarity);
   
-  await ctx.editMessageText(
-    "🎉 *СЕЗОННЫЙ ПАК ОТКРЫТ!*\n\n" +
+  // Проверяем, остались ли ещё паки
+  const remaining = data.seasonal_packs?.length || 0;
+  let text = "🎉 *СЕЗОННЫЙ ПАК ОТКРЫТ!*\n\n" +
     "📦 *Ты получил:*\n" +
     "  • " + emoji + " " + cardWithId.name + " (" + cardWithId.rarity + ")\n\n" +
-    "💡 Карта добавлена в коллекцию!",
-    { parse_mode: "Markdown" }
-  );
+    "💡 Карта добавлена в коллекцию!";
+  
+  if (remaining > 0) {
+    text += `\n\n📦 Осталось неоткрытых паков: ${remaining}`;
+  }
+  
+  await ctx.editMessageText(text, { parse_mode: "Markdown" });
 }
 
 async function showAdminMenu(ctx) {
@@ -261,7 +265,7 @@ module.exports = (bot) => {
   bot.action("admin_season", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all` для всех.",
+      "🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all` для всех.\n\nМожно указать количество: `ID 3` — выдаст 3 пака",
       { parse_mode: "Markdown" }
     );
   });
@@ -298,6 +302,7 @@ module.exports = (bot) => {
     await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
   });
 
+  // КНОПКИ ПОД КЛАВИАТУРОЙ
   bot.hears("💰 Выдать монеты", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
@@ -329,7 +334,7 @@ module.exports = (bot) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply(
-      "🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all`",
+      "🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all`\n\nМожно указать количество: `ID 3` — выдаст 3 пака",
       { parse_mode: "Markdown" }
     );
   });
@@ -354,7 +359,7 @@ module.exports = (bot) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply("🔙 Возвращаюсь...", { reply_markup: { remove_keyboard: true } });
-    // Отправляем главное меню
+    
     const mainMenu = Markup.inlineKeyboard([
       [Markup.button.callback("🎮 Играть", "play")],
       [Markup.button.callback("👥 Команда", "team")],
@@ -371,52 +376,210 @@ module.exports = (bot) => {
     });
   });
 
-  bot.command("broadcast", async (ctx) => {
+  // ============================================
+  // ОБРАБОТКА ТЕКСТОВЫХ КОМАНД
+  // ============================================
+  bot.on("text", async (ctx) => {
     const userId = ctx.from.id;
-    if (!isAdmin(userId)) {
-      await ctx.reply("⛔ Доступ запрещён!");
-      return;
-    }
+    if (!isAdmin(userId)) return;
     
-    const text = ctx.message.text;
+    const text = ctx.text;
     const parts = text.split(" ");
     
-    if (parts.length < 3) {
-      await ctx.reply("❌ Используй: `/broadcast ID сообщение` или `/broadcast all сообщение`");
+    // ============================================
+    // ВЫДАТЬ МОНЕТЫ
+    // ============================================
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      const users = getUsers();
+      const target = parts[0];
+      const amount = parseInt(parts[1]);
+      
+      if (target === "all") {
+        const ids = Object.keys(users);
+        ids.forEach(id => {
+          users[id].coins = (users[id].coins || 0) + amount;
+        });
+        saveUsers(users);
+        
+        for (const id of ids) {
+          await sendCoinsNotification(ctx, id, amount);
+        }
+        
+        await ctx.reply("✅ Выдано " + amount + "⭐ всем " + ids.length + " пользователям!");
+        return;
+      }
+      
+      if (users[target]) {
+        users[target].coins = (users[target].coins || 0) + amount;
+        saveUsers(users);
+        
+        await sendCoinsNotification(ctx, target, amount);
+        
+        await ctx.reply("✅ Выдано " + amount + "⭐ пользователю " + target + "!");
+        return;
+      }
+      
+      await ctx.reply("❌ Пользователь " + target + " не найден!");
       return;
     }
     
-    const target = parts[1];
-    const message = parts.slice(2).join(" ");
+    // ============================================
+    // ВЫДАТЬ КРИСТАЛЛЫ
+    // ============================================
+    if (text.startsWith("crystals_")) {
+      const parts2 = text.split("_");
+      if (parts2.length === 3) {
+        const target = parts2[1];
+        const amount = parseInt(parts2[2]);
+        
+        if (!isNaN(amount)) {
+          const users = getUsers();
+          
+          if (target === "all") {
+            const ids = Object.keys(users);
+            ids.forEach(id => {
+              users[id].crystals = (users[id].crystals || 0) + amount;
+            });
+            saveUsers(users);
+            
+            for (const id of ids) {
+              await sendCrystalsNotification(ctx, id, amount);
+            }
+            
+            await ctx.reply("✅ Выдано " + amount + "💎 всем " + ids.length + " пользователям!");
+            return;
+          }
+          
+          if (users[target]) {
+            users[target].crystals = (users[target].crystals || 0) + amount;
+            saveUsers(users);
+            
+            await sendCrystalsNotification(ctx, target, amount);
+            
+            await ctx.reply("✅ Выдано " + amount + "💎 пользователю " + target + "!");
+            return;
+          }
+          
+          await ctx.reply("❌ Пользователь " + target + " не найден!");
+          return;
+        }
+      }
+    }
     
-    if (!message) {
-      await ctx.reply("❌ Напиши сообщение для рассылки!");
+    // ============================================
+    // ВЫДАТЬ КАРТУ
+    // ============================================
+    if (parts.length >= 2 && !isNaN(parts[0]) && parts[0] !== "all") {
+      const users = getUsers();
+      const target = parts[0];
+      const cardName = parts.slice(1).join(" ");
+      
+      if (!users[target]) {
+        await ctx.reply("❌ Пользователь " + target + " не найден!");
+        return;
+      }
+      
+      const { PLAYERS } = require('../data/players');
+      const card = PLAYERS.find(p => p.name.toLowerCase().includes(cardName.toLowerCase()));
+      
+      if (!card) {
+        await ctx.reply("❌ Карта не найдена! Проверь название.");
+        return;
+      }
+      
+      const cardWithId = {
+        ...card,
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+        count: 1
+      };
+      
+      const existing = users[target].cards.find(c => c.name === card.name && c.position === card.position);
+      if (existing) {
+        existing.count = (existing.count || 1) + 1;
+      } else {
+        users[target].cards.push(cardWithId);
+      }
+      
+      saveUsers(users);
+      
+      const emoji = getRarityEmoji(card.rarity);
+      await ctx.reply("✅ Выдана карта " + emoji + " " + card.name + " (" + card.rarity + ") пользователю " + target + "!");
       return;
     }
     
-    const users = getUsers();
+    // ============================================
+    // СЕЗОННЫЙ ПАК (с поддержкой количества)
+    // ============================================
+    if (parts.length >= 1 && (parts[0] === "all" || !isNaN(parts[0]))) {
+      const users = getUsers();
+      const target = parts[0];
+      let count = 1;
+      
+      // Проверяем, указано ли количество
+      if (parts.length >= 2 && !isNaN(parts[1])) {
+        count = parseInt(parts[1]);
+        if (count < 1) count = 1;
+        if (count > 10) count = 10; // ограничение 10 паков за раз
+      }
+      
+      const { PLAYERS } = require('../data/players');
+      const rareCards = PLAYERS.filter(p => 
+        p.rarity === "Эпический" || p.rarity === "Легендарный" || p.rarity === "Икона"
+      );
+      
+      const targets = target === "all" ? Object.keys(users) : [target];
+      let successCount = 0;
+      
+      for (const id of targets) {
+        if (!users[id]) continue;
+        
+        if (!users[id].seasonal_packs) {
+          users[id].seasonal_packs = [];
+        }
+        
+        // Добавляем несколько паков
+        for (let i = 0; i < count; i++) {
+          const card = rareCards[Math.floor(Math.random() * rareCards.length)];
+          users[id].seasonal_packs.push({
+            name: card.name,
+            overall: card.overall,
+            rarity: card.rarity,
+            position: card.position,
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 6) + "_" + i
+          });
+        }
+        
+        await sendSeasonalPackNotification(ctx, id, count);
+        successCount++;
+      }
+      
+      saveUsers(users);
+      
+      await ctx.reply(
+        "✅ *Сезонный пак выдан " + successCount + " пользователям!*\n\n" +
+        "📦 Каждому выдано по " + count + " пак(ов)\n" +
+        "📨 Каждому отправлено уведомление с кнопкой 'Открыть'",
+        { parse_mode: "Markdown" }
+      );
+      
+      await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
+      return;
+    }
     
-    if (target === "all") {
+    // ============================================
+    // РАССЫЛКА
+    // ============================================
+    if (text.length > 10 && !text.startsWith("/") && !text.startsWith("crystals_")) {
+      const users = getUsers();
       let sent = 0;
       for (const [id] of Object.entries(users)) {
         try {
-          await ctx.telegram.sendMessage(Number(id), "📢 *РАССЫЛКА*\n\n" + message, { parse_mode: "Markdown" });
+          await ctx.telegram.sendMessage(Number(id), "📢 *РАССЫЛКА*\n\n" + text, { parse_mode: "Markdown" });
           sent++;
         } catch (e) {}
         await new Promise(r => setTimeout(r, 100));
       }
       await ctx.reply("✅ Рассылка отправлена " + sent + " пользователям!");
-    } else {
-      if (!users[target]) {
-        await ctx.reply("❌ Пользователь " + target + " не найден!");
-        return;
-      }
-      try {
-        await ctx.telegram.sendMessage(Number(target), "📢 *РАССЫЛКА*\n\n" + message, { parse_mode: "Markdown" });
-        await ctx.reply("✅ Сообщение отправлено пользователю " + target + "!");
-      } catch (e) {
-        await ctx.reply("❌ Не удалось отправить сообщение пользователю " + target);
-      }
     }
   });
 
