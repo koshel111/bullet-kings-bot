@@ -248,6 +248,7 @@ module.exports = (bot) => {
     );
   }
 
+  // 🔥 ИСПРАВЛЕНО: добавлена проверка на повторное нажатие
   bot.action(/match_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -280,6 +281,11 @@ module.exports = (bot) => {
     
     if (player.position === 'G') {
       await ctx.editMessageText('❌ Вратарь не может бить буллит! Выбери полевого игрока.');
+      return;
+    }
+    
+    // Если уже выбран этот игрок — не обновляем
+    if (match.currentShooter === playerIndex) {
       return;
     }
     
@@ -405,7 +411,6 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
-    // 🔥 ПРАВИЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -413,7 +418,6 @@ module.exports = (bot) => {
       match.isSuddenDeath = true;
     }
     
-    // В овертайме матч заканчивается после любого гола
     if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) {
       match.isFinished = true;
     }
