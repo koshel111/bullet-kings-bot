@@ -22,6 +22,7 @@ const BATTLEPASS = {
   MAX_LEVEL: 30,
   XP_PER_LEVEL: 20,
   PRICE: 100,
+  SEASON_NAME: "🏆 Начало великой истории",
   REWARDS: {
     1: { free: { coins: 20 }, premium: { coins: 50, crystals: 5 } },
     2: { free: { coins: 25 }, premium: { coins: 60 } },
@@ -180,12 +181,12 @@ async function showBattlepass(ctx) {
   const maxLevel = BATTLEPASS.MAX_LEVEL;
   
   let text = "🎖️ *БОЕВОЙ ПРОПУСК*\n\n";
+  text += "🏆 " + BATTLEPASS.SEASON_NAME + "\n\n";
   text += "📊 Уровень: " + level + "/" + maxLevel + "\n";
   text += "🔋 XP: " + xp + " / " + ((level + 1) * BATTLEPASS.XP_PER_LEVEL) + "\n";
   text += "📈 Прогресс: " + progress + "%\n";
   text += "⚡ 1 матч = " + XP_PER_MATCH + " XP\n\n";
   
-  // 🔥 ОПИСАНИЕ ПРЕМИУМА
   if (isPremium) {
     text += "💎 *Премиум активирован!*\n\n";
     text += "📋 *Премиум даёт:*\n";

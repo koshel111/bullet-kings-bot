@@ -707,7 +707,7 @@ module.exports = (bot) => {
     }
     
     // --- 2. ПРОПУСК УРОВНЕЙ ---
-    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] !== "all") {
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] !== "all" && parseInt(parts[1]) <= 30) {
       const target = parts[0];
       const levels = parseInt(parts[1]);
       
