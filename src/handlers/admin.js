@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - АДМИНКА (ПОЛНАЯ)
+// src/handlers/admin.js - АДМИНКА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -660,6 +660,10 @@ module.exports = (bot) => {
           const users = getUsers();
           if (target === "all") {
             const ids = Object.keys(users);
+            if (ids.length === 0) {
+              await ctx.reply("❌ Нет зарегистрированных пользователей! Попроси их нажать /start");
+              return;
+            }
             ids.forEach(id => { users[id].coins = (users[id].coins || 0) + amount; });
             saveUsers(users);
             for (const id of ids) await sendCoinsNotification(ctx, id, amount);
@@ -672,7 +676,7 @@ module.exports = (bot) => {
             await ctx.reply("✅ *Результат:* Выдано " + amount + "⭐ пользователю `" + target + "`!", { parse_mode: "Markdown" });
             return;
           } else {
-            await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
+            await ctx.reply("❌ Пользователь `" + target + "` не найден! Он должен нажать /start", { parse_mode: "Markdown" });
             return;
           }
         }
@@ -692,6 +696,10 @@ module.exports = (bot) => {
           const users = getUsers();
           if (target === "all") {
             const ids = Object.keys(users);
+            if (ids.length === 0) {
+              await ctx.reply("❌ Нет зарегистрированных пользователей! Попроси их нажать /start");
+              return;
+            }
             ids.forEach(id => { users[id].crystals = (users[id].crystals || 0) + amount; });
             saveUsers(users);
             for (const id of ids) await sendCrystalsNotification(ctx, id, amount);
@@ -704,7 +712,7 @@ module.exports = (bot) => {
             await ctx.reply("✅ *Результат:* Выдано " + amount + "💎 пользователю `" + target + "`!", { parse_mode: "Markdown" });
             return;
           } else {
-            await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
+            await ctx.reply("❌ Пользователь `" + target + "` не найден! Он должен нажать /start", { parse_mode: "Markdown" });
             return;
           }
         }
@@ -823,8 +831,14 @@ module.exports = (bot) => {
           return;
         }
         const users = getUsers();
+        const ids = Object.keys(users);
+        
+        if (ids.length === 0) {
+          await ctx.reply("❌ Нет зарегистрированных пользователей! Попроси их нажать /start");
+          return;
+        }
+        
         if (target === "all") {
-          const ids = Object.keys(users);
           let count = 0;
           let levelsInfo = [];
           for (const id of ids) {
@@ -863,7 +877,7 @@ module.exports = (bot) => {
           await ctx.reply("✅ *Результат:* Пропущено " + levels + " уровней для пользователя `" + target + "`!\n📊 " + oldLevel + " → " + newLevel + " уровень", { parse_mode: "Markdown" });
           return;
         } else {
-          await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
+          await ctx.reply("❌ Пользователь `" + target + "` не найден! Он должен нажать /start", { parse_mode: "Markdown" });
           return;
         }
       }
@@ -878,8 +892,14 @@ module.exports = (bot) => {
       if (parts.length === 2) {
         const target = parts[1];
         const users = getUsers();
+        const ids = Object.keys(users);
+        
+        if (ids.length === 0) {
+          await ctx.reply("❌ Нет зарегистрированных пользователей! Попроси их нажать /start");
+          return;
+        }
+        
         if (target === "all") {
-          const ids = Object.keys(users);
           let count = 0;
           let premiumList = [];
           for (const id of ids) {
@@ -912,7 +932,7 @@ module.exports = (bot) => {
           await ctx.reply("✅ *Результат:* Премиум выдан пользователю `" + target + "`!", { parse_mode: "Markdown" });
           return;
         } else {
-          await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
+          await ctx.reply("❌ Пользователь `" + target + "` не найден! Он должен нажать /start", { parse_mode: "Markdown" });
           return;
         }
       }
@@ -928,9 +948,16 @@ module.exports = (bot) => {
         const target = parts[1];
         const message = parts.slice(2).join(" ");
         const users = getUsers();
+        const ids = Object.keys(users);
+        
+        if (ids.length === 0) {
+          await ctx.reply("❌ Нет зарегистрированных пользователей! Попроси их нажать /start");
+          return;
+        }
+        
         if (target === "all") {
           let sent = 0;
-          for (const [id] of Object.entries(users)) {
+          for (const id of ids) {
             try {
               await ctx.telegram.sendMessage(Number(id), "📢 *РАССЫЛКА*\n\n" + message, { parse_mode: "Markdown" });
               sent++;
@@ -949,7 +976,7 @@ module.exports = (bot) => {
             return;
           }
         } else {
-          await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
+          await ctx.reply("❌ Пользователь `" + target + "` не найден! Он должен нажать /start", { parse_mode: "Markdown" });
           return;
         }
       }
