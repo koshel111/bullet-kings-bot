@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - С КНОПКАМИ ПОД КЛАВИАТУРОЙ
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -114,17 +114,6 @@ module.exports = (bot) => {
         ])
       }
     );
-    
-    await ctx.reply("📱 Кнопки под клавиатурой:", {
-      reply_markup: {
-        keyboard: [
-          ["🤖 Против ИИ", "⚔️ PvP"],
-          ["🔙 Назад"],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      }
-    });
   });
 
   bot.action('play_ai', async (ctx) => {
@@ -142,18 +131,6 @@ module.exports = (bot) => {
         ])
       }
     );
-    
-    await ctx.reply("📱 Кнопки под клавиатурой:", {
-      reply_markup: {
-        keyboard: [
-          ["🟢 Новичок", "🟡 Любитель"],
-          ["🟠 Профессионал", "🔴 Легенда"],
-          ["🔙 Назад"],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      }
-    });
   });
 
   bot.action(/difficulty_(.+)/, async (ctx) => {
@@ -269,18 +246,6 @@ module.exports = (bot) => {
         ...Markup.inlineKeyboard(buttons)
       }
     );
-    
-    await ctx.reply("📱 Кнопки под клавиатурой:", {
-      reply_markup: {
-        keyboard: [
-          ["⚡ Игрок 1", "🔥 Игрок 2"],
-          ["⭐ Игрок 3", "💫 Игрок 4"],
-          ["🌟 Игрок 5", "🔙 Назад"],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      }
-    });
   }
 
   bot.action(/match_player_(.+)/, async (ctx) => {
@@ -336,19 +301,6 @@ module.exports = (bot) => {
         ])
       }
     );
-    
-    await ctx.reply("📱 Выбери бросок:", {
-      reply_markup: {
-        keyboard: [
-          ["⬅️ Влево", "➡️ Вправо"],
-          ["⬆️ Верхний", "⬇️ Между щитков"],
-          ["🔄 Финт", "✋ Кистевой", "💥 Щелчок"],
-          ["🔙 Назад"],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      }
-    });
   });
 
   bot.action(/shot_(.+)/, async (ctx) => {
@@ -420,19 +372,6 @@ module.exports = (bot) => {
         ])
       }
     );
-    
-    await ctx.reply("📱 Выбери действие вратаря:", {
-      reply_markup: {
-        keyboard: [
-          ["🧤 Закрыть левый угол", "🧤 Закрыть правый угол"],
-          ["🧍 Стоять", "🛡️ Опустить щитки"],
-          ["🧤 Ловушка", "💪 Агрессивный выход"],
-          ["🔙 Назад"],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      }
-    });
   });
 
   bot.action(/goalie_(.+)/, async (ctx) => {
@@ -466,6 +405,7 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
+    // 🔥 ПРАВИЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -473,6 +413,7 @@ module.exports = (bot) => {
       match.isSuddenDeath = true;
     }
     
+    // В овертайме матч заканчивается после любого гола
     if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) {
       match.isFinished = true;
     }

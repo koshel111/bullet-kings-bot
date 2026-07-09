@@ -74,18 +74,6 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback("📅 Бонус", "bonus")],
     ])
   });
-  
-  await ctx.reply("📱 Кнопки под клавиатурой:", {
-    reply_markup: {
-      keyboard: [
-        ["🎮 Играть", "👥 Команда"],
-        ["📚 Коллекция", "🛒 Магазин"],
-        ["👤 Профиль", "🎖️ Пропуск", "📅 Бонус"],
-      ],
-      resize_keyboard: true,
-      one_time_keyboard: false
-    }
-  });
 }
 
 module.exports = (bot) => {
@@ -97,55 +85,6 @@ module.exports = (bot) => {
   bot.action("back", async (ctx) => {
     await ctx.answerCbQuery();
     await showMainMenu(ctx, bot);
-  });
-
-  // ОБРАБОТЧИКИ КНОПОК ПОД КЛАВИАТУРОЙ
-  bot.hears("🎮 Играть", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.telegram.editMessageText(
-      ctx.chat.id,
-      ctx.message.message_id,
-      null,
-      "🎮 *Выбери режим:*",
-      {
-        parse_mode: "Markdown",
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback("🤖 Против ИИ", "play_ai")],
-          [Markup.button.callback("⚔️ PvP", "play_pvp")],
-          [Markup.button.callback("🔙 Назад", "back")],
-        ])
-      }
-    );
-  });
-
-  bot.hears("👥 Команда", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("team")(ctx);
-  });
-
-  bot.hears("📚 Коллекция", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("collection")(ctx);
-  });
-
-  bot.hears("🛒 Магазин", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("shop")(ctx);
-  });
-
-  bot.hears("👤 Профиль", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("profile")(ctx);
-  });
-
-  bot.hears("🎖️ Пропуск", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("battlepass")(ctx);
-  });
-
-  bot.hears("📅 Бонус", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("bonus")(ctx);
   });
 
 };
