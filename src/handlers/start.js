@@ -70,6 +70,7 @@ async function showMainMenu(ctx, bot) {
     "👤 Профиль — твоя статистика\n" +
     "🎖️ Пропуск — боевой пропуск\n" +
     "📦 Инвентарь — паки и косметика\n" +
+    "🎨 Косметика — формы и арены\n" +
     "📅 Бонус — ежедневный бонус";
   
   await ctx.reply(text, {
@@ -82,6 +83,7 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback("👤 Профиль", "profile")],
       [Markup.button.callback("🎖️ Пропуск", "battlepass")],
       [Markup.button.callback("📦 Инвентарь", "inventory")],
+      [Markup.button.callback("🎨 Косметика", "cosmetics_menu")],
       [Markup.button.callback("📅 Бонус", "bonus")],
     ])
   });
@@ -92,7 +94,8 @@ async function showMainMenu(ctx, bot) {
         ["🎮 Играть", "👥 Команда"],
         ["📚 Коллекция", "🛒 Магазин"],
         ["👤 Профиль", "🎖️ Пропуск"],
-        ["📦 Инвентарь", "📅 Бонус"],
+        ["📦 Инвентарь", "🎨 Косметика"],
+        ["📅 Бонус"],
       ],
       resize_keyboard: true,
       one_time_keyboard: false
@@ -111,7 +114,6 @@ module.exports = (bot) => {
     await showMainMenu(ctx, bot);
   });
 
-  // ОБРАБОТЧИКИ КНОПОК ПОД КЛАВИАТУРОЙ
   bot.hears("🎮 Играть", async (ctx) => {
     await ctx.answerCbQuery();
     await bot.telegram.editMessageText(
@@ -158,6 +160,11 @@ module.exports = (bot) => {
   bot.hears("📦 Инвентарь", async (ctx) => {
     await ctx.answerCbQuery();
     await bot.action("inventory")(ctx);
+  });
+
+  bot.hears("🎨 Косметика", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("cosmetics_menu")(ctx);
   });
 
   bot.hears("📅 Бонус", async (ctx) => {
