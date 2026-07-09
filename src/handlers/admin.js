@@ -252,7 +252,6 @@ function getAllCardsStats() {
         };
       }
       cardStats[key].count += (card.count || 1);
-      // Сохраняем ID пользователя (для статистики, не показываем в общем списке)
     });
   });
   
@@ -274,7 +273,6 @@ async function showAllCards(ctx) {
   const pageSize = 20;
   const totalPages = Math.ceil(cards.length / pageSize);
   
-  // Показываем первую страницу
   const start = page * pageSize;
   const end = Math.min(start + pageSize, cards.length);
   
@@ -288,7 +286,6 @@ async function showAllCards(ctx) {
   
   text += `\n📄 Страница ${page+1}/${totalPages}`;
   
-  // Кнопки навигации
   const navButtons = [];
   if (page > 0) navButtons.push(Markup.button.callback("⬅️", "cards_page_prev"));
   if (page < totalPages - 1) navButtons.push(Markup.button.callback("➡️", "cards_page_next"));
@@ -296,7 +293,6 @@ async function showAllCards(ctx) {
   
   buttons.push([Markup.button.callback("🔙 Назад", "admin_panel")]);
   
-  // Сохраняем состояние страницы
   ctx.session = ctx.session || {};
   ctx.session.cardsPage = page;
   
@@ -336,10 +332,9 @@ async function givePremium(ctx, target) {
     if (!users[id]) continue;
     users[id].battlepass_premium = 1;
     
-    // Выдаём все награды за премиум путь
     const xp = users[id].battlepass_xp || 0;
-    const { level } = require('./battlepass').getLevelByXP(xp);
-    const { autoClaimRewards } = require('./battlepass');
+    const { getLevelByXP, autoClaimRewards } = require('./battlepass');
+    const { level } = getLevelByXP(xp);
     await autoClaimRewards(users[id], level, true);
     
     await sendPremiumNotification(ctx, id);
@@ -350,9 +345,13 @@ async function givePremium(ctx, target) {
   return successCount;
 }
 
+// ============================================
+// ГЛАВНОЕ МЕНЮ АДМИНКИ (БЕЗ КНОПОК ПОД КЛАВИАТУРОЙ)
+// ============================================
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) { await ctx.reply("⛔ Доступ запрещён!"); return; }
+  
   const users = getUsers();
   const totalUsers = Object.keys(users).length;
   let totalCards = 0, totalMatches = 0, totalCoins = 0, totalCrystals = 0;
@@ -362,6 +361,7 @@ async function showAdminMenu(ctx) {
     totalCoins += data.coins || 0;
     totalCrystals += data.crystals || 0;
   });
+  
   const text = 
     "👑 *АДМИН-ПАНЕЛЬ*\n\n" +
     "📊 *СТАТИСТИКА:*\n" +
@@ -415,15 +415,11 @@ module.exports = (bot) => {
   bot.action("inventory", async (ctx) => { await ctx.answerCbQuery(); await showInventory(ctx); });
   bot.action("admin_panel", async (ctx) => { await ctx.answerCbQuery(); await showAdminMenu(ctx); });
 
+  // КНОПКИ В МЕНЮ
   bot.action("admin_coins", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "💰 *Выдать монеты*\n\n" +
-      "📋 *Формат:* `coins_ID_СУММА`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`coins_123456789_500` — пользователю 500 монет\n" +
-      "`coins_all_100` — всем по 100 монет\n\n" +
-      "💡 Используй `all` вместо ID для всех пользователей",
+      "💰 *Выдать монеты*\n\n📋 *Формат:* `coins_ID_СУММА`\n\n📌 *Примеры:*\n`coins_123456789_500` — пользователю 500 монет\n`coins_all_100` — всем по 100 монет",
       { parse_mode: "Markdown" }
     );
   });
@@ -431,12 +427,7 @@ module.exports = (bot) => {
   bot.action("admin_crystals", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "💎 *Выдать кристаллы*\n\n" +
-      "📋 *Формат:* `crystals_ID_СУММА`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`crystals_123456789_50` — пользователю 50 кристаллов\n" +
-      "`crystals_all_10` — всем по 10 кристаллов\n\n" +
-      "💡 Используй `all` вместо ID для всех пользователей",
+      "💎 *Выдать кристаллы*\n\n📋 *Формат:* `crystals_ID_СУММА`\n\n📌 *Примеры:*\n`crystals_123456789_50` — пользователю 50 кристаллов\n`crystals_all_10` — всем по 10 кристаллов",
       { parse_mode: "Markdown" }
     );
   });
@@ -444,13 +435,7 @@ module.exports = (bot) => {
   bot.action("admin_card", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "🃏 *Выдать карту*\n\n" +
-      "📋 *Формат:* `card_ID_Название_карты`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`card_123456789_Александр_Овечкин` — пользователю карту\n" +
-      "`card_all_Александр_Овечкин` — всем карту\n\n" +
-      "💡 Используй `_` вместо пробелов в названии\n" +
-      "💡 Используй `all` вместо ID для всех пользователей",
+      "🃏 *Выдать карту*\n\n📋 *Формат:* `card_ID_Название_карты`\n\n📌 *Пример:* `card_123456789_Александр_Овечкин`",
       { parse_mode: "Markdown" }
     );
   });
@@ -458,13 +443,7 @@ module.exports = (bot) => {
   bot.action("admin_packs", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "📦 *Выдать паки*\n\n" +
-      "📋 *Формат:* `pack_ID_тип_количество`\n\n" +
-      "📌 *Типы паков:* basic, premium, legendary\n\n" +
-      "📌 *Примеры:*\n" +
-      "`pack_123456789_basic_3` — 3 базовых пака\n" +
-      "`pack_all_premium_1` — всем по 1 премиум паку\n\n" +
-      "💡 Используй `all` вместо ID для всех пользователей",
+      "📦 *Выдать паки*\n\n📋 *Формат:* `pack_ID_тип_количество`\n\n📌 *Типы:* basic, premium, legendary\n\n📌 *Пример:* `pack_123456789_basic_3`",
       { parse_mode: "Markdown" }
     );
   });
@@ -472,12 +451,7 @@ module.exports = (bot) => {
   bot.action("admin_season", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "🎁 *Сезонный пак*\n\n" +
-      "📋 *Формат:* `seasonal_ID_количество`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`seasonal_123456789_3` — пользователю 3 сезонных пака\n" +
-      "`seasonal_all_1` — всем по 1 сезонному паку\n\n" +
-      "💡 Используй `all` вместо ID для всех пользователей",
+      "🎁 *Сезонный пак*\n\n📋 *Формат:* `seasonal_ID_количество`\n\n📌 *Пример:* `seasonal_123456789_3`",
       { parse_mode: "Markdown" }
     );
   });
@@ -485,13 +459,7 @@ module.exports = (bot) => {
   bot.action("admin_battlepass", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "🎖️ *Пропуск уровней боевого пропуска*\n\n" +
-      "📋 *Формат:* `skip_ID_уровней`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`skip_123456789_5` — пользователю 5 уровней\n" +
-      "`skip_all_10` — всем 10 уровней\n" +
-      "`skip_all_30` — всем 30 уровней (максимум)\n\n" +
-      "💡 Используй `all` вместо ID для всех пользователей",
+      "🎖️ *Пропуск уровней боевого пропуска*\n\n📋 *Формат:* `skip_ID_уровней`\n\n📌 *Примеры:*\n`skip_123456789_5` — пользователю 5 уровней\n`skip_all_10` — всем 10 уровней\n`skip_all_30` — всем 30 уровней",
       { parse_mode: "Markdown" }
     );
   });
@@ -499,12 +467,7 @@ module.exports = (bot) => {
   bot.action("admin_premium", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "💎 *Выдать премиум боевого пропуска*\n\n" +
-      "📋 *Формат:* `premium_ID`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`premium_123456789` — пользователю премиум\n" +
-      "`premium_all` — всем премиум\n\n" +
-      "💡 Премиум выдаёт все награды за пройденные уровни",
+      "💎 *Выдать премиум боевого пропуска*\n\n📋 *Формат:* `premium_ID`\n\n📌 *Примеры:*\n`premium_123456789` — пользователю премиум\n`premium_all` — всем премиум",
       { parse_mode: "Markdown" }
     );
   });
@@ -517,12 +480,7 @@ module.exports = (bot) => {
   bot.action("admin_broadcast", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
-      "📢 *Рассылка*\n\n" +
-      "📋 *Формат:* `broadcast_ID_сообщение`\n\n" +
-      "📌 *Примеры:*\n" +
-      "`broadcast_all_Привет_всем!` — всем сообщение\n" +
-      "`broadcast_123456789_Привет!` — конкретному пользователю\n\n" +
-      "💡 Используй `_` вместо пробелов в сообщении",
+      "📢 *Рассылка*\n\n📋 *Формат:* `broadcast_ID_сообщение`\n\n📌 *Пример:* `broadcast_all_Привет_всем!`",
       { parse_mode: "Markdown" }
     );
   });
@@ -791,8 +749,8 @@ module.exports = (bot) => {
             if (!users[id]) continue;
             users[id].battlepass_premium = 1;
             const xp = users[id].battlepass_xp || 0;
-            const { level } = require('./battlepass').getLevelByXP(xp);
-            const { autoClaimRewards } = require('./battlepass');
+            const { getLevelByXP, autoClaimRewards } = require('./battlepass');
+            const { level } = getLevelByXP(xp);
             await autoClaimRewards(users[id], level, true);
             await sendPremiumNotification(ctx, id);
             count++;
@@ -803,8 +761,8 @@ module.exports = (bot) => {
         } else if (users[target]) {
           users[target].battlepass_premium = 1;
           const xp = users[target].battlepass_xp || 0;
-          const { level } = require('./battlepass').getLevelByXP(xp);
-          const { autoClaimRewards } = require('./battlepass');
+          const { getLevelByXP, autoClaimRewards } = require('./battlepass');
+          const { level } = getLevelByXP(xp);
           await autoClaimRewards(users[target], level, true);
           await sendPremiumNotification(ctx, target);
           saveUsers(users);
