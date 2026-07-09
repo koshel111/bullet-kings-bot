@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - БОЕВОЙ ПРОПУСК
+// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -168,12 +168,7 @@ async function showBattlepass(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
-  
-  if (!data) {
-    await ctx.reply("❌ Ошибка! Попробуй /start");
-    return;
-  }
-  
+  if (!data) { await ctx.reply("❌ Ошибка! Попробуй /start"); return; }
   const xp = data.battlepass_xp || 0;
   const { level } = getLevelByXP(xp);
   const progress = getProgress(level);
@@ -206,13 +201,10 @@ async function showBattlepass(ctx) {
   }
   
   text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
-  
   for (let i = 1; i <= maxLevel; i++) {
     const reward = BATTLEPASS.REWARDS[i];
     if (!reward) continue;
-    
     text += "📍 *Уровень " + i + "*\n";
-    
     if (reward.free) {
       text += "🆓 Бесплатный: ";
       const free = reward.free;
@@ -225,7 +217,6 @@ async function showBattlepass(ctx) {
       if (free.card) parts.push("🃏 " + free.card + " (" + (free.overall || 93) + " OVR)");
       text += parts.join(", ") + "\n";
     }
-    
     if (isPremium && reward.premium) {
       text += "💎 Премиум: ";
       const premium = reward.premium;
@@ -238,103 +229,70 @@ async function showBattlepass(ctx) {
       if (premium.card) parts.push("🃏 " + premium.card + " (" + (premium.overall || 96) + " OVR)");
       text += parts.join(", ") + "\n";
     }
-    
     text += "\n";
   }
   
   const buttons = [];
-  if (!isPremium) {
-    buttons.push([Markup.button.callback("💎 Купить премиум (" + BATTLEPASS.PRICE + "💎)", "bp_buy")]);
-  }
+  if (!isPremium) buttons.push([Markup.button.callback("💎 Купить премиум (" + BATTLEPASS.PRICE + "💎)", "bp_buy")]);
   buttons.push([Markup.button.callback("🔄 Обновить", "bp_refresh")]);
   buttons.push([Markup.button.callback("🔙 Назад", "back")]);
-  
-  await ctx.reply(text, {
-    parse_mode: "Markdown",
-    ...Markup.inlineKeyboard(buttons)
-  });
+  await ctx.reply(text, { parse_mode: "Markdown", ...Markup.inlineKeyboard(buttons) });
 }
 
 async function buyPremium(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
-  
-  if (!data) {
-    await ctx.reply("❌ Ошибка! Попробуй /start");
-    return;
-  }
-  
-  if (data.battlepass_premium) {
-    await ctx.reply("💎 У тебя уже есть премиум!");
-    return;
-  }
-  
+  if (!data) { await ctx.reply("❌ Ошибка! Попробуй /start"); return; }
+  if (data.battlepass_premium) { await ctx.reply("💎 У тебя уже есть премиум!"); return; }
   if ((data.crystals || 0) < BATTLEPASS.PRICE) {
     await ctx.reply("❌ Недостаточно кристаллов! Нужно " + BATTLEPASS.PRICE + "💎");
     return;
   }
-  
   data.crystals -= BATTLEPASS.PRICE;
   data.battlepass_premium = 1;
-  
   const xp = data.battlepass_xp || 0;
   const { level } = getLevelByXP(xp);
   const claimed = autoClaimRewards(data, level, true);
-  
   saveUsers(users);
-  
-  await ctx.reply(
-    "✅ *Премиум куплен!*\n\n" +
-    "💎 Выдано " + claimed + " наград за премиум путь!\n" +
-    "📊 Текущий уровень: " + level + "\n\n" +
-    "📋 *Что ты получил:*\n" +
-    "  ✅ В 2 раза больше наград\n" +
-    "  ✅ Постоянные формы и арены\n" +
-    "  ✅ Улучшенные паки\n" +
-    "  ✅ Семён Кошелев 96 OVR\n" +
-    "  ✅ Сезонный пак на 30 уровне",
-    { parse_mode: "Markdown" }
-  );
+  await ctx.reply("✅ *Премиум куплен!*\n\n💎 Выдано " + claimed + " наград за премиум путь!\n📊 Текущий уровень: " + level, { parse_mode: "Markdown" });
 }
 
 async function addXP(userId, amount) {
   const users = getUsers();
   const data = users[userId];
   if (!data) return;
-  
   const oldLevel = getLevelByXP(data.battlepass_xp || 0).level;
   data.battlepass_xp = (data.battlepass_xp || 0) + amount;
   const newLevel = getLevelByXP(data.battlepass_xp).level;
-  
   if (newLevel > oldLevel) {
     autoClaimRewards(data, newLevel, data.battlepass_premium || 0);
   }
-  
   saveUsers(users);
 }
 
+// 🔥 ЭКСПОРТ
 module.exports = {
   addXP,
   XP_PER_MATCH,
-  autoClaimRewards
+  getLevelByXP,
+  autoClaimRewards,
+  showBattlepass,
+  buyPremium
 };
 
+// Telegraf обработчики
 module.exports = (bot) => {
   bot.action("battlepass", async (ctx) => {
     await ctx.answerCbQuery();
     await showBattlepass(ctx);
   });
-
   bot.action("bp_buy", async (ctx) => {
     await ctx.answerCbQuery();
     await buyPremium(ctx);
   });
-
   bot.action("bp_refresh", async (ctx) => {
     await ctx.answerCbQuery();
     await showBattlepass(ctx);
   });
 };
-
-module.exports.addXP = addXP;
