@@ -87,20 +87,6 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback("📅 Бонус", "bonus")],
     ])
   });
-  
-  await ctx.reply("📱 Используй кнопки под клавиатурой:", {
-    reply_markup: {
-      keyboard: [
-        ["🎮 Играть", "👥 Команда"],
-        ["📚 Коллекция", "🛒 Магазин"],
-        ["👤 Профиль", "🎖️ Пропуск"],
-        ["📦 Инвентарь", "🎨 Косметика"],
-        ["📅 Бонус"],
-      ],
-      resize_keyboard: true,
-      one_time_keyboard: false
-    }
-  });
 }
 
 module.exports = (bot) => {
@@ -114,12 +100,10 @@ module.exports = (bot) => {
     await showMainMenu(ctx, bot);
   });
 
-  bot.hears("🎮 Играть", async (ctx) => {
+  // ОБРАБОТЧИКИ КНОПОК В СООБЩЕНИИ (inline) — остаются
+  bot.action("play", async (ctx) => {
     await ctx.answerCbQuery();
-    await bot.telegram.editMessageText(
-      ctx.chat.id,
-      ctx.message.message_id,
-      null,
+    await ctx.editMessageText(
       "🎮 *Выбери режим:*",
       {
         parse_mode: "Markdown",
@@ -130,46 +114,6 @@ module.exports = (bot) => {
         ])
       }
     );
-  });
-
-  bot.hears("👥 Команда", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("team")(ctx);
-  });
-
-  bot.hears("📚 Коллекция", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("collection")(ctx);
-  });
-
-  bot.hears("🛒 Магазин", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("shop")(ctx);
-  });
-
-  bot.hears("👤 Профиль", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("profile")(ctx);
-  });
-
-  bot.hears("🎖️ Пропуск", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("battlepass")(ctx);
-  });
-
-  bot.hears("📦 Инвентарь", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("inventory")(ctx);
-  });
-
-  bot.hears("🎨 Косметика", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("cosmetics_menu")(ctx);
-  });
-
-  bot.hears("📅 Бонус", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("bonus")(ctx);
   });
 
 };

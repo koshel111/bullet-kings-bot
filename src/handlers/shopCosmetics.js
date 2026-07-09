@@ -97,11 +97,9 @@ async function showCosmeticsShop(ctx) {
     const data = users[userId];
     const rotation = getRotation();
     
-    // Собираем все предметы в один список с нумерацией
     const items = [];
     let index = 1;
     
-    // Формы (1-5)
     rotation.jerseys.forEach((item) => {
       const isOwned = data.jerseys && data.jerseys.some(j => j.id === item.id || j === item.id);
       items.push({
@@ -119,7 +117,6 @@ async function showCosmeticsShop(ctx) {
       });
     });
     
-    // Арены (6-10)
     rotation.arenas.forEach((item) => {
       const isOwned = data.arenas && data.arenas.some(a => a.id === item.id || a === item.id);
       items.push({
@@ -145,7 +142,6 @@ async function showCosmeticsShop(ctx) {
     text += "📋 *Чтобы купить, отправь команду:*\n";
     text += "`buy_номер` — например `buy_1` или `buy_6`\n\n";
     
-    // Показываем все предметы с номерами
     items.forEach((item) => {
       const color = getRarityColor(item.rarity);
       const priceText = item.priceCoins ? item.priceCoins + "⭐" : item.priceCrystals + "💎";
@@ -154,34 +150,10 @@ async function showCosmeticsShop(ctx) {
       text += `   ${priceText}\n\n`;
     });
     
-    text += "📱 *Или используй кнопки:*";
-    
-    // Кнопки с номерами 1-10 (но они уже не нужны, но оставим для удобства)
-    const buttons = [];
-    const row1 = [];
-    for (let i = 1; i <= 5; i++) {
-      const item = items[i-1];
-      if (item) {
-        const label = item.isOwned ? "✅" : "➡️" + i;
-        row1.push(Markup.button.callback(label, "buy_item_" + i));
-      }
-    }
-    buttons.push(row1);
-    
-    const row2 = [];
-    for (let i = 6; i <= 10; i++) {
-      const item = items[i-1];
-      if (item) {
-        const label = item.isOwned ? "✅" : "➡️" + i;
-        row2.push(Markup.button.callback(label, "buy_item_" + i));
-      }
-    }
-    buttons.push(row2);
-    
-    buttons.push([
-      Markup.button.callback("🔄 Обновить", "cosmetics_shop"),
-      Markup.button.callback("🔙 Назад", "cosmetics_menu"),
-    ]);
+    const buttons = [
+      [Markup.button.callback("🔄 Обновить", "cosmetics_shop")],
+      [Markup.button.callback("🔙 Назад", "cosmetics_menu")],
+    ];
     
     await ctx.editMessageText(text, {
       parse_mode: "Markdown",
@@ -270,7 +242,6 @@ async function buyItemByNumber(ctx, number) {
       return;
     }
     
-    // Получаем предмет по номеру
     const items = [];
     rotation.jerseys.forEach((item) => {
       const isOwned = data.jerseys && data.jerseys.some(j => j.id === item.id || j === item.id);
@@ -373,7 +344,6 @@ async function buyItemByNumber(ctx, number) {
   }
 }
 
-// 🔥 ОБРАБОТЧИК КОМАНД buy_1, buy_2, ..., buy_10
 async function handleBuyCommand(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -398,7 +368,6 @@ async function handleBuyCommand(ctx) {
     return;
   }
   
-  // Вызываем функцию покупки с этим номером
   await buyItemByNumberCommand(ctx, number);
 }
 
@@ -416,7 +385,6 @@ async function buyItemByNumberCommand(ctx, number) {
       return;
     }
     
-    // Получаем предмет по номеру
     const items = [];
     rotation.jerseys.forEach((item) => {
       const isOwned = data.jerseys && data.jerseys.some(j => j.id === item.id || j === item.id);
@@ -507,7 +475,6 @@ module.exports = (bot) => {
   bot.action("cosmetics_inventory", async (ctx) => { await showCosmeticsInventory(ctx); });
   bot.action(/buy_item_(.+)/, async (ctx) => { await buyItemByNumber(ctx, parseInt(ctx.match[1])); });
   
-  // 🔥 ОБРАБОТЧИК КОМАНД buy_1, buy_2, ..., buy_10
   bot.hears(/buy_[1-9]|buy_10/, async (ctx) => {
     await handleBuyCommand(ctx);
   });
