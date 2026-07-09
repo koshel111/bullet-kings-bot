@@ -62,7 +62,16 @@ async function showMainMenu(ctx, bot) {
     "📊 Матчей: " + data.matches + "\n" +
     "👥 В команде: " + data.team.length + " игроков\n" +
     "📚 Карт: " + data.cards.length + "\n\n" +
-    "Выбери действие:";
+    "📋 *Главное меню:*\n\n" +
+    "🎮 Играть — сражайся с ИИ или PvP\n" +
+    "👥 Команда — управляй составом\n" +
+    "📚 Коллекция — все твои карты\n" +
+    "🛒 Магазин — паки и косметика\n" +
+    "👤 Профиль — твоя статистика\n" +
+    "🎖️ Пропуск — боевой пропуск\n" +
+    "📦 Инвентарь — неоткрытые паки\n" +
+    "🎨 Косметика — формы и арены\n" +
+    "📅 Бонус — ежедневный бонус";
   
   await ctx.reply(text, {
     parse_mode: "Markdown",
@@ -74,8 +83,24 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback("👤 Профиль", "profile")],
       [Markup.button.callback("🎖️ Пропуск", "battlepass")],
       [Markup.button.callback("📦 Инвентарь", "inventory")],
+      [Markup.button.callback("🎨 Косметика", "cosmetics_menu")],
       [Markup.button.callback("📅 Бонус", "bonus")],
     ])
+  });
+  
+  // Кнопки под клавиатурой
+  await ctx.reply("📱 Используй кнопки под клавиатурой:", {
+    reply_markup: {
+      keyboard: [
+        ["🎮 Играть", "👥 Команда"],
+        ["📚 Коллекция", "🛒 Магазин"],
+        ["👤 Профиль", "🎖️ Пропуск"],
+        ["📦 Инвентарь", "🎨 Косметика"],
+        ["📅 Бонус"],
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: false
+    }
   });
 }
 
@@ -88,6 +113,65 @@ module.exports = (bot) => {
   bot.action("back", async (ctx) => {
     await ctx.answerCbQuery();
     await showMainMenu(ctx, bot);
+  });
+
+  // ОБРАБОТЧИКИ КНОПОК ПОД КЛАВИАТУРОЙ
+  bot.hears("🎮 Играть", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.telegram.editMessageText(
+      ctx.chat.id,
+      ctx.message.message_id,
+      null,
+      "🎮 *Выбери режим:*",
+      {
+        parse_mode: "Markdown",
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback("🤖 Против ИИ", "play_ai")],
+          [Markup.button.callback("⚔️ PvP", "play_pvp")],
+          [Markup.button.callback("🔙 Назад", "back")],
+        ])
+      }
+    );
+  });
+
+  bot.hears("👥 Команда", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("team")(ctx);
+  });
+
+  bot.hears("📚 Коллекция", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("collection")(ctx);
+  });
+
+  bot.hears("🛒 Магазин", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("shop")(ctx);
+  });
+
+  bot.hears("👤 Профиль", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("profile")(ctx);
+  });
+
+  bot.hears("🎖️ Пропуск", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("battlepass")(ctx);
+  });
+
+  bot.hears("📦 Инвентарь", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("inventory")(ctx);
+  });
+
+  bot.hears("🎨 Косметика", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("cosmetics_menu")(ctx);
+  });
+
+  bot.hears("📅 Бонус", async (ctx) => {
+    await ctx.answerCbQuery();
+    await bot.action("bonus")(ctx);
   });
 
 };

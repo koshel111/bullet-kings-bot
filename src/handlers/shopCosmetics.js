@@ -76,90 +76,112 @@ function getTimeUntilNextArenaRotation() {
 }
 
 async function showCosmeticsMenu(ctx) {
-  await ctx.editMessageText(
-    "🏒 *Косметика*\n\n" +
-    "Выбери категорию:\n\n" +
-    "🎽 Формы — скины для твоих игроков (обновление 20 мин)\n" +
-    "🏟️ Арены — оформление матчей (обновление 1 час)",
-    {
+  try {
+    await ctx.answerCbQuery();
+    console.log('✅ Косметика открыта');
+    
+    const text = 
+      "🎨 *Косметика*\n\n" +
+      "Выбери категорию:\n\n" +
+      "🎽 Формы — скины для твоих игроков (обновление 20 мин)\n" +
+      "🏟️ Арены — оформление матчей (обновление 1 час)\n\n" +
+      "💡 Формы можно использовать в матчах для красоты!";
+    
+    await ctx.editMessageText(text, {
       parse_mode: "Markdown",
       ...Markup.inlineKeyboard([
         [Markup.button.callback("🎽 Формы", "cosmetics_jerseys")],
         [Markup.button.callback("🏟️ Арены", "cosmetics_arenas")],
-        [Markup.button.callback("🔙 Назад", "shop")],
+        [Markup.button.callback("🔙 Назад", "back")],
       ])
-    }
-  );
+    });
+  } catch (error) {
+    console.error('❌ Ошибка showCosmeticsMenu:', error);
+    await ctx.reply('❌ Произошла ошибка! Попробуй позже.');
+  }
 }
 
 async function showJerseys(ctx) {
-  const rotation = getRotation();
-  const timeLeft = getTimeUntilNextJerseyRotation();
-  
-  let text = "🎽 *Формы*\n";
-  text += `🔄 Обновление через: ${timeLeft}\n\n`;
-  
-  const buttons = [];
-  
-  rotation.jerseys.forEach((jersey) => {
-    const color = getRarityColor(jersey.rarity);
-    const priceText = jersey.priceCoins ? `${jersey.priceCoins}⭐` : `${jersey.priceCrystals}💎`;
+  try {
+    await ctx.answerCbQuery();
+    const rotation = getRotation();
+    const timeLeft = getTimeUntilNextJerseyRotation();
     
-    text += `${color} ${jersey.name} — ${jersey.rarity}\n`;
-    text += `   ${priceText}\n\n`;
+    let text = "🎽 *Формы*\n";
+    text += `🔄 Обновление через: ${timeLeft}\n\n`;
     
-    buttons.push([Markup.button.callback(
-      `${jersey.emoji} ${jersey.name} (${priceText})`,
-      `buy_jersey_${jersey.id}`
-    )]);
-  });
-  
-  buttons.push([
-    Markup.button.callback("🔄 Обновить", "cosmetics_jerseys"),
-    Markup.button.callback("🔙 Назад", "cosmetics_menu"),
-  ]);
-  
-  await ctx.editMessageText(text, {
-    parse_mode: "Markdown",
-    ...Markup.inlineKeyboard(buttons)
-  });
+    const buttons = [];
+    
+    rotation.jerseys.forEach((jersey) => {
+      const color = getRarityColor(jersey.rarity);
+      const priceText = jersey.priceCoins ? `${jersey.priceCoins}⭐` : `${jersey.priceCrystals}💎`;
+      
+      text += `${color} ${jersey.name} — ${jersey.rarity}\n`;
+      text += `   ${priceText}\n\n`;
+      
+      buttons.push([Markup.button.callback(
+        `${jersey.emoji} ${jersey.name} (${priceText})`,
+        `buy_jersey_${jersey.id}`
+      )]);
+    });
+    
+    buttons.push([
+      Markup.button.callback("🔄 Обновить", "cosmetics_jerseys"),
+      Markup.button.callback("🔙 Назад", "cosmetics_menu"),
+    ]);
+    
+    await ctx.editMessageText(text, {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard(buttons)
+    });
+  } catch (error) {
+    console.error('❌ Ошибка showJerseys:', error);
+    await ctx.reply('❌ Произошла ошибка!');
+  }
 }
 
 async function showArenas(ctx) {
-  const rotation = getRotation();
-  const timeLeft = getTimeUntilNextArenaRotation();
-  
-  let text = "🏟️ *Арены*\n";
-  text += `🔄 Обновление через: ${timeLeft}\n\n`;
-  
-  const buttons = [];
-  
-  rotation.arenas.forEach((arena) => {
-    const color = getRarityColor(arena.rarity);
-    const priceText = arena.priceCoins ? `${arena.priceCoins}⭐` : `${arena.priceCrystals}💎`;
+  try {
+    await ctx.answerCbQuery();
+    const rotation = getRotation();
+    const timeLeft = getTimeUntilNextArenaRotation();
     
-    text += `${color} ${arena.name} — ${arena.rarity}\n`;
-    text += `   ${priceText}\n\n`;
+    let text = "🏟️ *Арены*\n";
+    text += `🔄 Обновление через: ${timeLeft}\n\n`;
     
-    buttons.push([Markup.button.callback(
-      `${arena.emoji} ${arena.name} (${priceText})`,
-      `buy_arena_${arena.id}`
-    )]);
-  });
-  
-  buttons.push([
-    Markup.button.callback("🔄 Обновить", "cosmetics_arenas"),
-    Markup.button.callback("🔙 Назад", "cosmetics_menu"),
-  ]);
-  
-  await ctx.editMessageText(text, {
-    parse_mode: "Markdown",
-    ...Markup.inlineKeyboard(buttons)
-  });
+    const buttons = [];
+    
+    rotation.arenas.forEach((arena) => {
+      const color = getRarityColor(arena.rarity);
+      const priceText = arena.priceCoins ? `${arena.priceCoins}⭐` : `${arena.priceCrystals}💎`;
+      
+      text += `${color} ${arena.name} — ${arena.rarity}\n`;
+      text += `   ${priceText}\n\n`;
+      
+      buttons.push([Markup.button.callback(
+        `${arena.emoji} ${arena.name} (${priceText})`,
+        `buy_arena_${arena.id}`
+      )]);
+    });
+    
+    buttons.push([
+      Markup.button.callback("🔄 Обновить", "cosmetics_arenas"),
+      Markup.button.callback("🔙 Назад", "cosmetics_menu"),
+    ]);
+    
+    await ctx.editMessageText(text, {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard(buttons)
+    });
+  } catch (error) {
+    console.error('❌ Ошибка showArenas:', error);
+    await ctx.reply('❌ Произошла ошибка!');
+  }
 }
 
 async function buyJersey(ctx, jerseyId) {
   try {
+    await ctx.answerCbQuery();
     console.log(`🔵 Покупка формы: ${jerseyId}`);
     
     const user = ctx.from;
@@ -222,7 +244,6 @@ async function buyJersey(ctx, jerseyId) {
     saveUsers(users);
     console.log(`✅ Форма куплена: ${jersey.name}`);
     
-    // Отправляем фото формы
     let text = `✅ *Форма куплена!*\n\n`;
     text += `${jersey.emoji} ${jersey.name}\n`;
     text += `Редкость: ${jersey.rarity}\n`;
@@ -256,6 +277,7 @@ async function buyJersey(ctx, jerseyId) {
 
 async function buyArena(ctx, arenaId) {
   try {
+    await ctx.answerCbQuery();
     console.log(`🟢 Покупка арены: ${arenaId}`);
     
     const user = ctx.from;
@@ -336,27 +358,22 @@ async function buyArena(ctx, arenaId) {
 
 module.exports = (bot) => {
   bot.action("cosmetics_menu", async (ctx) => {
-    await ctx.answerCbQuery();
     await showCosmeticsMenu(ctx);
   });
 
   bot.action("cosmetics_jerseys", async (ctx) => {
-    await ctx.answerCbQuery();
     await showJerseys(ctx);
   });
 
   bot.action("cosmetics_arenas", async (ctx) => {
-    await ctx.answerCbQuery();
     await showArenas(ctx);
   });
 
   bot.action(/buy_jersey_(.+)/, async (ctx) => {
-    await ctx.answerCbQuery();
     await buyJersey(ctx, ctx.match[1]);
   });
 
   bot.action(/buy_arena_(.+)/, async (ctx) => {
-    await ctx.answerCbQuery();
     await buyArena(ctx, ctx.match[1]);
   });
 };
