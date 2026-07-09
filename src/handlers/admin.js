@@ -1,568 +1,347 @@
 ﻿// ============================================
-// src/handlers/admin.js - ПОЛНАЯ АДМИН-ПАНЕЛЬ
+// src/handlers/admin.js - АДМИНКА
 // ============================================
 
 const { Markup } = require('telegraf');
-const { 
-  getUser, 
-  getAllUsers, 
-  updateUser, 
-  addCard, 
-  getUserCards,
-  banUser, 
-  unbanUser, 
-  isUserBanned,
-  getBattlepass,
-  updateBattlepass,
-  getMatchHistory,
-  getActiveTournament,
-  addTournamentParticipant,
-  addCosmetic
-} = require('../database/db');
-const { getRandomCard } = require('../data/players');
-const { getAllLevels, getLevelData } = require('../data/battlepass');
+const fs = require('fs');
+const path = require('path');
+const { getRandomCard, getRarityEmoji } = require('../data/players');
 
-const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(Number);
+const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-// ============================================
-// ПРОВЕРКА АДМИНА
-// ============================================
-function isAdmin(userId) {
-  return ADMIN_IDS.includes(userId);
+// 🔥 ДВА АДМИНА!
+const ADMINS = [
+  1205576607, // КОШЕЛЬ¹¹
+  1603657074, // ВТОРОЙ АДМИН
+];
+
+function getUsers() {
+  if (!fs.existsSync(DB_PATH)) return {};
+  return JSON.parse(fs.readFileSync(DB_PATH));
 }
 
-// ============================================
-// ГЛАВНОЕ МЕНЮ АДМИН-ПАНЕЛИ
-// ============================================
+function saveUsers(users) {
+  fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
+}
+
+function isAdmin(userId) {
+  return ADMINS.includes(Number(userId));
+}
+
+function openSeasonalPack() {
+  const weights = {
+    "Обычный": 0,
+    "Редкий": 0,
+    "Элитный": 5,
+    "Эпический": 10,
+    "Легендарный": 50,
+    "Икона": 35
+  };
+  
+  const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  let random = Math.random() * total;
+  let selectedRarity = "Элитный";
+  
+  for (const [rarity, weight] of Object.entries(weights)) {
+    random -= weight;
+    if (random <= 0) {
+      selectedRarity = rarity;
+      break;
+    }
+  }
+  
+  const { PLAYERS } = require('../data/players');
+  const filtered = PLAYERS.filter(p => p.rarity === selectedRarity);
+  
+  if (filtered.length === 0) {
+    return PLAYERS[Math.floor(Math.random() * PLAYERS.length)];
+  }
+  
+  return filtered[Math.floor(Math.random() * filtered.length)];
+}
+
+async function sendSeasonalPackNotification(ctx, userId, card) {
+  try {
+    const emoji = getRarityEmoji(card.rarity);
+    
+    await ctx.telegram.sendMessage(Number(userId), 
+      "🎁 *Вам выдан СЕЗОННЫЙ ПАК!*\n\n" +
+      "👑 Выдал: администратор\n\n" +
+      "📦 *Содержимое:*\n" +
+      "  • " + emoji + " " + card.name + " (" + card.rarity + ")\n" +
+      "  • 200 монет\n" +
+      "  • 20 кристаллов\n\n" +
+      "📊 *Редкость:* " + card.rarity + "\n" +
+      "🏒 *Позиция:* " + (card.position === "G" ? "Вратарь" : "Полевой") + "\n\n" +
+      "💡 Карта уже добавлена в коллекцию!",
+      { parse_mode: "Markdown" }
+    );
+  } catch (e) {
+    console.log("❌ Не удалось отправить уведомление " + userId + ":", e.message);
+  }
+}
+
+async function showAdminMenu(ctx) {
+  const userId = ctx.from.id;
+  if (!isAdmin(userId)) {
+    await ctx.reply("⛔ Доступ запрещён!");
+    return;
+  }
+  
+  const users = getUsers();
+  const totalUsers = Object.keys(users).length;
+  let totalCards = 0;
+  let totalMatches = 0;
+  let totalCoins = 0;
+  let totalCrystals = 0;
+  
+  Object.values(users).forEach(data => {
+    totalCards += data.cards?.length || 0;
+    totalMatches += data.matches || 0;
+    totalCoins += data.coins || 0;
+    totalCrystals += data.crystals || 0;
+  });
+  
+  const text = 
+    "👑 *АДМИН-ПАНЕЛЬ*\n\n" +
+    "📊 *СТАТИСТИКА:*\n" +
+    "👥 Пользователей: " + totalUsers + "\n" +
+    "📚 Всего карт: " + totalCards + "\n" +
+    "⚔️ Матчей: " + totalMatches + "\n" +
+    "⭐ Монет в игре: " + totalCoins + "\n" +
+    "💎 Кристаллов: " + totalCrystals + "\n\n" +
+    "*Выбери действие:*";
+  
+  await ctx.reply(text, {
+    parse_mode: "Markdown",
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback("💰 Выдать монеты", "admin_coins")],
+      [Markup.button.callback("💎 Выдать кристаллы", "admin_crystals")],
+      [Markup.button.callback("📦 Выдать карту", "admin_card")],
+      [Markup.button.callback("🎁 Сезонный пак", "admin_season")],
+      [Markup.button.callback("📢 Рассылка", "admin_broadcast")],
+      [Markup.button.callback("🗑️ Очистить БД", "admin_clear_db")],
+      [Markup.button.callback("🔙 Назад", "back")],
+    ])
+  });
+  
+  await ctx.reply("📱 Используй кнопки под клавиатурой:", {
+    reply_markup: {
+      keyboard: [
+        ["💰 Выдать монеты", "💎 Выдать кристаллы"],
+        ["📦 Выдать карту", "🎁 Сезонный пак"],
+        ["📢 Рассылка", "🗑️ Очистить БД"],
+        ["🔙 Назад"],
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: false
+    }
+  });
+}
+
 module.exports = (bot) => {
   
-  bot.action('admin_panel', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) {
-      await ctx.answerCbQuery('⛔ У вас нет доступа!');
+  bot.command("admin", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) {
+      await ctx.reply("⛔ Доступ запрещён!");
       return;
     }
-    
+    await ctx.reply("👑 Добро пожаловать в админ-панель!");
+    await showAdminMenu(ctx);
+  });
+
+  bot.action("admin_panel", async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '👑 *Админ-панель*\n\n' +
-      'Выберите действие:',
+    await showAdminMenu(ctx);
+  });
+
+  bot.action("admin_coins", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(
+      "💰 *Выдать монеты*\n\nОтправь ID и сумму через пробел:\n`123456789 500`\nИли `all 100`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.action("admin_crystals", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(
+      "💎 *Выдать кристаллы*\n\nОтправь ID и сумму через пробел:\n`123456789 50`\nИли `all 10`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.action("admin_card", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(
+      "📦 *Выдать карту*\n\nОтправь ID пользователя и название карты:\n`123456789 Александр Овечкин`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.action("admin_season", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(
+      "🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all` для всех.",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.action("admin_broadcast", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(
+      "📢 *Рассылка*\n\nОтправь сообщение для рассылки всем пользователям.",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.action("admin_clear_db", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    
+    await ctx.reply(
+      "⚠️ *Очистить БД?*\n\nЭто удалит ВСЕХ пользователей!\nДействие необратимо!",
       {
-        parse_mode: 'Markdown',
+        parse_mode: "Markdown",
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('👥 Игроки', 'admin_players')],
-          [Markup.button.callback('🎁 Выдать награду', 'admin_reward')],
-          [Markup.button.callback('🃏 Управление картами', 'admin_cards')],
-          [Markup.button.callback('🔨 Бан/Разбан', 'admin_ban')],
-          [Markup.button.callback('📊 Статистика', 'admin_stats')],
-          [Markup.button.callback('🎖️ Боевой пропуск', 'admin_battlepass')],
-          [Markup.button.callback('🏆 Турниры', 'admin_tournament')],
-          [Markup.button.callback('💰 Экономика', 'admin_economy')],
-          [Markup.button.callback('🔙 Назад', 'back_to_menu')],
+          [Markup.button.callback("✅ ДА, УДАЛИТЬ", "admin_confirm_clear")],
+          [Markup.button.callback("❌ НЕТ, ОТМЕНА", "admin_panel")],
         ])
       }
     );
   });
 
-  // ============================================
-  // 1. ИГРОКИ
-  // ============================================
-  bot.action('admin_players', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
+  bot.action("admin_confirm_clear", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    saveUsers({});
+    await ctx.editMessageText("✅ База данных очищена!");
+    await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
+  });
+
+  // КНОПКИ ПОД КЛАВИАТУРОЙ
+  bot.hears("💰 Выдать монеты", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply(
+      "💰 *Выдать монеты*\n\nОтправь ID и сумму:\n`123456789 500`\nИли `all 100`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.hears("💎 Выдать кристаллы", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply(
+      "💎 *Выдать кристаллы*\n\nОтправь ID и сумму:\n`123456789 50`\nИли `all 10`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.hears("📦 Выдать карту", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply(
+      "📦 *Выдать карту*\n\nОтправь ID и название:\n`123456789 Александр Овечкин`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.hears("🎁 Сезонный пак", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply(
+      "🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.hears("📢 Рассылка", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply("📢 *Рассылка*\n\nОтправь сообщение.", { parse_mode: "Markdown" });
+  });
+
+  bot.hears("🗑️ Очистить БД", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    saveUsers({});
+    await ctx.reply("✅ База данных очищена!");
+  });
+
+  bot.hears("🔙 Назад", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply("🔙 Возвращаюсь...", { reply_markup: { remove_keyboard: true } });
+    await showAdminMenu(ctx);
+  });
+
+  // ОБРАБОТКА ТЕКСТА
+  bot.on("text", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
     
-    await ctx.answerCbQuery();
-    const users = getAllUsers();
-    let text = '👥 *Список игроков:*\n\n';
+    const text = ctx.text;
+    const parts = text.split(" ");
     
-    users.slice(0, 20).forEach((u, i) => {
-      const status = u.is_banned ? '🚫' : '✅';
-      text += (i+1) + '. ' + status + ' ' + (u.first_name || u.username || 'Аноним') + 
-              ' — Рейтинг: ' + u.rating + ' | Лига: ' + u.league + '\n';
-    });
-    
-    text += '\nВсего: ' + users.length + ' игроков';
-    
-    await ctx.editMessageText(
-      text,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔍 Поиск игрока', 'admin_search_player')],
-          [Markup.button.callback('🔙 Назад', 'admin_panel')],
-        ])
+    // Выдача монет
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      const users = getUsers();
+      if (parts[0] === "all") {
+        Object.keys(users).forEach(id => {
+          users[id].coins = (users[id].coins || 0) + parseInt(parts[1]);
+        });
+        saveUsers(users);
+        await ctx.reply("✅ Выдано " + parts[1] + "⭐ всем!");
+        return;
       }
-    );
-  });
-
-  // ============================================
-  // 2. ВЫДАЧА НАГРАД
-  // ============================================
-  bot.action('admin_reward', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '🎁 *Выдача награды*\n\n' +
-      'Введите команду в чат:\n\n' +
-      '/givecoins <user_id> <amount> — выдать монеты\n' +
-      '/givecrystals <user_id> <amount> — выдать кристаллы\n' +
-      '/givecard <user_id> <rarity> — выдать карту\n' +
-      '/givepass <user_id> — выдать боевой пропуск\n\n' +
-      'Пример:\n' +
-      '/givecoins 123456789 1000',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
+      if (users[parts[0]]) {
+        users[parts[0]].coins = (users[parts[0]].coins || 0) + parseInt(parts[1]);
+        saveUsers(users);
+        await ctx.reply("✅ Выдано " + parts[1] + "⭐ пользователю " + parts[0] + "!");
+        return;
       }
-    );
-  });
-
-  // ============================================
-  // КОМАНДЫ ВЫДАЧИ
-  // ============================================
-  bot.command('givecoins', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 3) {
-      await ctx.reply('❌ Использование: /givecoins <user_id> <amount>');
-      return;
     }
     
-    const userId = parseInt(args[1]);
-    const amount = parseInt(args[2]);
-    const dbUser = getUser(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    updateUser(userId, { coins: dbUser.coins + amount });
-    await ctx.reply('✅ Выдано ' + amount + ' монет пользователю ' + (dbUser.first_name || dbUser.username));
-  });
-
-  bot.command('givecrystals', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 3) {
-      await ctx.reply('❌ Использование: /givecrystals <user_id> <amount>');
-      return;
-    }
-    
-    const userId = parseInt(args[1]);
-    const amount = parseInt(args[2]);
-    const dbUser = getUser(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    updateUser(userId, { crystals: dbUser.crystals + amount });
-    await ctx.reply('✅ Выдано ' + amount + ' кристаллов пользователю ' + (dbUser.first_name || dbUser.username));
-  });
-
-  bot.command('givecard', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 3) {
-      await ctx.reply('❌ Использование: /givecard <user_id> <rarity>');
-      return;
-    }
-    
-    const userId = parseInt(args[1]);
-    const rarity = args[2] || 'Легендарный';
-    const dbUser = getUser(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    const player = getRandomCard(rarity);
-    addCard(userId, {
-      player_name: player.name,
-      rarity: player.rarity,
-      overall: player.overall,
-      position: player.position,
-      league: player.league,
-      ability: player.ability,
-      accuracy: player.accuracy || 0,
-      power: player.power || 0,
-      dribbling: player.dribbling || 0,
-      speed: player.speed || 0,
-      composure: player.composure || 0,
-      skating: player.skating || 0,
-      count: 1,
-    });
-    
-    await ctx.reply('✅ Добавлена карта ' + player.name + ' (' + player.rarity + ') пользователю ' + (dbUser.first_name || dbUser.username));
-  });
-
-  bot.command('givepass', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-      await ctx.reply('❌ Использование: /givepass <user_id>');
-      return;
-    }
-    
-    const userId = parseInt(args[1]);
-    const dbUser = getUser(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    const bp = getBattlepass(userId);
-    if (bp) {
-      updateBattlepass(userId, { is_premium: 1 });
-    }
-    
-    await ctx.reply('✅ Боевой пропуск выдан пользователю ' + (dbUser.first_name || dbUser.username));
-  });
-
-  // ============================================
-  // 3. УПРАВЛЕНИЕ КАРТАМИ
-  // ============================================
-  bot.action('admin_cards', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '🃏 *Управление картами*\n\n' +
-      'Команды:\n\n' +
-      '/givecard <user_id> <rarity> — добавить карту\n' +
-      '/showcards <user_id> — показать карты игрока\n' +
-      '/removecard <user_id> <card_id> — удалить карту\n\n' +
-      'Доступные редкости:\n' +
-      'Обычный, Редкий, Элитный, Эпический, Легендарный, Икона',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
+    // Сезонный пак
+    if (text === "all" || !isNaN(text)) {
+      const users = getUsers();
+      const target = text;
+      const { PLAYERS } = require("../data/players");
+      const rareCards = PLAYERS.filter(p => p.rarity === "Эпический" || p.rarity === "Легендарный" || p.rarity === "Икона");
+      
+      const targets = target === "all" ? Object.keys(users) : [target];
+      
+      for (const id of targets) {
+        if (!users[id]) continue;
+        const card = rareCards[Math.floor(Math.random() * rareCards.length)];
+        const cardWithId = { ...card, id: Date.now().toString() + Math.random().toString(36).substr(2, 6), count: 1 };
+        const existing = users[id].cards.find(c => c.name === card.name && c.position === card.position);
+        if (existing) existing.count = (existing.count || 1) + 1;
+        else users[id].cards.push(cardWithId);
+        users[id].coins = (users[id].coins || 0) + 200;
+        users[id].crystals = (users[id].crystals || 0) + 20;
       }
-    );
-  });
-
-  bot.command('showcards', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-      await ctx.reply('❌ Использование: /showcards <user_id>');
+      
+      saveUsers(users);
+      await ctx.reply("✅ Сезонный пак выдан " + (target === "all" ? "всем" : target) + "!");
       return;
     }
     
-    const userId = parseInt(args[1]);
-    const cards = getUserCards(userId);
-    const dbUser = getUser(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    let text = '🃏 *Карты игрока ' + (dbUser.first_name || dbUser.username) + '*\n\n';
-    if (cards.length === 0) {
-      text += 'У игрока нет карт';
-    } else {
-      cards.forEach((c, i) => {
-        text += (i+1) + '. ' + c.player_name + ' — ' + c.rarity + ' (' + c.overall + ' OVR) x' + c.count + '\n';
-      });
-      text += '\nВсего: ' + cards.length + ' карт';
-    }
-    
-    await ctx.reply(text, { parse_mode: 'Markdown' });
-  });
-
-  // ============================================
-  // 4. БАН/РАЗБАН
-  // ============================================
-  bot.action('admin_ban', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '🔨 *Управление банами*\n\n' +
-      'Команды:\n\n' +
-      '/ban <user_id> — забанить игрока\n' +
-      '/unban <user_id> — разбанить игрока\n' +
-      '/checkban <user_id> — проверить статус',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
+    // Рассылка
+    if (text.length > 10 && !text.startsWith("/")) {
+      const users = getUsers();
+      let sent = 0;
+      for (const [id] of Object.entries(users)) {
+        try {
+          await ctx.telegram.sendMessage(Number(id), "📢 *РАССЫЛКА*\n\n" + text, { parse_mode: "Markdown" });
+          sent++;
+        } catch (e) {}
+        await new Promise(r => setTimeout(r, 100));
       }
-    );
+      await ctx.reply("✅ Рассылка отправлена " + sent + " пользователям!");
+    }
   });
 
-  bot.command('ban', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-      await ctx.reply('❌ Использование: /ban <user_id>');
-      return;
-    }
-    
-    const userId = parseInt(args[1]);
-    const dbUser = getUser(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    banUser(userId);
-    await ctx.reply('🚫 Пользователь ' + (dbUser.first_name || dbUser.username) + ' забанен');
-  });
-
-  bot.command('unban', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-      await ctx.reply('❌ Использование: /unban <user_id>');
-      return;
-    }
-    
-    const userId = parseInt(args[1]);
-    const dbUser = getUser(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    unbanUser(userId);
-    await ctx.reply('✅ Пользователь ' + (dbUser.first_name || dbUser.username) + ' разбанен');
-  });
-
-  bot.command('checkban', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-      await ctx.reply('❌ Использование: /checkban <user_id>');
-      return;
-    }
-    
-    const userId = parseInt(args[1]);
-    const dbUser = getUser(userId);
-    const banned = isUserBanned(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    await ctx.reply('👤 ' + (dbUser.first_name || dbUser.username) + '\nСтатус: ' + (banned ? '🚫 ЗАБАНЕН' : '✅ АКТИВЕН'));
-  });
-
-  // ============================================
-  // 5. СТАТИСТИКА
-  // ============================================
-  bot.action('admin_stats', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    await ctx.answerCbQuery();
-    const users = getAllUsers();
-    const totalUsers = users.length;
-    const totalCoins = users.reduce((sum, u) => sum + u.coins, 0);
-    const totalCrystals = users.reduce((sum, u) => sum + u.crystals, 0);
-    const totalRating = users.reduce((sum, u) => sum + u.rating, 0);
-    const avgRating = totalUsers > 0 ? Math.round(totalRating / totalUsers) : 0;
-    const totalWins = users.reduce((sum, u) => sum + u.wins, 0);
-    const totalMatches = users.reduce((sum, u) => sum + u.matches_played, 0);
-    
-    await ctx.editMessageText(
-      '📊 *Общая статистика:*\n\n' +
-      '👥 Игроков: ' + totalUsers + '\n' +
-      '⭐ Монет всего: ' + totalCoins + '\n' +
-      '💎 Кристаллов всего: ' + totalCrystals + '\n' +
-      '🏆 Средний рейтинг: ' + avgRating + '\n' +
-      '✅ Всего побед: ' + totalWins + '\n' +
-      '📊 Всего матчей: ' + totalMatches + '\n' +
-      '🏅 Топ-лига: ' + (users.length > 0 ? users[0].league : 'Нет') + '\n' +
-      '🚫 Забанено: ' + users.filter(u => u.is_banned).length,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
-      }
-    );
-  });
-
-  // ============================================
-  // 6. БОЕВОЙ ПРОПУСК (АДМИН)
-  // ============================================
-  bot.action('admin_battlepass', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '🎖️ *Управление боевым пропуском*\n\n' +
-      'Команды:\n\n' +
-      '/setpasslevel <user_id> <level> — установить уровень\n' +
-      '/addpassxp <user_id> <xp> — добавить XP\n' +
-      '/givepass <user_id> — выдать премиум\n\n' +
-      'Текущие уровни: 1-30\n' +
-      'XP за уровень: 20',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
-      }
-    );
-  });
-
-  bot.command('setpasslevel', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 3) {
-      await ctx.reply('❌ Использование: /setpasslevel <user_id> <level>');
-      return;
-    }
-    
-    const userId = parseInt(args[1]);
-    const level = parseInt(args[2]);
-    const dbUser = getUser(userId);
-    
-    if (!dbUser) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
-    }
-    
-    if (level < 1 || level > 30) {
-      await ctx.reply('❌ Уровень должен быть от 1 до 30');
-      return;
-    }
-    
-    const bp = getBattlepass(userId);
-    if (bp) {
-      const xp = level * 20;
-      updateBattlepass(userId, { level: level, xp: xp });
-    }
-    
-    await ctx.reply('✅ Уровень ' + level + ' установлен для ' + (dbUser.first_name || dbUser.username));
-  });
-
-  // ============================================
-  // 7. ТУРНИРЫ (АДМИН)
-  // ============================================
-  bot.action('admin_tournament', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '🏆 *Управление турнирами*\n\n' +
-      'Команды:\n\n' +
-      '/createtournament <name> <type> — создать турнир\n' +
-      '/starttournament <id> — начать турнир\n' +
-      '/stoptournament <id> — завершить турнир\n\n' +
-      'Типы турниров: 16, 32, 64, 128',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
-      }
-    );
-  });
-
-  // ============================================
-  // 8. ЭКОНОМИКА (АДМИН)
-  // ============================================
-  bot.action('admin_economy', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '💰 *Управление экономикой*\n\n' +
-      'Команды:\n\n' +
-      '/setprice <item> <price> — изменить цену\n' +
-      '/addcoins <user_id> <amount> — добавить монеты\n' +
-      '/addcrystals <user_id> <amount> — добавить кристаллы\n\n' +
-      'Доступные товары:\n' +
-      '• basic_pack — Базовый пак\n' +
-      '• premium_pack — Премиум пак\n' +
-      '• legendary_pack — Легендарный пак',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_panel')]])
-      }
-    );
-  });
-
-  // ============================================
-  // ПОИСК ИГРОКА
-  // ============================================
-  bot.action('admin_search_player', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '🔍 *Поиск игрока*\n\n' +
-      'Введите команду:\n' +
-      '/searchplayer <username или id>',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'admin_players')]])
-      }
-    );
-  });
-
-  bot.command('searchplayer', async (ctx) => {
-    const user = ctx.from;
-    if (!isAdmin(user.id)) return;
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-      await ctx.reply('❌ Использование: /searchplayer <username или id>');
-      return;
-    }
-    
-    const query = args[1];
-    const users = getAllUsers();
-    const found = users.filter(u => 
-      (u.username && u.username.includes(query)) || 
-      (u.first_name && u.first_name.includes(query)) ||
-      u.id.toString() === query
-    );
-    
-    if (found.length === 0) {
-      await ctx.reply('❌ Игрок не найден');
-      return;
-    }
-    
-    let text = '🔍 *Результаты поиска:*\n\n';
-    found.forEach((u, i) => {
-      const status = u.is_banned ? '🚫' : '✅';
-      text += (i+1) + '. ' + status + ' ' + (u.first_name || u.username || 'Аноним') + 
-              ' — ID: ' + u.id + '\n';
-      text += '   Рейтинг: ' + u.rating + ' | Лига: ' + u.league + '\n';
-      text += '   Монет: ' + u.coins + ' | Кристаллов: ' + u.crystals + '\n\n';
-    });
-    
-    await ctx.reply(text, { parse_mode: 'Markdown' });
-  });
 };
