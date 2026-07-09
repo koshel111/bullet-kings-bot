@@ -66,11 +66,10 @@ async function showMainMenu(ctx, bot) {
     "🎮 Играть — сражайся с ИИ или PvP\n" +
     "👥 Команда — управляй составом\n" +
     "📚 Коллекция — все твои карты\n" +
-    "🛒 Магазин — паки и косметика\n" +
+    "🛒 Магазин — паки и бусты\n" +
     "👤 Профиль — твоя статистика\n" +
     "🎖️ Пропуск — боевой пропуск\n" +
-    "📦 Инвентарь — неоткрытые паки\n" +
-    "🎨 Косметика — формы и арены\n" +
+    "📦 Инвентарь — паки и косметика\n" +
     "📅 Бонус — ежедневный бонус";
   
   await ctx.reply(text, {
@@ -83,20 +82,17 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback("👤 Профиль", "profile")],
       [Markup.button.callback("🎖️ Пропуск", "battlepass")],
       [Markup.button.callback("📦 Инвентарь", "inventory")],
-      [Markup.button.callback("🎨 Косметика", "cosmetics_menu")],
       [Markup.button.callback("📅 Бонус", "bonus")],
     ])
   });
   
-  // Кнопки под клавиатурой
   await ctx.reply("📱 Используй кнопки под клавиатурой:", {
     reply_markup: {
       keyboard: [
         ["🎮 Играть", "👥 Команда"],
         ["📚 Коллекция", "🛒 Магазин"],
         ["👤 Профиль", "🎖️ Пропуск"],
-        ["📦 Инвентарь", "🎨 Косметика"],
-        ["📅 Бонус"],
+        ["📦 Инвентарь", "📅 Бонус"],
       ],
       resize_keyboard: true,
       one_time_keyboard: false
@@ -162,11 +158,6 @@ module.exports = (bot) => {
   bot.hears("📦 Инвентарь", async (ctx) => {
     await ctx.answerCbQuery();
     await bot.action("inventory")(ctx);
-  });
-
-  bot.hears("🎨 Косметика", async (ctx) => {
-    await ctx.answerCbQuery();
-    await bot.action("cosmetics_menu")(ctx);
   });
 
   bot.hears("📅 Бонус", async (ctx) => {

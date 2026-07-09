@@ -59,7 +59,7 @@ function getTimeUntilNextJerseyRotation() {
   const minutes = Math.floor(diff / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
   
-  return `${minutes}м ${seconds}с`;
+  return minutes + "м " + seconds + "с";
 }
 
 function getTimeUntilNextArenaRotation() {
@@ -72,9 +72,12 @@ function getTimeUntilNextArenaRotation() {
   const minutes = Math.floor(diff / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
   
-  return `${minutes}м ${seconds}с`;
+  return minutes + "м " + seconds + "с";
 }
 
+// ============================================
+// МЕНЮ КОСМЕТИКИ
+// ============================================
 async function showCosmeticsMenu(ctx) {
   try {
     await ctx.answerCbQuery();
@@ -82,16 +85,15 @@ async function showCosmeticsMenu(ctx) {
     
     const text = 
       "🎨 *Косметика*\n\n" +
-      "Выбери категорию:\n\n" +
-      "🎽 Формы — скины для твоих игроков (обновление 20 мин)\n" +
-      "🏟️ Арены — оформление матчей (обновление 1 час)\n\n" +
-      "💡 Формы можно использовать в матчах для красоты!";
+      "Выбери действие:\n\n" +
+      "🛒 Купить косметику — формы и арены\n" +
+      "📦 Моя косметика — купленные формы и арены";
     
     await ctx.editMessageText(text, {
       parse_mode: "Markdown",
       ...Markup.inlineKeyboard([
-        [Markup.button.callback("🎽 Формы", "cosmetics_jerseys")],
-        [Markup.button.callback("🏟️ Арены", "cosmetics_arenas")],
+        [Markup.button.callback("🛒 Купить косметику", "cosmetics_shop")],
+        [Markup.button.callback("📦 Моя косметика", "cosmetics_inventory")],
         [Markup.button.callback("🔙 Назад", "back")],
       ])
     });
@@ -101,71 +103,53 @@ async function showCosmeticsMenu(ctx) {
   }
 }
 
-async function showJerseys(ctx) {
+// ============================================
+// МАГАЗИН КОСМЕТИКИ
+// ============================================
+async function showCosmeticsShop(ctx) {
   try {
     await ctx.answerCbQuery();
     const rotation = getRotation();
     const timeLeft = getTimeUntilNextJerseyRotation();
     
-    let text = "🎽 *Формы*\n";
-    text += `🔄 Обновление через: ${timeLeft}\n\n`;
+    let text = "🛒 *Купить косметику*\n\n";
+    text += "🎽 *Формы*\n";
+    text += "🔄 Обновление через: " + timeLeft + "\n\n";
     
     const buttons = [];
     
     rotation.jerseys.forEach((jersey) => {
       const color = getRarityColor(jersey.rarity);
-      const priceText = jersey.priceCoins ? `${jersey.priceCoins}⭐` : `${jersey.priceCrystals}💎`;
+      const priceText = jersey.priceCoins ? jersey.priceCoins + "⭐" : jersey.priceCrystals + "💎";
       
-      text += `${color} ${jersey.name} — ${jersey.rarity}\n`;
-      text += `   ${priceText}\n\n`;
+      text += color + " " + jersey.name + " — " + jersey.rarity + "\n";
+      text += "   " + priceText + "\n\n";
       
       buttons.push([Markup.button.callback(
-        `${jersey.emoji} ${jersey.name} (${priceText})`,
-        `buy_jersey_${jersey.id}`
+        jersey.emoji + " " + jersey.name + " (" + priceText + ")",
+        "buy_jersey_" + jersey.id
       )]);
     });
     
-    buttons.push([
-      Markup.button.callback("🔄 Обновить", "cosmetics_jerseys"),
-      Markup.button.callback("🔙 Назад", "cosmetics_menu"),
-    ]);
-    
-    await ctx.editMessageText(text, {
-      parse_mode: "Markdown",
-      ...Markup.inlineKeyboard(buttons)
-    });
-  } catch (error) {
-    console.error('❌ Ошибка showJerseys:', error);
-    await ctx.reply('❌ Произошла ошибка!');
-  }
-}
-
-async function showArenas(ctx) {
-  try {
-    await ctx.answerCbQuery();
-    const rotation = getRotation();
-    const timeLeft = getTimeUntilNextArenaRotation();
-    
-    let text = "🏟️ *Арены*\n";
-    text += `🔄 Обновление через: ${timeLeft}\n\n`;
-    
-    const buttons = [];
+    text += "\n🏟️ *Арены*\n";
+    const timeLeftArena = getTimeUntilNextArenaRotation();
+    text += "🔄 Обновление через: " + timeLeftArena + "\n\n";
     
     rotation.arenas.forEach((arena) => {
       const color = getRarityColor(arena.rarity);
-      const priceText = arena.priceCoins ? `${arena.priceCoins}⭐` : `${arena.priceCrystals}💎`;
+      const priceText = arena.priceCoins ? arena.priceCoins + "⭐" : arena.priceCrystals + "💎";
       
-      text += `${color} ${arena.name} — ${arena.rarity}\n`;
-      text += `   ${priceText}\n\n`;
+      text += color + " " + arena.name + " — " + arena.rarity + "\n";
+      text += "   " + priceText + "\n\n";
       
       buttons.push([Markup.button.callback(
-        `${arena.emoji} ${arena.name} (${priceText})`,
-        `buy_arena_${arena.id}`
+        arena.emoji + " " + arena.name + " (" + priceText + ")",
+        "buy_arena_" + arena.id
       )]);
     });
     
     buttons.push([
-      Markup.button.callback("🔄 Обновить", "cosmetics_arenas"),
+      Markup.button.callback("🔄 Обновить", "cosmetics_shop"),
       Markup.button.callback("🔙 Назад", "cosmetics_menu"),
     ]);
     
@@ -174,15 +158,88 @@ async function showArenas(ctx) {
       ...Markup.inlineKeyboard(buttons)
     });
   } catch (error) {
-    console.error('❌ Ошибка showArenas:', error);
+    console.error('❌ Ошибка showCosmeticsShop:', error);
     await ctx.reply('❌ Произошла ошибка!');
   }
 }
 
+// ============================================
+// ИНВЕНТАРЬ КОСМЕТИКИ
+// ============================================
+async function showCosmeticsInventory(ctx) {
+  try {
+    await ctx.answerCbQuery();
+    const userId = ctx.from.id;
+    const users = getUsers();
+    const data = users[userId];
+    
+    if (!data) {
+      await ctx.reply("❌ Ошибка! Попробуй /start");
+      return;
+    }
+    
+    let text = "📦 *Моя косметика*\n\n";
+    let hasItems = false;
+    const buttons = [];
+    
+    // Формы
+    if (data.jerseys && data.jerseys.length > 0) {
+      text += "🎽 *Формы:*\n";
+      data.jerseys.forEach((jersey) => {
+        if (typeof jersey === 'string') {
+          const fullJersey = getJerseyById(jersey);
+          if (fullJersey) {
+            text += "  • " + fullJersey.emoji + " " + fullJersey.name + " (" + fullJersey.rarity + ")\n";
+          }
+        } else {
+          text += "  • " + jersey.emoji + " " + jersey.name + " (" + jersey.rarity + ")\n";
+        }
+      });
+      hasItems = true;
+      text += "\n";
+    }
+    
+    // Арены
+    if (data.arenas && data.arenas.length > 0) {
+      text += "🏟️ *Арены:*\n";
+      data.arenas.forEach((arena) => {
+        if (typeof arena === 'string') {
+          const fullArena = getArenaById(arena);
+          if (fullArena) {
+            text += "  • " + fullArena.emoji + " " + fullArena.name + " (" + fullArena.rarity + ")\n";
+          }
+        } else {
+          text += "  • " + arena.emoji + " " + arena.name + " (" + arena.rarity + ")\n";
+        }
+      });
+      hasItems = true;
+      text += "\n";
+    }
+    
+    if (!hasItems) {
+      text += "❌ У тебя пока нет косметики!\n";
+      text += "💡 Купи формы и арены в разделе 🛒 Купить косметику";
+    }
+    
+    buttons.push([Markup.button.callback("🔙 Назад", "cosmetics_menu")]);
+    
+    await ctx.editMessageText(text, {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard(buttons)
+    });
+  } catch (error) {
+    console.error('❌ Ошибка showCosmeticsInventory:', error);
+    await ctx.reply('❌ Произошла ошибка!');
+  }
+}
+
+// ============================================
+// ПОКУПКА ФОРМЫ
+// ============================================
 async function buyJersey(ctx, jerseyId) {
   try {
     await ctx.answerCbQuery();
-    console.log(`🔵 Покупка формы: ${jerseyId}`);
+    console.log("🔵 Покупка формы: " + jerseyId);
     
     const user = ctx.from;
     const users = getUsers();
@@ -195,30 +252,32 @@ async function buyJersey(ctx, jerseyId) {
     
     const jersey = getJerseyById(jerseyId);
     if (!jersey) {
-      console.log(`❌ Форма не найдена: ${jerseyId}`);
-      await ctx.editMessageText("❌ Форма не найдена!");
+      console.log("❌ Форма не найдена: " + jerseyId);
+      await ctx.editMessageText("❌ Форма не найдена! Попробуй обновить.");
       return;
     }
     
-    if (data.jerseys && data.jerseys.includes(jerseyId)) {
+    // Проверяем, есть ли уже
+    if (data.jerseys && data.jerseys.some(j => j.id === jerseyId || j === jerseyId)) {
       await ctx.editMessageText(
         "❌ *У тебя уже есть эта форма!*\n\n" +
-        `${jersey.emoji} ${jersey.name}`,
+        jersey.emoji + " " + jersey.name,
         {
           parse_mode: "Markdown",
-          ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_jerseys")]])
+          ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_shop")]])
         }
       );
       return;
     }
     
+    // Проверяем баланс
     if (jersey.priceCoins) {
       if ((data.coins || 0) < jersey.priceCoins) {
         await ctx.editMessageText(
-          `❌ *Недостаточно монет!*\n\nНужно: ${jersey.priceCoins}⭐\nУ тебя: ${data.coins || 0}⭐`,
+          "❌ *Недостаточно монет!*\n\nНужно: " + jersey.priceCoins + "⭐\nУ тебя: " + (data.coins || 0) + "⭐",
           {
             parse_mode: "Markdown",
-            ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_jerseys")]])
+            ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_shop")]])
           }
         );
         return;
@@ -227,10 +286,10 @@ async function buyJersey(ctx, jerseyId) {
     } else if (jersey.priceCrystals) {
       if ((data.crystals || 0) < jersey.priceCrystals) {
         await ctx.editMessageText(
-          `❌ *Недостаточно кристаллов!*\n\nНужно: ${jersey.priceCrystals}💎\nУ тебя: ${data.crystals || 0}💎`,
+          "❌ *Недостаточно кристаллов!*\n\nНужно: " + jersey.priceCrystals + "💎\nУ тебя: " + (data.crystals || 0) + "💎",
           {
             parse_mode: "Markdown",
-            ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_jerseys")]])
+            ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_shop")]])
           }
         );
         return;
@@ -238,33 +297,34 @@ async function buyJersey(ctx, jerseyId) {
       data.crystals -= jersey.priceCrystals;
     }
     
+    // Добавляем форму
     if (!data.jerseys) data.jerseys = [];
-    data.jerseys.push(jerseyId);
+    data.jerseys.push({ id: jersey.id, name: jersey.name, rarity: jersey.rarity, emoji: jersey.emoji });
     
     saveUsers(users);
-    console.log(`✅ Форма куплена: ${jersey.name}`);
+    console.log("✅ Форма куплена: " + jersey.name);
     
-    let text = `✅ *Форма куплена!*\n\n`;
-    text += `${jersey.emoji} ${jersey.name}\n`;
-    text += `Редкость: ${jersey.rarity}\n`;
-    text += `Лига: ${jersey.league}\n\n`;
+    let text = "✅ *Форма куплена!*\n\n";
+    text += jersey.emoji + " " + jersey.name + "\n";
+    text += "Редкость: " + jersey.rarity + "\n";
+    text += "Лига: " + jersey.league + "\n\n";
     
     if (jersey.photo) {
       await ctx.replyWithPhoto(jersey.photo, {
-        caption: `📸 ${jersey.name}`,
+        caption: "📸 " + jersey.name,
         parse_mode: "Markdown"
       });
-      text += `📸 Фото формы отправлено выше!\n\n`;
+      text += "📸 Фото формы отправлено выше!\n\n";
     }
     
-    text += `💡 Теперь ты можешь использовать эту форму в матчах!`;
+    text += "💡 Теперь ты можешь использовать эту форму в матчах!";
     
     await ctx.editMessageText(
       text,
       {
         parse_mode: "Markdown",
         ...Markup.inlineKeyboard([
-          [Markup.button.callback("🎽 Ещё формы", "cosmetics_jerseys")],
+          [Markup.button.callback("🛒 Ещё формы", "cosmetics_shop")],
           [Markup.button.callback("🔙 Назад", "cosmetics_menu")],
         ])
       }
@@ -275,10 +335,13 @@ async function buyJersey(ctx, jerseyId) {
   }
 }
 
+// ============================================
+// ПОКУПКА АРЕНЫ
+// ============================================
 async function buyArena(ctx, arenaId) {
   try {
     await ctx.answerCbQuery();
-    console.log(`🟢 Покупка арены: ${arenaId}`);
+    console.log("🟢 Покупка арены: " + arenaId);
     
     const user = ctx.from;
     const users = getUsers();
@@ -291,18 +354,18 @@ async function buyArena(ctx, arenaId) {
     
     const arena = getArenaById(arenaId);
     if (!arena) {
-      console.log(`❌ Арена не найдена: ${arenaId}`);
-      await ctx.editMessageText("❌ Арена не найдена!");
+      console.log("❌ Арена не найдена: " + arenaId);
+      await ctx.editMessageText("❌ Арена не найдена! Попробуй обновить.");
       return;
     }
     
-    if (data.arenas && data.arenas.includes(arenaId)) {
+    if (data.arenas && data.arenas.some(a => a.id === arenaId || a === arenaId)) {
       await ctx.editMessageText(
         "❌ *У тебя уже есть эта арена!*\n\n" +
-        `${arena.emoji} ${arena.name}`,
+        arena.emoji + " " + arena.name,
         {
           parse_mode: "Markdown",
-          ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_arenas")]])
+          ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_shop")]])
         }
       );
       return;
@@ -311,10 +374,10 @@ async function buyArena(ctx, arenaId) {
     if (arena.priceCoins) {
       if ((data.coins || 0) < arena.priceCoins) {
         await ctx.editMessageText(
-          `❌ *Недостаточно монет!*\n\nНужно: ${arena.priceCoins}⭐\nУ тебя: ${data.coins || 0}⭐`,
+          "❌ *Недостаточно монет!*\n\nНужно: " + arena.priceCoins + "⭐\nУ тебя: " + (data.coins || 0) + "⭐",
           {
             parse_mode: "Markdown",
-            ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_arenas")]])
+            ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_shop")]])
           }
         );
         return;
@@ -323,10 +386,10 @@ async function buyArena(ctx, arenaId) {
     } else if (arena.priceCrystals) {
       if ((data.crystals || 0) < arena.priceCrystals) {
         await ctx.editMessageText(
-          `❌ *Недостаточно кристаллов!*\n\nНужно: ${arena.priceCrystals}💎\nУ тебя: ${data.crystals || 0}💎`,
+          "❌ *Недостаточно кристаллов!*\n\nНужно: " + arena.priceCrystals + "💎\nУ тебя: " + (data.crystals || 0) + "💎",
           {
             parse_mode: "Markdown",
-            ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_arenas")]])
+            ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Назад", "cosmetics_shop")]])
           }
         );
         return;
@@ -335,17 +398,21 @@ async function buyArena(ctx, arenaId) {
     }
     
     if (!data.arenas) data.arenas = [];
-    data.arenas.push(arenaId);
+    data.arenas.push({ id: arena.id, name: arena.name, rarity: arena.rarity, emoji: arena.emoji });
     
     saveUsers(users);
-    console.log(`✅ Арена куплена: ${arena.name}`);
+    console.log("✅ Арена куплена: " + arena.name);
     
     await ctx.editMessageText(
-      `✅ *Арена куплена!*\n\n${arena.emoji} ${arena.name}\nРедкость: ${arena.rarity}\nЛига: ${arena.league}\n\n💡 Теперь ты можешь играть на этой арене!`,
+      "✅ *Арена куплена!*\n\n" +
+      arena.emoji + " " + arena.name + "\n" +
+      "Редкость: " + arena.rarity + "\n" +
+      "Лига: " + arena.league + "\n\n" +
+      "💡 Теперь ты можешь играть на этой арене!",
       {
         parse_mode: "Markdown",
         ...Markup.inlineKeyboard([
-          [Markup.button.callback("🏟️ Ещё арены", "cosmetics_arenas")],
+          [Markup.button.callback("🏟️ Ещё арены", "cosmetics_shop")],
           [Markup.button.callback("🔙 Назад", "cosmetics_menu")],
         ])
       }
@@ -361,12 +428,12 @@ module.exports = (bot) => {
     await showCosmeticsMenu(ctx);
   });
 
-  bot.action("cosmetics_jerseys", async (ctx) => {
-    await showJerseys(ctx);
+  bot.action("cosmetics_shop", async (ctx) => {
+    await showCosmeticsShop(ctx);
   });
 
-  bot.action("cosmetics_arenas", async (ctx) => {
-    await showArenas(ctx);
+  bot.action("cosmetics_inventory", async (ctx) => {
+    await showCosmeticsInventory(ctx);
   });
 
   bot.action(/buy_jersey_(.+)/, async (ctx) => {

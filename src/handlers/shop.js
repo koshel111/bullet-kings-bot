@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shop.js - С КНОПКОЙ КОСМЕТИКИ
+// src/handlers/shop.js - МАГАЗИН (БЕЗ КОСМЕТИКИ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -89,7 +89,8 @@ function openPack(packType) {
     const player = getRandomCard(rarity);
     const cardWithId = {
       ...player,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 6)
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+      count: 1
     };
     cards.push(cardWithId);
   }
@@ -111,15 +112,13 @@ module.exports = (bot) => {
       '*Выбери пак:*\n' +
       '📦 Базовый (100⭐) — 1 карта\n' +
       '🎁 Премиум (500⭐) — 1 карта\n' +
-      '💎 Легендарный (50💎) — 1 карта\n\n' +
-      '🏒 Косметика — формы и арены',
+      '💎 Легендарный (50💎) — 1 карта',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
           [Markup.button.callback('📦 Базовый (100⭐)', 'buy_basic')],
           [Markup.button.callback('🎁 Премиум (500⭐)', 'buy_premium')],
           [Markup.button.callback('💎 Легендарный (50💎)', 'buy_legendary')],
-          [Markup.button.callback('🏒 Косметика', 'cosmetics_menu')],
           [Markup.button.callback('🔙 Назад', 'back')],
         ])
       }
@@ -181,19 +180,16 @@ module.exports = (bot) => {
     const emoji = getRarityEmoji(card.rarity);
     const positionEmoji = card.position === 'G' ? '🧤' : '🏒';
     
-    let text = '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n';
-    text += '📋 *Твоя карта:*\n';
-    text += emoji + ' ' + positionEmoji + ' ' + card.name + '\n';
-    text += 'Редкость: ' + card.rarity + '\n';
-    text += 'Рейтинг: ' + card.overall + ' OVR\n';
-    text += 'Позиция: ' + (card.position === 'G' ? 'Вратарь' : 'Полевой') + '\n\n';
-    text += '📊 Всего карт: ' + data.cards.length + '\n\n';
-    text += '💡 *Карта добавлена в коллекцию!*\n';
-    text += 'Чтобы добавить её в состав — зайди в 👥 Команда и собери состав.\n\n';
-    text += '🔍 *Проверь слот вратаря если выпал вратарь!*';
-    
     await ctx.editMessageText(
-      text,
+      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n' +
+      '📋 *Твоя карта:*\n' +
+      emoji + ' ' + positionEmoji + ' ' + card.name + '\n' +
+      'Редкость: ' + card.rarity + '\n' +
+      'Рейтинг: ' + card.overall + ' OVR\n' +
+      'Позиция: ' + (card.position === 'G' ? 'Вратарь' : 'Полевой') + '\n\n' +
+      '📊 Всего карт: ' + data.cards.length + '\n\n' +
+      '💡 *Карта добавлена в коллекцию!*\n' +
+      'Чтобы добавить её в состав — зайди в 👥 Команда и собери состав.',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
@@ -205,4 +201,3 @@ module.exports = (bot) => {
     );
   });
 };
-
