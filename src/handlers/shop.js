@@ -112,14 +112,14 @@ module.exports = (bot) => {
       '📦 Базовый (100⭐) — 1 карта\n' +
       '🎁 Премиум (500⭐) — 1 карта\n' +
       '💎 Легендарный (50💎) — 1 карта\n\n' +
-      '💄 Косметика — формы и арены',
+      '🏒 Косметика — формы и арены',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
           [Markup.button.callback('📦 Базовый (100⭐)', 'buy_basic')],
           [Markup.button.callback('🎁 Премиум (500⭐)', 'buy_premium')],
           [Markup.button.callback('💎 Легендарный (50💎)', 'buy_legendary')],
-          [Markup.button.callback('💄 Косметика', 'cosmetics_menu')],
+          [Markup.button.callback('🏒 Косметика', 'cosmetics_menu')],
           [Markup.button.callback('🔙 Назад', 'back')],
         ])
       }
@@ -205,3 +205,4 @@ module.exports = (bot) => {
     );
   });
 };
+

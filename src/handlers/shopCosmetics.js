@@ -6,7 +6,7 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     console.log('✅ Меню косметики');
     await ctx.deleteMessage();
-    await ctx.reply('💄 *Косметика*', {
+    await ctx.reply('🏒 *Косметика*', {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('🎽 Формы', 'cosm_jerseys')],
@@ -44,3 +44,4 @@ module.exports = (bot) => {
   });
 
 };
+
