@@ -52,7 +52,10 @@ const BATTLEPASS = {
     27: { free: { arena: "Эпическая" }, premium: { arena: "Эпическая" } },
     28: { free: { coins: 140 }, premium: { coins: 280, crystals: 25 } },
     29: { free: { crystals: 30 }, premium: { crystals: 40 } },
-    30: { free: { card: "90-95" }, premium: { card: "95-99" } },
+    30: { 
+      free: { card: "Семён Кошелев", overall: 93 }, 
+      premium: { card: "Семён Кошелев", overall: 96, pack: "seasonal" } 
+    },
   }
 };
 
@@ -120,15 +123,20 @@ function giveReward(data, reward, isPremium = false) {
   }
   
   if (rewards.card) {
-    const { PLAYERS } = require('../data/players');
-    const range = rewards.card === "90-95" ? [90, 95] : [95, 99];
-    const filtered = PLAYERS.filter(p => p.overall >= range[0] && p.overall <= range[1]);
-    if (filtered.length > 0) {
-      const card = filtered[Math.floor(Math.random() * filtered.length)];
-      const cardWithId = { ...card, id: Date.now().toString() + Math.random().toString(36).substr(2, 6), count: 1 };
-      const existing = data.cards.find(c => c.name === card.name && c.position === card.position);
-      if (existing) existing.count = (existing.count || 1) + 1;
-      else data.cards.push(cardWithId);
+    const cardData = {
+      name: rewards.card,
+      overall: rewards.overall || 93,
+      rarity: "Легендарная",
+      position: "C",
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+      count: 1
+    };
+    
+    const existing = data.cards.find(c => c.name === cardData.name && c.position === cardData.position);
+    if (existing) {
+      existing.count = (existing.count || 1) + 1;
+    } else {
+      data.cards.push(cardData);
     }
   }
 }
@@ -180,29 +188,42 @@ async function showBattlepass(ctx) {
     text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
   }
   
-  text += "📋 *Награды на этом уровне:*\n";
-  const reward = BATTLEPASS.REWARDS[level + 1] || BATTLEPASS.REWARDS[maxLevel];
-  if (reward) {
+  text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
+  
+  for (let i = 1; i <= maxLevel; i++) {
+    const reward = BATTLEPASS.REWARDS[i];
+    if (!reward) continue;
+    
+    text += "📍 *Уровень " + i + "*\n";
+    
     if (reward.free) {
-      text += "🆓 Бесплатный путь:\n";
+      text += "🆓 Бесплатный: ";
       const free = reward.free;
-      if (free.coins) text += "  • " + free.coins + "⭐\n";
-      if (free.crystals) text += "  • " + free.crystals + "💎\n";
-      if (free.pack) text += "  • 📦 " + free.pack + " пак\n";
-      if (free.jersey) text += "  • 🎽 Форма: " + free.jersey + "\n";
-      if (free.arena) text += "  • 🏟️ Арена: " + free.arena + "\n";
-      if (free.card) text += "  • 🃏 Карта " + free.card + " OVR\n";
+      const parts = [];
+      if (free.coins) parts.push(free.coins + "⭐");
+      if (free.crystals) parts.push(free.crystals + "💎");
+      if (free.pack) parts.push("📦 " + free.pack);
+      if (free.jersey) parts.push("🎽 " + free.jersey);
+      if (free.arena) parts.push("🏟️ " + free.arena);
+      if (free.card) parts.push("🃏 " + free.card + " (" + (free.overall || 93) + " OVR)");
+      text += parts.join(", ") + "\n";
     }
+    
     if (isPremium && reward.premium) {
-      text += "\n💎 Премиум путь:\n";
+      text += "💎 Премиум: ";
       const premium = reward.premium;
-      if (premium.coins) text += "  • " + premium.coins + "⭐\n";
-      if (premium.crystals) text += "  • " + premium.crystals + "💎\n";
-      if (premium.pack) text += "  • 📦 " + premium.pack + " пак\n";
-      if (premium.jersey) text += "  • 🎽 Форма: " + premium.jersey + " (навсегда)\n";
-      if (premium.arena) text += "  • 🏟️ Арена: " + premium.arena + " (навсегда)\n";
-      if (premium.card) text += "  • 🃏 Карта " + premium.card + " OVR\n";
+      const parts = [];
+      if (premium.coins) parts.push(premium.coins + "⭐");
+      if (premium.crystals) parts.push(premium.crystals + "💎");
+      if (premium.pack) parts.push("📦 " + premium.pack);
+      if (premium.jersey) parts.push("🎽 " + premium.jersey + " (навсегда)");
+      if (premium.arena) parts.push("🏟️ " + premium.arena + " (навсегда)");
+      if (premium.card) parts.push("🃏 " + premium.card + " (" + (premium.overall || 96) + " OVR)");
+      if (premium.pack === "seasonal") parts.push("🎁 Сезонный пак");
+      text += parts.join(", ") + "\n";
     }
+    
+    text += "\n";
   }
   
   const buttons = [];
