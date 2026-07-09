@@ -42,6 +42,8 @@ async function showMainMenu(ctx, bot) {
       battlepass_premium: 0,
       claimed_rewards: [],
       lastBonus: null,
+      packs: {},
+      seasonal_packs: []
     };
     saveUsers(users);
   }
@@ -71,6 +73,7 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback("🛒 Магазин", "shop")],
       [Markup.button.callback("👤 Профиль", "profile")],
       [Markup.button.callback("🎖️ Пропуск", "battlepass")],
+      [Markup.button.callback("📦 Инвентарь", "inventory")],
       [Markup.button.callback("📅 Бонус", "bonus")],
     ])
   });
