@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - ПОЛНАЯ ПЕРЕРАБОТКА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -192,10 +192,11 @@ module.exports = (bot) => {
       history: [],
       isSuddenDeath: false,
       isPlayerTurn: true,
-      currentShooter: 0,
+      currentShooter: -1,
       team: team,
       waitingForGoalie: false,
-      lastShot: null
+      lastShot: null,
+      usedPlayers: []
     };
     
     await showPlayerSelection(ctx, user, matches[user.id]);
@@ -220,11 +221,29 @@ module.exports = (bot) => {
       return;
     }
     
-    team.forEach((player, index) => {
+    // Показываем только неиспользованных игроков
+    const availablePlayers = team.filter((p, i) => !match.usedPlayers.includes(i));
+    
+    if (availablePlayers.length === 0) {
+      await ctx.editMessageText(
+        '❌ *Все полевые игроки уже использованы!*\n\n' +
+        'Матч завершён.',
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔙 Назад', 'play')],
+          ])
+        }
+      );
+      return;
+    }
+    
+    availablePlayers.forEach((player, index) => {
+      const originalIndex = team.indexOf(player);
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'match_player_' + index
+        'match_player_' + originalIndex
       )]);
     });
     
@@ -248,7 +267,6 @@ module.exports = (bot) => {
     );
   }
 
-  // 🔥 ИСПРАВЛЕНО: добавлена проверка на повторное нажатие
   bot.action(/match_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -261,7 +279,13 @@ module.exports = (bot) => {
     }
     
     if (match.isFinished) {
-      await ctx.editMessageText('❌ Этот матч уже завершён! Начни новый.');
+      await ctx.editMessageText('❌ Матч завершён! Начни новый.');
+      return;
+    }
+    
+    // Проверяем, не использован ли уже этот игрок
+    if (match.usedPlayers.includes(playerIndex)) {
+      await ctx.editMessageText('❌ Этот игрок уже бил буллит! Выбери другого.');
       return;
     }
     
@@ -284,11 +308,8 @@ module.exports = (bot) => {
       return;
     }
     
-    // Если уже выбран этот игрок — не обновляем
-    if (match.currentShooter === playerIndex) {
-      return;
-    }
-    
+    // Отмечаем игрока как использованного
+    match.usedPlayers.push(playerIndex);
     match.currentShooter = playerIndex;
     
     await ctx.editMessageText(
@@ -411,6 +432,7 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
+    // 🔥 ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -418,6 +440,7 @@ module.exports = (bot) => {
       match.isSuddenDeath = true;
     }
     
+    // В овертайме матч заканчивается после любого гола
     if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) {
       match.isFinished = true;
     }
@@ -443,28 +466,8 @@ module.exports = (bot) => {
       return;
     }
     
-    resultText += '*Выбери следующего полевого игрока для буллита:*';
-    
-    const forwards = match.team.filter(p => p.position !== 'G');
-    const buttons = [];
-    
-    forwards.forEach((player, index) => {
-      const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
-      buttons.push([Markup.button.callback(
-        emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'match_player_' + index
-      )]);
-    });
-    
-    buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
-    
-    await ctx.editMessageText(
-      resultText,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(buttons)
-      }
-    );
+    // Показываем выбор следующего игрока
+    await showPlayerSelection(ctx, user, match);
   });
 
   async function finishMatch(ctx, user, match) {
