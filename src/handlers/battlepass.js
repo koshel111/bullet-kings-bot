@@ -185,10 +185,23 @@ async function showBattlepass(ctx) {
   text += "📈 Прогресс: " + progress + "%\n";
   text += "⚡ 1 матч = " + XP_PER_MATCH + " XP\n\n";
   
+  // 🔥 ОПИСАНИЕ ПРЕМИУМА
   if (isPremium) {
     text += "💎 *Премиум активирован!*\n\n";
+    text += "📋 *Премиум даёт:*\n";
+    text += "  ✅ В 2 раза больше наград\n";
+    text += "  ✅ Постоянные формы и арены\n";
+    text += "  ✅ Улучшенные паки\n";
+    text += "  ✅ Семён Кошелев 96 OVR\n";
+    text += "  ✅ Сезонный пак на 30 уровне\n\n";
   } else {
     text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
+    text += "📋 *Премиум даёт:*\n";
+    text += "  ✅ В 2 раза больше наград\n";
+    text += "  ✅ Постоянные формы и арены\n";
+    text += "  ✅ Улучшенные паки\n";
+    text += "  ✅ Семён Кошелев 96 OVR (вместо 93)\n";
+    text += "  ✅ Сезонный пак на 30 уровне\n\n";
   }
   
   text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
@@ -203,11 +216,11 @@ async function showBattlepass(ctx) {
       text += "🆓 Бесплатный: ";
       const free = reward.free;
       const parts = [];
-      if (free.coins) parts.push(free.coins + " ⭐монет");
-      if (free.crystals) parts.push(free.crystals + " 💎кристаллов");
+      if (free.coins) parts.push("⭐ " + free.coins);
+      if (free.crystals) parts.push("💎 " + free.crystals);
       if (free.pack) parts.push("📦 " + free.pack + " пак");
-      if (free.jersey) parts.push("🎽 Форма: " + free.jersey);
-      if (free.arena) parts.push("🏟️ Арена: " + free.arena);
+      if (free.jersey) parts.push("🎽 Форма: " + free.jersey + " (временная)");
+      if (free.arena) parts.push("🏟️ Арена: " + free.arena + " (временная)");
       if (free.card) parts.push("🃏 " + free.card + " (" + (free.overall || 93) + " OVR)");
       text += parts.join(", ") + "\n";
     }
@@ -216,8 +229,8 @@ async function showBattlepass(ctx) {
       text += "💎 Премиум: ";
       const premium = reward.premium;
       const parts = [];
-      if (premium.coins) parts.push(premium.coins + " ⭐монет");
-      if (premium.crystals) parts.push(premium.crystals + " 💎кристаллов");
+      if (premium.coins) parts.push("⭐ " + premium.coins);
+      if (premium.crystals) parts.push("💎 " + premium.crystals);
       if (premium.pack) parts.push("📦 " + premium.pack + " пак");
       if (premium.jersey) parts.push("🎽 Форма: " + premium.jersey + " (навсегда)");
       if (premium.arena) parts.push("🏟️ Арена: " + premium.arena + " (навсегда)");
@@ -235,22 +248,9 @@ async function showBattlepass(ctx) {
   buttons.push([Markup.button.callback("🔄 Обновить", "bp_refresh")]);
   buttons.push([Markup.button.callback("🔙 Назад", "back")]);
   
-  // 🔥 КНОПКИ ПОД КЛАВИАТУРОЙ
   await ctx.reply(text, {
     parse_mode: "Markdown",
     ...Markup.inlineKeyboard(buttons)
-  });
-  
-  // Кнопки под клавиатурой
-  await ctx.reply("📱 Используй кнопки под клавиатурой:", {
-    reply_markup: {
-      keyboard: [
-        ["🔄 Обновить", "🎖️ Пропуск"],
-        ["🔙 Назад"],
-      ],
-      resize_keyboard: true,
-      one_time_keyboard: false
-    }
   });
 }
 
@@ -286,7 +286,13 @@ async function buyPremium(ctx) {
   await ctx.reply(
     "✅ *Премиум куплен!*\n\n" +
     "💎 Выдано " + claimed + " наград за премиум путь!\n" +
-    "📊 Текущий уровень: " + level,
+    "📊 Текущий уровень: " + level + "\n\n" +
+    "📋 *Что ты получил:*\n" +
+    "  ✅ В 2 раза больше наград\n" +
+    "  ✅ Постоянные формы и арены\n" +
+    "  ✅ Улучшенные паки\n" +
+    "  ✅ Семён Кошелев 96 OVR\n" +
+    "  ✅ Сезонный пак на 30 уровне",
     { parse_mode: "Markdown" }
   );
 }
@@ -309,7 +315,8 @@ async function addXP(userId, amount) {
 
 module.exports = {
   addXP,
-  XP_PER_MATCH
+  XP_PER_MATCH,
+  autoClaimRewards
 };
 
 module.exports = (bot) => {
@@ -327,46 +334,6 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await showBattlepass(ctx);
   });
-
-  // 🔥 КНОПКИ ПОД КЛАВИАТУРОЙ
-  bot.hears("🎖️ Пропуск", async (ctx) => {
-    const userId = ctx.from.id;
-    await showBattlepass(ctx);
-  });
-
-  bot.hears("🔄 Обновить", async (ctx) => {
-    const userId = ctx.from.id;
-    await showBattlepass(ctx);
-  });
-
-  bot.hears("🔙 Назад", async (ctx) => {
-    const userId = ctx.from.id;
-    const mainMenu = Markup.inlineKeyboard([
-      [Markup.button.callback("🎮 Играть", "play")],
-      [Markup.button.callback("👥 Команда", "team")],
-      [Markup.button.callback("📚 Коллекция", "collection")],
-      [Markup.button.callback("🛒 Магазин", "shop")],
-      [Markup.button.callback("👤 Профиль", "profile")],
-      [Markup.button.callback("🎖️ Пропуск", "battlepass")],
-      [Markup.button.callback("📅 Бонус", "bonus")],
-    ]);
-    
-    await ctx.reply("🏒 *Bullet Kings*\n\nГлавное меню:", {
-      parse_mode: "Markdown",
-      ...mainMenu
-    });
-    
-    await ctx.reply("📱 Используй кнопки под клавиатурой:", {
-      reply_markup: {
-        keyboard: [
-          ["🎮 Играть", "👥 Команда"],
-          ["📚 Коллекция", "🛒 Магазин"],
-          ["👤 Профиль", "🎖️ Пропуск", "📅 Бонус"],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false
-      }
-    });
-  });
-
 };
+
+module.exports.addXP = addXP;
