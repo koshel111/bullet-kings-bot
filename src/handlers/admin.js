@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - РАСШИРЕННЫЙ
+// src/handlers/admin.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -142,7 +142,6 @@ async function openPackByButton(ctx) {
     return;
   }
   
-  // Парсим callback: open_pack_TYPE_USERID
   const parts = ctx.match[1].split('_');
   const packType = parts[0];
   
@@ -151,15 +150,12 @@ async function openPackByButton(ctx) {
     return;
   }
   
-  // Берём первый пак из очереди
-  const packData = data.packs[packType][0];
   data.packs[packType].shift();
   
   if (data.packs[packType].length === 0) {
     delete data.packs[packType];
   }
   
-  // Открываем пак
   const card = openPack(packType);
   
   const cardWithId = {
@@ -217,7 +213,6 @@ async function openMultiplePacks(ctx) {
     return;
   }
   
-  // Парсим callback: open_all_packs_TYPE
   const parts = ctx.match[1].split('_');
   const packType = parts[0];
   
@@ -234,10 +229,8 @@ async function openMultiplePacks(ctx) {
     results.push(card);
   }
   
-  // Удаляем все паки этого типа
   delete data.packs[packType];
   
-  // Добавляем все карты
   for (const card of results) {
     const cardWithId = {
       name: card.name,
@@ -388,37 +381,6 @@ async function showInventory(ctx) {
   });
 }
 
-// ============================================
-// ПРОПУСК УРОВНЕЙ БОЕВОГО ПРОПУСКА
-// ============================================
-async function giveBattlepassLevels(ctx, target, levels) {
-  const users = getUsers();
-  const targets = target === "all" ? Object.keys(users) : [target];
-  let successCount = 0;
-  
-  for (const id of targets) {
-    if (!users[id]) continue;
-    
-    const currentXp = users[id].battlepass_xp || 0;
-    users[id].battlepass_xp = currentXp + (levels * 20);
-    
-    // Автовыдача наград
-    const { autoClaimRewards } = require('./battlepass');
-    const oldLevel = Math.floor(currentXp / 20);
-    const newLevel = Math.floor(users[id].battlepass_xp / 20);
-    
-    if (newLevel > oldLevel) {
-      const isPremium = users[id].battlepass_premium || 0;
-      await autoClaimRewards(users[id], newLevel, isPremium);
-    }
-    
-    successCount++;
-  }
-  
-  saveUsers(users);
-  return successCount;
-}
-
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) {
@@ -492,22 +454,18 @@ module.exports = (bot) => {
     await showAdminMenu(ctx);
   });
 
-  // ОТКРЫТЬ ПАК ПО КНОПКЕ
   bot.action(/open_pack_(.+)_(.+)/, async (ctx) => {
     await openPackByButton(ctx);
   });
 
-  // ОТКРЫТЬ ВСЕ ПАКИ СРАЗУ
   bot.action(/open_all_packs_(.+)_(.+)/, async (ctx) => {
     await openMultiplePacks(ctx);
   });
 
-  // ОТКРЫТЬ СЕЗОННЫЙ ПАК
   bot.action(/open_seasonal_(.+)/, async (ctx) => {
     await openSeasonalPackByButton(ctx);
   });
 
-  // ИНВЕНТАРЬ
   bot.action("inventory", async (ctx) => {
     await ctx.answerCbQuery();
     await showInventory(ctx);
@@ -695,7 +653,9 @@ module.exports = (bot) => {
     });
   });
 
-  // ОБРАБОТКА ТЕКСТА ДЛЯ АДМИНА
+  // ============================================
+  // ОБРАБОТКА ТЕКСТА — ИСПРАВЛЕННАЯ
+  // ============================================
   bot.on("text", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
@@ -703,7 +663,72 @@ module.exports = (bot) => {
     const text = ctx.text;
     const parts = text.split(" ");
     
-    // Выдать монеты
+    // 1. ПРОПУСК УРОВНЕЙ (самый приоритетный)
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] !== "all") {
+      const target = parts[0];
+      const levels = parseInt(parts[1]);
+      
+      if (levels < 1 || levels > 30) {
+        await ctx.reply("❌ Количество уровней должно быть от 1 до 30!");
+        return;
+      }
+      
+      const users = getUsers();
+      
+      if (!users[target]) {
+        await ctx.reply("❌ Пользователь " + target + " не найден!");
+        return;
+      }
+      
+      const currentXp = users[target].battlepass_xp || 0;
+      users[target].battlepass_xp = currentXp + (levels * 20);
+      
+      const oldLevel = Math.floor(currentXp / 20);
+      const newLevel = Math.floor(users[target].battlepass_xp / 20);
+      
+      if (newLevel > oldLevel) {
+        const { autoClaimRewards } = require('./battlepass');
+        const isPremium = users[target].battlepass_premium || 0;
+        await autoClaimRewards(users[target], newLevel, isPremium);
+      }
+      
+      saveUsers(users);
+      await ctx.reply("✅ Пропущено " + levels + " уровней для пользователя " + target + "!");
+      return;
+    }
+    
+    // 2. ПРОПУСК УРОВНЕЙ ВСЕМ
+    if (parts.length === 2 && parts[0] === "all" && !isNaN(parts[1])) {
+      const levels = parseInt(parts[1]);
+      
+      if (levels < 1 || levels > 30) {
+        await ctx.reply("❌ Количество уровней должно быть от 1 до 30!");
+        return;
+      }
+      
+      const users = getUsers();
+      const ids = Object.keys(users);
+      
+      for (const id of ids) {
+        const currentXp = users[id].battlepass_xp || 0;
+        users[id].battlepass_xp = currentXp + (levels * 20);
+        
+        const oldLevel = Math.floor(currentXp / 20);
+        const newLevel = Math.floor(users[id].battlepass_xp / 20);
+        
+        if (newLevel > oldLevel) {
+          const { autoClaimRewards } = require('./battlepass');
+          const isPremium = users[id].battlepass_premium || 0;
+          await autoClaimRewards(users[id], newLevel, isPremium);
+        }
+      }
+      
+      saveUsers(users);
+      await ctx.reply("✅ Пропущено " + levels + " уровней для всех " + ids.length + " пользователей!");
+      return;
+    }
+    
+    // 3. ВЫДАТЬ МОНЕТЫ
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       const users = getUsers();
       const target = parts[0];
@@ -736,7 +761,7 @@ module.exports = (bot) => {
       return;
     }
     
-    // Выдать паки
+    // 4. ВЫДАТЬ ПАКИ
     if (parts.length === 3 && !isNaN(parts[0]) && ["basic", "premium", "legendary"].includes(parts[1]) && !isNaN(parts[2])) {
       const users = getUsers();
       const target = parts[0];
@@ -779,36 +804,68 @@ module.exports = (bot) => {
       return;
     }
     
-    // Сезонный пак
-    if (parts.length >= 1 && (parts[0] === "all" || !isNaN(parts[0]))) {
+    // 5. СЕЗОННЫЙ ПАК (только если это НЕ похоже на пропуск уровней)
+    if (parts.length >= 1 && (parts[0] === "all" || (!isNaN(parts[0]) && parts[0] !== "all"))) {
       const users = getUsers();
       const target = parts[0];
       let count = 1;
       
-      if (parts.length >= 2 && !isNaN(parts[1])) {
+      // Проверяем, указано ли количество
+      if (parts.length >= 2 && !isNaN(parts[1]) && parts[1] !== "all") {
         count = parseInt(parts[1]);
         if (count < 1) count = 1;
         if (count > 10) count = 10;
       }
       
-      const { PLAYERS } = require('../data/players');
-      const rareCards = PLAYERS.filter(p => 
-        p.rarity === "Эпический" || p.rarity === "Легендарный" || p.rarity === "Икона"
-      );
-      
-      const targets = target === "all" ? Object.keys(users) : [target];
-      let successCount = 0;
-      
-      for (const id of targets) {
-        if (!users[id]) continue;
+      // Если target === "all" - выдаём всем
+      if (target === "all") {
+        const ids = Object.keys(users);
+        let successCount = 0;
         
-        if (!users[id].seasonal_packs) {
-          users[id].seasonal_packs = [];
+        for (const id of ids) {
+          if (!users[id]) continue;
+          
+          if (!users[id].seasonal_packs) {
+            users[id].seasonal_packs = [];
+          }
+          
+          for (let i = 0; i < count; i++) {
+            const card = { name: "Сезонная карта", overall: 85, rarity: "Легендарная", position: "C" };
+            users[id].seasonal_packs.push({
+              name: card.name,
+              overall: card.overall,
+              rarity: card.rarity,
+              position: card.position,
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 6) + "_" + i
+            });
+          }
+          
+          await sendSeasonalPackNotification(ctx, id, count);
+          successCount++;
+        }
+        
+        saveUsers(users);
+        
+        await ctx.reply(
+          "✅ *Сезонный пак выдан " + successCount + " пользователям!*\n\n" +
+          "📦 Каждому выдано по " + count + " пак(ов)\n" +
+          "📨 Каждому отправлено уведомление с кнопкой 'Открыть'",
+          { parse_mode: "Markdown" }
+        );
+        
+        await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
+        return;
+      }
+      
+      // Если target - это ID пользователя
+      if (!isNaN(target) && users[target]) {
+        if (!users[target].seasonal_packs) {
+          users[target].seasonal_packs = [];
         }
         
         for (let i = 0; i < count; i++) {
-          const card = rareCards[Math.floor(Math.random() * rareCards.length)];
-          users[id].seasonal_packs.push({
+          const card = { name: "Сезонная карта", overall: 85, rarity: "Легендарная", position: "C" };
+          users[target].seasonal_packs.push({
             name: card.name,
             overall: card.overall,
             rarity: card.rarity,
@@ -817,89 +874,14 @@ module.exports = (bot) => {
           });
         }
         
-        await sendSeasonalPackNotification(ctx, id, count);
-        successCount++;
-      }
-      
-      saveUsers(users);
-      
-      await ctx.reply(
-        "✅ *Сезонный пак выдан " + successCount + " пользователям!*\n\n" +
-        "📦 Каждому выдано по " + count + " пак(ов)\n" +
-        "📨 Каждому отправлено уведомление с кнопкой 'Открыть'",
-        { parse_mode: "Markdown" }
-      );
-      
-      await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
-      return;
-    }
-    
-    // Пропуск уровней боевого пропуска
-    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] !== "all") {
-      const target = parts[0];
-      const levels = parseInt(parts[1]);
-      
-      if (levels < 1 || levels > 30) {
-        await ctx.reply("❌ Количество уровней должно быть от 1 до 30!");
+        saveUsers(users);
+        await sendSeasonalPackNotification(ctx, target, count);
+        await ctx.reply("✅ Сезонный пак (x" + count + ") выдан пользователю " + target + "!");
         return;
       }
-      
-      const users = getUsers();
-      
-      if (!users[target]) {
-        await ctx.reply("❌ Пользователь " + target + " не найден!");
-        return;
-      }
-      
-      const currentXp = users[target].battlepass_xp || 0;
-      users[target].battlepass_xp = currentXp + (levels * 20);
-      
-      const oldLevel = Math.floor(currentXp / 20);
-      const newLevel = Math.floor(users[target].battlepass_xp / 20);
-      
-      if (newLevel > oldLevel) {
-        const { autoClaimRewards } = require('./battlepass');
-        const isPremium = users[target].battlepass_premium || 0;
-        await autoClaimRewards(users[target], newLevel, isPremium);
-      }
-      
-      saveUsers(users);
-      await ctx.reply("✅ Пропущено " + levels + " уровней для пользователя " + target + "!");
-      return;
     }
     
-    // Пропуск уровней всем
-    if (parts.length === 2 && parts[0] === "all" && !isNaN(parts[1])) {
-      const levels = parseInt(parts[1]);
-      
-      if (levels < 1 || levels > 30) {
-        await ctx.reply("❌ Количество уровней должно быть от 1 до 30!");
-        return;
-      }
-      
-      const users = getUsers();
-      const ids = Object.keys(users);
-      
-      for (const id of ids) {
-        const currentXp = users[id].battlepass_xp || 0;
-        users[id].battlepass_xp = currentXp + (levels * 20);
-        
-        const oldLevel = Math.floor(currentXp / 20);
-        const newLevel = Math.floor(users[id].battlepass_xp / 20);
-        
-        if (newLevel > oldLevel) {
-          const { autoClaimRewards } = require('./battlepass');
-          const isPremium = users[id].battlepass_premium || 0;
-          await autoClaimRewards(users[id], newLevel, isPremium);
-        }
-      }
-      
-      saveUsers(users);
-      await ctx.reply("✅ Пропущено " + levels + " уровней для всех " + ids.length + " пользователей!");
-      return;
-    }
-    
-    // Выдать карту
+    // 6. ВЫДАТЬ КАРТУ
     if (parts.length >= 2 && !isNaN(parts[0]) && parts[0] !== "all") {
       const users = getUsers();
       const target = parts[0];
@@ -938,7 +920,7 @@ module.exports = (bot) => {
       return;
     }
     
-    // Рассылка
+    // 7. РАССЫЛКА
     if (text.length > 10 && !text.startsWith("/")) {
       const users = getUsers();
       let sent = 0;
