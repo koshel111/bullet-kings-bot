@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - С КНОПКАМИ ПОД КЛАВИАТУРОЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -114,6 +114,17 @@ module.exports = (bot) => {
         ])
       }
     );
+    
+    await ctx.reply("📱 Кнопки под клавиатурой:", {
+      reply_markup: {
+        keyboard: [
+          ["🤖 Против ИИ", "⚔️ PvP"],
+          ["🔙 Назад"],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      }
+    });
   });
 
   bot.action('play_ai', async (ctx) => {
@@ -131,6 +142,18 @@ module.exports = (bot) => {
         ])
       }
     );
+    
+    await ctx.reply("📱 Кнопки под клавиатурой:", {
+      reply_markup: {
+        keyboard: [
+          ["🟢 Новичок", "🟡 Любитель"],
+          ["🟠 Профессионал", "🔴 Легенда"],
+          ["🔙 Назад"],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      }
+    });
   });
 
   bot.action(/difficulty_(.+)/, async (ctx) => {
@@ -246,9 +269,20 @@ module.exports = (bot) => {
         ...Markup.inlineKeyboard(buttons)
       }
     );
+    
+    await ctx.reply("📱 Кнопки под клавиатурой:", {
+      reply_markup: {
+        keyboard: [
+          ["⚡ Игрок 1", "🔥 Игрок 2"],
+          ["⭐ Игрок 3", "💫 Игрок 4"],
+          ["🌟 Игрок 5", "🔙 Назад"],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      }
+    });
   }
 
-  // 🔥 ИСПРАВЛЕНО: проверка match.isFinished
   bot.action(/match_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
@@ -279,7 +313,6 @@ module.exports = (bot) => {
       return;
     }
     
-    // ПРОВЕРКА: это не вратарь
     if (player.position === 'G') {
       await ctx.editMessageText('❌ Вратарь не может бить буллит! Выбери полевого игрока.');
       return;
@@ -303,6 +336,19 @@ module.exports = (bot) => {
         ])
       }
     );
+    
+    await ctx.reply("📱 Выбери бросок:", {
+      reply_markup: {
+        keyboard: [
+          ["⬅️ Влево", "➡️ Вправо"],
+          ["⬆️ Верхний", "⬇️ Между щитков"],
+          ["🔄 Финт", "✋ Кистевой", "💥 Щелчок"],
+          ["🔙 Назад"],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      }
+    });
   });
 
   bot.action(/shot_(.+)/, async (ctx) => {
@@ -374,6 +420,19 @@ module.exports = (bot) => {
         ])
       }
     );
+    
+    await ctx.reply("📱 Выбери действие вратаря:", {
+      reply_markup: {
+        keyboard: [
+          ["🧤 Закрыть левый угол", "🧤 Закрыть правый угол"],
+          ["🧍 Стоять", "🛡️ Опустить щитки"],
+          ["🧤 Ловушка", "💪 Агрессивный выход"],
+          ["🔙 Назад"],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+      }
+    });
   });
 
   bot.action(/goalie_(.+)/, async (ctx) => {
@@ -407,7 +466,6 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
-    // ПРОВЕРКА ЗАВЕРШЕНИЯ
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     

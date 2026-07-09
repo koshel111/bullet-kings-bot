@@ -62,7 +62,6 @@ async function showMainMenu(ctx, bot) {
     "📚 Карт: " + data.cards.length + "\n\n" +
     "Выбери действие:";
   
-  // Кнопки в сообщении
   await ctx.reply(text, {
     parse_mode: "Markdown",
     ...Markup.inlineKeyboard([
@@ -76,8 +75,7 @@ async function showMainMenu(ctx, bot) {
     ])
   });
   
-  // Кнопки под клавиатурой
-  await ctx.reply("📱 Или используй кнопки под клавиатурой:", {
+  await ctx.reply("📱 Кнопки под клавиатурой:", {
     reply_markup: {
       keyboard: [
         ["🎮 Играть", "👥 Команда"],
