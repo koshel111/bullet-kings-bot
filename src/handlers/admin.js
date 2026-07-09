@@ -73,33 +73,7 @@ async function sendSeasonalPackNotification(ctx, userId, card) {
       "🎁 *Вам выдан СЕЗОННЫЙ ПАК!*\n\n" +
       "👑 Выдал: администратор\n\n" +
       "📦 *Содержимое:*\n" +
-      "  • " + emoji + " " + card.name + " (" + card.rarity + ")\n" +
-      "  • 200 монет\n" +
-      "  • 20 кристаллов\n\n" +
-      "📊 *Редкость:* " + card.rarity + "\n" +
-      "🏒 *Позиция:* " + (card.position === "G" ? "Вратарь" : "Полевой") + "\n\n" +
-      "💡 Карта уже добавлена в коллекцию!",
-      { parse_mode: "Markdown" }
-    );
-  } catch (e) {
-    console.log("❌ Не удалось отправить уведомление " + userId + ":", e.message);
-  }
-}
-
-// ============================================
-// ОТПРАВКА УВЕДОМЛЕНИЯ С КНОПКОЙ ОТКРЫТЬ
-// ============================================
-async function sendSeasonalPackWithButton(ctx, userId, card) {
-  try {
-    const emoji = getRarityEmoji(card.rarity);
-    
-    await ctx.telegram.sendMessage(Number(userId), 
-      "🎁 *Вам выдан СЕЗОННЫЙ ПАК!*\n\n" +
-      "👑 Выдал: администратор\n\n" +
-      "📦 *Содержимое:*\n" +
-      "  • " + emoji + " " + card.name + " (" + card.rarity + ")\n" +
-      "  • 200 монет\n" +
-      "  • 20 кристаллов\n\n" +
+      "  • " + emoji + " " + card.name + " (" + card.rarity + ")\n\n" +
       "📊 *Редкость:* " + card.rarity + "\n" +
       "🏒 *Позиция:* " + (card.position === "G" ? "Вратарь" : "Полевой") + "\n\n" +
       "🔥 Нажми кнопку, чтобы открыть пак!",
@@ -116,9 +90,45 @@ async function sendSeasonalPackWithButton(ctx, userId, card) {
 }
 
 // ============================================
+// ОТПРАВКА УВЕДОМЛЕНИЯ О МОНЕТАХ
+// ============================================
+async function sendCoinsNotification(ctx, userId, amount, adminName) {
+  try {
+    await ctx.telegram.sendMessage(Number(userId), 
+      "💰 *Вам выдали монеты!*\n\n" +
+      "👑 Выдал: " + adminName + "\n" +
+      "⭐ Количество: " + amount + " монет\n\n" +
+      "💡 Монеты уже добавлены на счёт!",
+      { parse_mode: "Markdown" }
+    );
+  } catch (e) {
+    console.log("❌ Не удалось отправить уведомление " + userId + ":", e.message);
+  }
+}
+
+// ============================================
+// ОТПРАВКА УВЕДОМЛЕНИЯ О КРИСТАЛЛАХ
+// ============================================
+async function sendCrystalsNotification(ctx, userId, amount, adminName) {
+  try {
+    await ctx.telegram.sendMessage(Number(userId), 
+      "💎 *Вам выдали кристаллы!*\n\n" +
+      "👑 Выдал: " + adminName + "\n" +
+      "💎 Количество: " + amount + " кристаллов\n\n" +
+      "💡 Кристаллы уже добавлены на счёт!",
+      { parse_mode: "Markdown" }
+    );
+  } catch (e) {
+    console.log("❌ Не удалось отправить уведомление " + userId + ":", e.message);
+  }
+}
+
+// ============================================
 // ОТКРЫТЬ СЕЗОННЫЙ ПАК ПО КНОПКЕ
 // ============================================
 async function openSeasonalPackByButton(ctx) {
+  await ctx.answerCbQuery();
+  
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -128,7 +138,6 @@ async function openSeasonalPackByButton(ctx) {
     return;
   }
   
-  // Проверяем, есть ли неоткрытый сезонный пак
   if (!data.seasonal_pack) {
     await ctx.editMessageText("❌ У тебя нет сезонных паков!");
     return;
@@ -136,7 +145,6 @@ async function openSeasonalPackByButton(ctx) {
   
   const cardData = data.seasonal_pack;
   
-  // Добавляем карту в коллекцию
   const cardWithId = {
     name: cardData.name,
     overall: cardData.overall || 85,
@@ -153,7 +161,6 @@ async function openSeasonalPackByButton(ctx) {
     data.cards.push(cardWithId);
   }
   
-  // Удаляем сезонный пак
   delete data.seasonal_pack;
   
   saveUsers(users);
@@ -163,9 +170,7 @@ async function openSeasonalPackByButton(ctx) {
   await ctx.editMessageText(
     "🎉 *СЕЗОННЫЙ ПАК ОТКРЫТ!*\n\n" +
     "📦 *Ты получил:*\n" +
-    "  • " + emoji + " " + cardWithId.name + " (" + cardWithId.rarity + ")\n" +
-    "  • 200 монет\n" +
-    "  • 20 кристаллов\n\n" +
+    "  • " + emoji + " " + cardWithId.name + " (" + cardWithId.rarity + ")\n\n" +
     "💡 Карта добавлена в коллекцию!",
     { parse_mode: "Markdown" }
   );
@@ -251,7 +256,6 @@ module.exports = (bot) => {
   // ОТКРЫТЬ СЕЗОННЫЙ ПАК ПО КНОПКЕ
   // ============================================
   bot.action(/open_seasonal_(.+)_(.+)/, async (ctx) => {
-    await ctx.answerCbQuery();
     await openSeasonalPackByButton(ctx);
   });
 
@@ -395,22 +399,88 @@ module.exports = (bot) => {
     
     const text = ctx.text;
     const parts = text.split(" ");
+    const adminName = ctx.from.first_name || "Администратор";
     
     // Выдача монет
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       const users = getUsers();
-      if (parts[0] === "all") {
-        Object.keys(users).forEach(id => {
-          users[id].coins = (users[id].coins || 0) + parseInt(parts[1]);
+      const target = parts[0];
+      const amount = parseInt(parts[1]);
+      
+      if (target === "all") {
+        const ids = Object.keys(users);
+        ids.forEach(id => {
+          users[id].coins = (users[id].coins || 0) + amount;
         });
         saveUsers(users);
-        await ctx.reply("✅ Выдано " + parts[1] + "⭐ всем!");
+        
+        // Отправляем уведомления всем
+        for (const id of ids) {
+          await sendCoinsNotification(ctx, id, amount, adminName);
+        }
+        
+        await ctx.reply("✅ Выдано " + amount + "⭐ всем " + ids.length + " пользователям!");
         return;
       }
-      if (users[parts[0]]) {
-        users[parts[0]].coins = (users[parts[0]].coins || 0) + parseInt(parts[1]);
+      
+      if (users[target]) {
+        users[target].coins = (users[target].coins || 0) + amount;
         saveUsers(users);
-        await ctx.reply("✅ Выдано " + parts[1] + "⭐ пользователю " + parts[0] + "!");
+        
+        // Отправляем уведомление
+        await sendCoinsNotification(ctx, target, amount, adminName);
+        
+        await ctx.reply("✅ Выдано " + amount + "⭐ пользователю " + target + "!");
+        return;
+      }
+      
+      await ctx.reply("❌ Пользователь " + target + " не найден!");
+      return;
+    }
+    
+    // Выдача кристаллов
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] !== "all") {
+      // Проверяем, не монеты ли это (если сумма > 1000)
+      if (parseInt(parts[1]) > 1000) {
+        // Это монеты, уже обработано выше
+        return;
+      }
+    }
+    
+    // Отдельная обработка кристаллов
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      const users = getUsers();
+      const target = parts[0];
+      const amount = parseInt(parts[1]);
+      
+      // Если это не монеты (сумма <= 1000 или явно кристаллы)
+      if (amount <= 1000) {
+        if (target === "all") {
+          const ids = Object.keys(users);
+          ids.forEach(id => {
+            users[id].crystals = (users[id].crystals || 0) + amount;
+          });
+          saveUsers(users);
+          
+          for (const id of ids) {
+            await sendCrystalsNotification(ctx, id, amount, adminName);
+          }
+          
+          await ctx.reply("✅ Выдано " + amount + "💎 всем " + ids.length + " пользователям!");
+          return;
+        }
+        
+        if (users[target]) {
+          users[target].crystals = (users[target].crystals || 0) + amount;
+          saveUsers(users);
+          
+          await sendCrystalsNotification(ctx, target, amount, adminName);
+          
+          await ctx.reply("✅ Выдано " + amount + "💎 пользователю " + target + "!");
+          return;
+        }
+        
+        await ctx.reply("❌ Пользователь " + target + " не найден!");
         return;
       }
     }
@@ -430,7 +500,6 @@ module.exports = (bot) => {
         
         const card = rareCards[Math.floor(Math.random() * rareCards.length)];
         
-        // Сохраняем сезонный пак для пользователя
         users[id].seasonal_pack = {
           name: card.name,
           overall: card.overall,
@@ -439,13 +508,7 @@ module.exports = (bot) => {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 6)
         };
         
-        // Сразу выдаём монеты и кристаллы
-        users[id].coins = (users[id].coins || 0) + 200;
-        users[id].crystals = (users[id].crystals || 0) + 20;
-        
-        // 🔥 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ С КНОПКОЙ
-        await sendSeasonalPackWithButton(ctx, id, card);
-        
+        await sendSeasonalPackNotification(ctx, id, card);
         successCount++;
       }
       
