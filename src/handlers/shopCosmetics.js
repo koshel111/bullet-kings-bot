@@ -142,6 +142,8 @@ async function showCosmeticsShop(ctx) {
     let text = "🛒 *Купить косметику*\n\n";
     text += "🎽 *Формы (1-5)* — обновление через: " + timeLeft + "\n";
     text += "🏟️ *Арены (6-10)* — обновление через: " + timeLeftArena + "\n\n";
+    text += "📋 *Чтобы купить, отправь команду:*\n";
+    text += "`buy_номер` — например `buy_1` или `buy_6`\n\n";
     
     // Показываем все предметы с номерами
     items.forEach((item) => {
@@ -152,13 +154,15 @@ async function showCosmeticsShop(ctx) {
       text += `   ${priceText}\n\n`;
     });
     
-    // Кнопки с номерами 1-10
+    text += "📱 *Или используй кнопки:*";
+    
+    // Кнопки с номерами 1-10 (но они уже не нужны, но оставим для удобства)
     const buttons = [];
     const row1 = [];
     for (let i = 1; i <= 5; i++) {
       const item = items[i-1];
       if (item) {
-        const label = item.isOwned ? "✅" : i;
+        const label = item.isOwned ? "✅" : "➡️" + i;
         row1.push(Markup.button.callback(label, "buy_item_" + i));
       }
     }
@@ -168,7 +172,7 @@ async function showCosmeticsShop(ctx) {
     for (let i = 6; i <= 10; i++) {
       const item = items[i-1];
       if (item) {
-        const label = item.isOwned ? "✅" : i;
+        const label = item.isOwned ? "✅" : "➡️" + i;
         row2.push(Markup.button.callback(label, "buy_item_" + i));
       }
     }
@@ -204,7 +208,6 @@ async function showCosmeticsInventory(ctx) {
     let text = "📦 *Моя косметика*\n\n";
     let hasItems = false;
     
-    // Формы
     if (data.jerseys && data.jerseys.length > 0) {
       text += "🎽 *Формы:*\n";
       data.jerseys.forEach((jersey) => {
@@ -219,7 +222,6 @@ async function showCosmeticsInventory(ctx) {
       text += "\n";
     }
     
-    // Арены
     if (data.arenas && data.arenas.length > 0) {
       text += "🏟️ *Арены:*\n";
       data.arenas.forEach((arena) => {
@@ -281,11 +283,10 @@ async function buyItemByNumber(ctx, number) {
     
     const item = items[number - 1];
     if (!item) {
-      await ctx.editMessageText("❌ Предмет не найден!");
+      await ctx.editMessageText("❌ Предмет с номером " + number + " не найден!");
       return;
     }
     
-    // Проверяем, уже куплено
     if (item.isOwned) {
       await ctx.editMessageText(
         "✅ *У тебя уже есть этот предмет!*\n\n" +
@@ -300,7 +301,6 @@ async function buyItemByNumber(ctx, number) {
       return;
     }
     
-    // Проверяем баланс
     if (item.priceCoins) {
       if ((data.coins || 0) < item.priceCoins) {
         await ctx.editMessageText(
@@ -331,7 +331,6 @@ async function buyItemByNumber(ctx, number) {
       data.crystals -= item.priceCrystals;
     }
     
-    // Добавляем в инвентарь
     if (item.type === 'jersey') {
       if (!data.jerseys) data.jerseys = [];
       data.jerseys.push({ id: item.id, name: item.name, rarity: item.rarity, emoji: item.emoji });
@@ -374,9 +373,142 @@ async function buyItemByNumber(ctx, number) {
   }
 }
 
+// 🔥 ОБРАБОТЧИК КОМАНД buy_1, buy_2, ..., buy_10
+async function handleBuyCommand(ctx) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  
+  if (!data) {
+    await ctx.reply("❌ Ошибка! Попробуй /start");
+    return;
+  }
+  
+  const text = ctx.message.text.trim();
+  const parts = text.split("_");
+  
+  if (parts.length !== 2) {
+    await ctx.reply("❌ Используй: `buy_номер` — например `buy_1` или `buy_6`", { parse_mode: "Markdown" });
+    return;
+  }
+  
+  const number = parseInt(parts[1]);
+  if (isNaN(number) || number < 1 || number > 10) {
+    await ctx.reply("❌ Номер должен быть от 1 до 10!");
+    return;
+  }
+  
+  // Вызываем функцию покупки с этим номером
+  await buyItemByNumberCommand(ctx, number);
+}
+
+async function buyItemByNumberCommand(ctx, number) {
+  try {
+    console.log("🔵 Покупка предмета #" + number + " (команда)");
+    
+    const userId = ctx.from.id;
+    const users = getUsers();
+    const data = users[userId];
+    const rotation = getRotation();
+    
+    if (!data) {
+      await ctx.reply("❌ Ошибка! Попробуй /start");
+      return;
+    }
+    
+    // Получаем предмет по номеру
+    const items = [];
+    rotation.jerseys.forEach((item) => {
+      const isOwned = data.jerseys && data.jerseys.some(j => j.id === item.id || j === item.id);
+      items.push({ ...item, type: 'jersey', isOwned: isOwned });
+    });
+    rotation.arenas.forEach((item) => {
+      const isOwned = data.arenas && data.arenas.some(a => a.id === item.id || a === item.id);
+      items.push({ ...item, type: 'arena', isOwned: isOwned });
+    });
+    
+    const item = items[number - 1];
+    if (!item) {
+      await ctx.reply("❌ Предмет с номером " + number + " не найден!");
+      return;
+    }
+    
+    if (item.isOwned) {
+      await ctx.reply(
+        "✅ *У тебя уже есть этот предмет!*\n\n" +
+        item.emoji + " " + item.name + "\n" +
+        "Редкость: " + item.rarity + "\n\n" +
+        "💡 Ты уже купил это!",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+    
+    if (item.priceCoins) {
+      if ((data.coins || 0) < item.priceCoins) {
+        await ctx.reply(
+          "❌ *Недостаточно монет!*\n\n" +
+          "Нужно: " + item.priceCoins + "⭐\n" +
+          "У тебя: " + (data.coins || 0) + "⭐",
+          { parse_mode: "Markdown" }
+        );
+        return;
+      }
+      data.coins -= item.priceCoins;
+    } else if (item.priceCrystals) {
+      if ((data.crystals || 0) < item.priceCrystals) {
+        await ctx.reply(
+          "❌ *Недостаточно кристаллов!*\n\n" +
+          "Нужно: " + item.priceCrystals + "💎\n" +
+          "У тебя: " + (data.crystals || 0) + "💎",
+          { parse_mode: "Markdown" }
+        );
+        return;
+      }
+      data.crystals -= item.priceCrystals;
+    }
+    
+    if (item.type === 'jersey') {
+      if (!data.jerseys) data.jerseys = [];
+      data.jerseys.push({ id: item.id, name: item.name, rarity: item.rarity, emoji: item.emoji });
+    } else {
+      if (!data.arenas) data.arenas = [];
+      data.arenas.push({ id: item.id, name: item.name, rarity: item.rarity, emoji: item.emoji });
+    }
+    
+    saveUsers(users);
+    console.log("✅ Куплено: " + item.name);
+    
+    let text = "✅ *Куплено!*\n\n";
+    text += item.emoji + " " + item.name + "\n";
+    text += "Редкость: " + item.rarity + "\n";
+    text += "Лига: " + item.league + "\n\n";
+    
+    if (item.photo && item.type === 'jersey') {
+      await ctx.replyWithPhoto(item.photo, {
+        caption: "📸 " + item.name,
+        parse_mode: "Markdown"
+      });
+      text += "📸 Фото формы отправлено выше!\n\n";
+    }
+    
+    text += "💡 Теперь предмет добавлен в твою коллекцию косметики!";
+    
+    await ctx.reply(text, { parse_mode: "Markdown" });
+  } catch (error) {
+    console.error("❌ Ошибка покупки:", error);
+    await ctx.reply("❌ Произошла ошибка! Попробуй позже.");
+  }
+}
+
 module.exports = (bot) => {
   bot.action("cosmetics_menu", async (ctx) => { await showCosmeticsMenu(ctx); });
   bot.action("cosmetics_shop", async (ctx) => { await showCosmeticsShop(ctx); });
   bot.action("cosmetics_inventory", async (ctx) => { await showCosmeticsInventory(ctx); });
   bot.action(/buy_item_(.+)/, async (ctx) => { await buyItemByNumber(ctx, parseInt(ctx.match[1])); });
+  
+  // 🔥 ОБРАБОТЧИК КОМАНД buy_1, buy_2, ..., buy_10
+  bot.hears(/buy_[1-9]|buy_10/, async (ctx) => {
+    await handleBuyCommand(ctx);
+  });
 };
