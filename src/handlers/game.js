@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - С НОВЫМ ИМЕНЕМ ОБРАБОТЧИКА
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -224,7 +224,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'match_player_' + index   // 🔥 НОВОЕ ИМЯ!
+        'match_player_' + index
       )]);
     });
     
@@ -248,14 +248,19 @@ module.exports = (bot) => {
     );
   }
 
-  // 🔥 НОВОЕ ИМЯ: match_player_ (НЕ пересекается с profile.js)
+  // 🔥 ИСПРАВЛЕНО: правильная проверка
   bot.action(/match_player_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
     const user = ctx.from;
     const match = matches[user.id];
     
-    if (!match || match.isFinished) {
+    if (!match) {
+      await ctx.editMessageText('❌ Матч не найден!');
+      return;
+    }
+    
+    if (match.isFinished) {
       await ctx.editMessageText('❌ Матч завершён!');
       return;
     }
@@ -274,6 +279,7 @@ module.exports = (bot) => {
       return;
     }
     
+    // Проверяем, что это не вратарь
     if (player.position === 'G') {
       await ctx.editMessageText('❌ Вратарь не может бить буллит! Выбери полевого игрока.');
       return;
@@ -401,6 +407,7 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
+    // Проверяем завершение матча
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -408,7 +415,7 @@ module.exports = (bot) => {
       match.isSuddenDeath = true;
     }
     
-    if (match.isSuddenDeath && result.isGoal) {
+    if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) {
       match.isFinished = true;
     }
     
@@ -442,7 +449,7 @@ module.exports = (bot) => {
       const emoji = ['⚡', '🔥', '⭐', '💫', '🌟'][index] || '🏒';
       buttons.push([Markup.button.callback(
         emoji + ' ' + player.name + ' (' + player.overall + ' OVR)', 
-        'match_player_' + index   // 🔥 НОВОЕ ИМЯ!
+        'match_player_' + index
       )]);
     });
     
@@ -467,9 +474,13 @@ module.exports = (bot) => {
       data.wins++;
       data.coins += 20;
       data.rating += 25;
+      // 🔥 ДОБАВЛЯЕМ XP ЗА ПОБЕДУ
+      await addXP(user.id, XP_PER_MATCH);
     } else {
       data.losses++;
       data.rating = Math.max(0, data.rating - 10);
+      // 🔥 ДОБАВЛЯЕМ XP ЗА ПОРАЖЕНИЕ (меньше)
+      await addXP(user.id, Math.floor(XP_PER_MATCH / 2));
     }
     data.matches++;
     data.league = data.rating >= 2000 ? 'Легенда' :
@@ -479,7 +490,6 @@ module.exports = (bot) => {
                   data.rating >= 1200 ? 'Золото' :
                   data.rating >= 1000 ? 'Серебро' : 'Бронза';
     saveUsers(users);
-    await addXP(user.id, XP_PER_MATCH);
     
     const matchResult = {
       playerScore: match.playerScore,
@@ -503,9 +513,9 @@ module.exports = (bot) => {
     resultText += '🔢 Раундов: ' + matchResult.rounds + '\n\n';
     
     if (isWin) {
-      resultText += '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга\n';
+      resultText += '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + XP_PER_MATCH + ' XP\n';
     } else {
-      resultText += '😔 *ПОРАЖЕНИЕ...* -10 рейтинга\n';
+      resultText += '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + Math.floor(XP_PER_MATCH / 2) + ' XP\n';
     }
     
     resultText += '\n📊 *Твоя статистика:*\n';

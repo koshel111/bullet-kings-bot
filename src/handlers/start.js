@@ -75,7 +75,7 @@ async function showMainMenu(ctx, bot) {
     ])
   });
   
-  // 🔥 КНОПКИ ПОД КЛАВИАТУРОЙ
+  // Кнопки под клавиатурой
   await ctx.reply("📱 Используй кнопки под клавиатурой:", {
     reply_markup: {
       keyboard: [
@@ -100,32 +100,39 @@ module.exports = (bot) => {
     await showMainMenu(ctx, bot);
   });
 
-  // 🔥 ОБРАБОТЧИКИ КНОПОК ПОД КЛАВИАТУРОЙ
+  // ОБРАБОТЧИКИ КНОПОК ПОД КЛАВИАТУРОЙ
   bot.hears("🎮 Играть", async (ctx) => {
+    await ctx.answerCbQuery();
     await bot.action("play")(ctx);
   });
 
   bot.hears("👥 Команда", async (ctx) => {
+    await ctx.answerCbQuery();
     await bot.action("team")(ctx);
   });
 
   bot.hears("📚 Коллекция", async (ctx) => {
+    await ctx.answerCbQuery();
     await bot.action("collection")(ctx);
   });
 
   bot.hears("🛒 Магазин", async (ctx) => {
+    await ctx.answerCbQuery();
     await bot.action("shop")(ctx);
   });
 
   bot.hears("👤 Профиль", async (ctx) => {
+    await ctx.answerCbQuery();
     await bot.action("profile")(ctx);
   });
 
   bot.hears("🎖️ Пропуск", async (ctx) => {
+    await ctx.answerCbQuery();
     await bot.action("battlepass")(ctx);
   });
 
   bot.hears("📅 Бонус", async (ctx) => {
+    await ctx.answerCbQuery();
     await bot.action("bonus")(ctx);
   });
 
