@@ -21,6 +21,7 @@ require('./src/handlers/start')(bot);
 require('./src/handlers/game')(bot);
 require('./src/handlers/shop')(bot);
 require('./src/handlers/profile')(bot);
+require('./src/handlers/battlepass')(bot);
   // ← НОВЫЙ ОБРАБОТЧИК!
 
 // ============================================
@@ -35,5 +36,6 @@ bot.launch().then(() => {
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
 
 
