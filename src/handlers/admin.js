@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - ИСПРАВЛЕННЫЙ
+// src/handlers/admin.js - ПОЛНОСТЬЮ ПЕРЕРАБОТАННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -654,16 +654,59 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ОБРАБОТКА ТЕКСТА — ИСПРАВЛЕННАЯ
+  // ОБРАБОТКА ТЕКСТА — ПОЛНОСТЬЮ ПЕРЕРАБОТАНА
   // ============================================
   bot.on("text", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     
-    const text = ctx.text;
+    const text = ctx.text.trim();
     const parts = text.split(" ");
     
-    // 1. ПРОПУСК УРОВНЕЙ (самый приоритетный)
+    // --- 1. ВЫДАТЬ КРИСТАЛЛЫ (crystals_ID_СУММА) ---
+    if (text.startsWith("crystals_")) {
+      const parts2 = text.split("_");
+      if (parts2.length === 3) {
+        const target = parts2[1];
+        const amount = parseInt(parts2[2]);
+        
+        if (!isNaN(amount) && amount > 0) {
+          const users = getUsers();
+          
+          if (target === "all") {
+            const ids = Object.keys(users);
+            ids.forEach(id => {
+              users[id].crystals = (users[id].crystals || 0) + amount;
+            });
+            saveUsers(users);
+            
+            for (const id of ids) {
+              await sendCrystalsNotification(ctx, id, amount);
+            }
+            
+            await ctx.reply("✅ Выдано " + amount + "💎 всем " + ids.length + " пользователям!");
+            return;
+          }
+          
+          if (users[target]) {
+            users[target].crystals = (users[target].crystals || 0) + amount;
+            saveUsers(users);
+            
+            await sendCrystalsNotification(ctx, target, amount);
+            
+            await ctx.reply("✅ Выдано " + amount + "💎 пользователю " + target + "!");
+            return;
+          }
+          
+          await ctx.reply("❌ Пользователь " + target + " не найден!");
+          return;
+        }
+      }
+      await ctx.reply("❌ Неправильный формат! Используй: `crystals_ID_СУММА`");
+      return;
+    }
+    
+    // --- 2. ПРОПУСК УРОВНЕЙ ---
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] !== "all") {
       const target = parts[0];
       const levels = parseInt(parts[1]);
@@ -697,7 +740,7 @@ module.exports = (bot) => {
       return;
     }
     
-    // 2. ПРОПУСК УРОВНЕЙ ВСЕМ
+    // --- 3. ПРОПУСК УРОВНЕЙ ВСЕМ ---
     if (parts.length === 2 && parts[0] === "all" && !isNaN(parts[1])) {
       const levels = parseInt(parts[1]);
       
@@ -728,7 +771,7 @@ module.exports = (bot) => {
       return;
     }
     
-    // 3. ВЫДАТЬ МОНЕТЫ
+    // --- 4. ВЫДАТЬ МОНЕТЫ ---
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       const users = getUsers();
       const target = parts[0];
@@ -761,7 +804,7 @@ module.exports = (bot) => {
       return;
     }
     
-    // 4. ВЫДАТЬ ПАКИ
+    // --- 5. ВЫДАТЬ ПАКИ ---
     if (parts.length === 3 && !isNaN(parts[0]) && ["basic", "premium", "legendary"].includes(parts[1]) && !isNaN(parts[2])) {
       const users = getUsers();
       const target = parts[0];
@@ -804,34 +847,72 @@ module.exports = (bot) => {
       return;
     }
     
-    // 5. СЕЗОННЫЙ ПАК (только если это НЕ похоже на пропуск уровней)
+    // --- 6. СЕЗОННЫЙ ПАК (ТОЛЬКО если это ID пользователя или all) ---
     if (parts.length >= 1 && (parts[0] === "all" || (!isNaN(parts[0]) && parts[0] !== "all"))) {
-      const users = getUsers();
-      const target = parts[0];
-      let count = 1;
+      // Проверяем, что это не похоже на другие команды
+      const isSeasonal = parts[0] === "all" || !isNaN(parts[0]);
       
-      // Проверяем, указано ли количество
-      if (parts.length >= 2 && !isNaN(parts[1]) && parts[1] !== "all") {
-        count = parseInt(parts[1]);
-        if (count < 1) count = 1;
-        if (count > 10) count = 10;
-      }
-      
-      // Если target === "all" - выдаём всем
-      if (target === "all") {
-        const ids = Object.keys(users);
-        let successCount = 0;
+      if (isSeasonal) {
+        const users = getUsers();
+        const target = parts[0];
+        let count = 1;
         
-        for (const id of ids) {
-          if (!users[id]) continue;
+        // Проверяем, указано ли количество
+        if (parts.length >= 2 && !isNaN(parts[1])) {
+          count = parseInt(parts[1]);
+          if (count < 1) count = 1;
+          if (count > 10) count = 10;
+        }
+        
+        // Если target === "all" - выдаём всем
+        if (target === "all") {
+          const ids = Object.keys(users);
+          let successCount = 0;
           
-          if (!users[id].seasonal_packs) {
-            users[id].seasonal_packs = [];
+          for (const id of ids) {
+            if (!users[id]) continue;
+            
+            if (!users[id].seasonal_packs) {
+              users[id].seasonal_packs = [];
+            }
+            
+            for (let i = 0; i < count; i++) {
+              const card = { name: "Сезонная карта", overall: 85, rarity: "Легендарная", position: "C" };
+              users[id].seasonal_packs.push({
+                name: card.name,
+                overall: card.overall,
+                rarity: card.rarity,
+                position: card.position,
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 6) + "_" + i
+              });
+            }
+            
+            await sendSeasonalPackNotification(ctx, id, count);
+            successCount++;
+          }
+          
+          saveUsers(users);
+          
+          await ctx.reply(
+            "✅ *Сезонный пак выдан " + successCount + " пользователям!*\n\n" +
+            "📦 Каждому выдано по " + count + " пак(ов)\n" +
+            "📨 Каждому отправлено уведомление с кнопкой 'Открыть'",
+            { parse_mode: "Markdown" }
+          );
+          
+          await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
+          return;
+        }
+        
+        // Если target - это ID пользователя
+        if (!isNaN(target) && users[target]) {
+          if (!users[target].seasonal_packs) {
+            users[target].seasonal_packs = [];
           }
           
           for (let i = 0; i < count; i++) {
             const card = { name: "Сезонная карта", overall: 85, rarity: "Легендарная", position: "C" };
-            users[id].seasonal_packs.push({
+            users[target].seasonal_packs.push({
               name: card.name,
               overall: card.overall,
               rarity: card.rarity,
@@ -840,48 +921,15 @@ module.exports = (bot) => {
             });
           }
           
-          await sendSeasonalPackNotification(ctx, id, count);
-          successCount++;
+          saveUsers(users);
+          await sendSeasonalPackNotification(ctx, target, count);
+          await ctx.reply("✅ Сезонный пак (x" + count + ") выдан пользователю " + target + "!");
+          return;
         }
-        
-        saveUsers(users);
-        
-        await ctx.reply(
-          "✅ *Сезонный пак выдан " + successCount + " пользователям!*\n\n" +
-          "📦 Каждому выдано по " + count + " пак(ов)\n" +
-          "📨 Каждому отправлено уведомление с кнопкой 'Открыть'",
-          { parse_mode: "Markdown" }
-        );
-        
-        await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
-        return;
-      }
-      
-      // Если target - это ID пользователя
-      if (!isNaN(target) && users[target]) {
-        if (!users[target].seasonal_packs) {
-          users[target].seasonal_packs = [];
-        }
-        
-        for (let i = 0; i < count; i++) {
-          const card = { name: "Сезонная карта", overall: 85, rarity: "Легендарная", position: "C" };
-          users[target].seasonal_packs.push({
-            name: card.name,
-            overall: card.overall,
-            rarity: card.rarity,
-            position: card.position,
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 6) + "_" + i
-          });
-        }
-        
-        saveUsers(users);
-        await sendSeasonalPackNotification(ctx, target, count);
-        await ctx.reply("✅ Сезонный пак (x" + count + ") выдан пользователю " + target + "!");
-        return;
       }
     }
     
-    // 6. ВЫДАТЬ КАРТУ
+    // --- 7. ВЫДАТЬ КАРТУ ---
     if (parts.length >= 2 && !isNaN(parts[0]) && parts[0] !== "all") {
       const users = getUsers();
       const target = parts[0];
@@ -920,7 +968,7 @@ module.exports = (bot) => {
       return;
     }
     
-    // 7. РАССЫЛКА
+    // --- 8. РАССЫЛКА ---
     if (text.length > 10 && !text.startsWith("/")) {
       const users = getUsers();
       let sent = 0;
