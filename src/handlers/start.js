@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/start.js - С БОЕВЫМ ПРОПУСКОМ
+// src/handlers/start.js - ГЛАВНОЕ МЕНЮ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -31,13 +31,17 @@ async function showMainMenu(ctx, bot) {
       coins: 100,
       crystals: 10,
       rating: 0,
-      league: 'Бронза',
+      league: "Бронза",
       wins: 0,
       losses: 0,
       draws: 0,
       matches: 0,
       cards: STARTING_CARDS.map(c => ({ ...c, count: 1 })),
       team: STARTING_CARDS.map(c => ({ ...c })),
+      battlepass_xp: 0,
+      battlepass_premium: 0,
+      claimed_rewards: [],
+      lastBonus: null,
     };
     saveUsers(users);
   }
@@ -45,31 +49,29 @@ async function showMainMenu(ctx, bot) {
   const data = users[user.id];
   
   const text = 
-    '🏒 *Добро пожаловать в Bullet Kings!*\n\n' +
-    'Привет, ' + user.first_name + '! 👋\n\n' +
-    '🔥 *Твоя статистика:*\n' +
-    '🏆 Рейтинг: ' + data.rating + '\n' +
-    '🥇 Лига: ' + data.league + '\n' +
-    '⭐ Монет: ' + data.coins + '\n' +
-    '💎 Кристаллов: ' + data.crystals + '\n' +
-    '✅ Побед: ' + data.wins + '\n' +
-    '📊 Матчей: ' + data.matches + '\n\n' +
-    '👥 В команде: ' + data.team.length + ' игроков\n' +
-    '📚 Карт: ' + data.cards.length + '\n\n' +
-    'Выбери действие:';
+    "🏒 *Добро пожаловать в Bullet Kings!*\n\n" +
+    "Привет, " + user.first_name + "! 👋\n\n" +
+    "🔥 *Твоя статистика:*\n" +
+    "🏆 Рейтинг: " + data.rating + "\n" +
+    "🥇 Лига: " + data.league + "\n" +
+    "⭐ Монет: " + data.coins + "\n" +
+    "💎 Кристаллов: " + data.crystals + "\n" +
+    "✅ Побед: " + data.wins + "\n" +
+    "📊 Матчей: " + data.matches + "\n" +
+    "👥 В команде: " + data.team.length + " игроков\n" +
+    "📚 Карт: " + data.cards.length + "\n\n" +
+    "Выбери действие:";
   
   await ctx.reply(text, {
-    parse_mode: 'Markdown',
+    parse_mode: "Markdown",
     ...Markup.inlineKeyboard([
-      [Markup.button.callback('🎮 Играть', 'play')],
-      [Markup.button.callback('👥 Команда', 'team')],
-      [Markup.button.callback('📚 Коллекция', 'collection')],
-      [Markup.button.callback('🛒 Магазин', 'shop')],
-      [Markup.button.callback('👤 Профиль', 'profile')],
-      [Markup.button.callback('📅 Бонус', 'bonus')],
-      [Markup.button.callback('🎖️ Боевой пропуск', 'menu_battlepass')],
-      // В конце списка кнопок добавь:
-      ...(ADMIN_IDS.includes(user.id) ? [[Markup.button.callback('👑 Админ-панель', 'admin_panel')]] : []),  // ← НОВАЯ КНОПКА!
+      [Markup.button.callback("🎮 Играть", "play")],
+      [Markup.button.callback("👥 Команда", "team")],
+      [Markup.button.callback("📚 Коллекция", "collection")],
+      [Markup.button.callback("🛒 Магазин", "shop")],
+      [Markup.button.callback("👤 Профиль", "profile")],
+      [Markup.button.callback("🎖️ Пропуск", "battlepass")],
+      [Markup.button.callback("📅 Бонус", "bonus")],
     ])
   });
 }
@@ -80,7 +82,7 @@ module.exports = (bot) => {
     await showMainMenu(ctx, bot);
   });
 
-  bot.action('back', async (ctx) => {
+  bot.action("back", async (ctx) => {
     await ctx.answerCbQuery();
     await showMainMenu(ctx, bot);
   });
