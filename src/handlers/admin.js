@@ -195,7 +195,7 @@ async function showAdminMenu(ctx) {
       [Markup.button.callback("🎁 Сезонный пак", "admin_season")],
       [Markup.button.callback("📢 Рассылка", "admin_broadcast")],
       [Markup.button.callback("🗑️ Очистить БД", "admin_clear_db")],
-      [Markup.button.callback("🔙 Назад", "back")],
+      [Markup.button.callback("🔙 Главное меню", "back")],
     ])
   });
   
@@ -205,7 +205,7 @@ async function showAdminMenu(ctx) {
         ["💰 Выдать монеты", "💎 Выдать кристаллы"],
         ["📦 Выдать карту", "🎁 Сезонный пак"],
         ["📢 Рассылка", "🗑️ Очистить БД"],
-        ["🔙 Назад"],
+        ["🔙 Главное меню"],
       ],
       resize_keyboard: true,
       one_time_keyboard: false
@@ -351,7 +351,7 @@ module.exports = (bot) => {
     await ctx.reply("✅ База данных очищена!");
   });
 
-  bot.hears("🔙 Назад", async (ctx) => {
+  // bot.hears("🔙 Главное меню", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     await ctx.reply("🔙 Возвращаюсь...", { reply_markup: { remove_keyboard: true } });
@@ -409,3 +409,4 @@ module.exports = (bot) => {
   });
 
 };
+
