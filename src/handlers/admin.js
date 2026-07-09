@@ -27,6 +27,13 @@ function isAdmin(userId) {
   return ADMINS.includes(Number(userId));
 }
 
+function getPositionName(position) {
+  if (position === 'G') return 'Вратарь';
+  if (position === 'LW' || position === 'RW' || position === 'C') return 'Нападающий';
+  if (position === 'D') return 'Защитник';
+  return 'Полевой';
+}
+
 function openPack(packType) {
   const weights = {
     "basic": { "Обычный": 45, "Редкий": 30, "Элитный": 18, "Эпический": 6.9, "Легендарный": 0.1, "Икона": 0 },
@@ -148,7 +155,6 @@ async function openPackByButton(ctx) {
   const packData = data.packs[packType][0];
   data.packs[packType].shift();
   
-  // Если паков больше нет, удаляем ключ
   if (data.packs[packType].length === 0) {
     delete data.packs[packType];
   }
@@ -175,6 +181,7 @@ async function openPackByButton(ctx) {
   saveUsers(users);
   
   const emoji = getRarityEmoji(cardWithId.rarity);
+  const posName = getPositionName(cardWithId.position);
   const packNames = {
     basic: "Базовый",
     premium: "Премиум",
@@ -182,16 +189,92 @@ async function openPackByButton(ctx) {
     seasonal: "Сезонный"
   };
   
-  // Проверяем, остались ли ещё паки
   const remaining = data.packs?.[packType]?.length || 0;
   let text = `🎉 *${packNames[packType]} пак открыт!*\n\n` +
-    "📦 *Ты получил:*\n" +
-    "  • " + emoji + " " + cardWithId.name + " (" + cardWithId.rarity + ")\n\n" +
+    `📋 *Карта:*\n` +
+    `  ${emoji} *${cardWithId.name}*\n` +
+    `  🏒 Амплуа: ${posName}\n` +
+    `  📊 Рейтинг: ${cardWithId.overall} OVR\n` +
+    `  🏆 Редкость: ${cardWithId.rarity}\n\n` +
     "💡 Карта добавлена в коллекцию!";
   
   if (remaining > 0) {
     text += `\n\n📦 Осталось паков: ${remaining}`;
   }
+  
+  await ctx.editMessageText(text, { parse_mode: "Markdown" });
+}
+
+async function openMultiplePacks(ctx) {
+  await ctx.answerCbQuery();
+  
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  
+  if (!data) {
+    await ctx.editMessageText("❌ Ошибка! Попробуй /start");
+    return;
+  }
+  
+  // Парсим callback: open_all_packs_TYPE
+  const parts = ctx.match[1].split('_');
+  const packType = parts[0];
+  
+  if (!data.packs || !data.packs[packType] || data.packs[packType].length === 0) {
+    await ctx.editMessageText("❌ У тебя нет таких паков!");
+    return;
+  }
+  
+  const totalPacks = data.packs[packType].length;
+  const results = [];
+  
+  for (let i = 0; i < totalPacks; i++) {
+    const card = openPack(packType);
+    results.push(card);
+  }
+  
+  // Удаляем все паки этого типа
+  delete data.packs[packType];
+  
+  // Добавляем все карты
+  for (const card of results) {
+    const cardWithId = {
+      name: card.name,
+      overall: card.overall || 85,
+      rarity: card.rarity || "Обычный",
+      position: card.position || "C",
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+      count: 1
+    };
+    
+    const existing = data.cards.find(c => c.name === cardWithId.name && c.position === cardWithId.position);
+    if (existing) {
+      existing.count = (existing.count || 1) + 1;
+    } else {
+      data.cards.push(cardWithId);
+    }
+  }
+  
+  saveUsers(users);
+  
+  const packNames = {
+    basic: "Базовый",
+    premium: "Премиум",
+    legendary: "Легендарный",
+    seasonal: "Сезонный"
+  };
+  
+  let text = `🎉 *Открыто ${totalPacks} ${packNames[packType]} паков!*\n\n`;
+  text += `📋 *Полученные карты:*\n\n`;
+  
+  results.forEach((card, index) => {
+    const emoji = getRarityEmoji(card.rarity);
+    const posName = getPositionName(card.position);
+    text += `${index+1}. ${emoji} *${card.name}* - ${posName} (${card.overall} OVR) - ${card.rarity}\n`;
+  });
+  
+  text += `\n💡 Все карты добавлены в коллекцию!`;
   
   await ctx.editMessageText(text, { parse_mode: "Markdown" });
 }
@@ -235,11 +318,15 @@ async function openSeasonalPackByButton(ctx) {
   saveUsers(users);
   
   const emoji = getRarityEmoji(cardWithId.rarity);
+  const posName = getPositionName(cardWithId.position);
   
   const remaining = data.seasonal_packs?.length || 0;
   let text = "🎉 *СЕЗОННЫЙ ПАК ОТКРЫТ!*\n\n" +
-    "📦 *Ты получил:*\n" +
-    "  • " + emoji + " " + cardWithId.name + " (" + cardWithId.rarity + ")\n\n" +
+    `📋 *Карта:*\n` +
+    `  ${emoji} *${cardWithId.name}*\n` +
+    `  🏒 Амплуа: ${posName}\n` +
+    `  📊 Рейтинг: ${cardWithId.overall} OVR\n` +
+    `  🏆 Редкость: ${cardWithId.rarity}\n\n` +
     "💡 Карта добавлена в коллекцию!";
   
   if (remaining > 0) {
@@ -263,7 +350,6 @@ async function showInventory(ctx) {
   let hasPacks = false;
   const buttons = [];
   
-  // Проверяем обычные паки
   const packNames = {
     basic: "Базовый",
     premium: "Премиум",
@@ -275,11 +361,11 @@ async function showInventory(ctx) {
       const count = data.packs[type].length;
       text += `📦 ${name} пак: ${count} шт.\n`;
       buttons.push([Markup.button.callback(`📦 Открыть ${name} (${count})`, `open_pack_${type}_${userId}`)]);
+      buttons.push([Markup.button.callback(`📦 Открыть все ${name} (${count})`, `open_all_packs_${type}_${userId}`)]);
       hasPacks = true;
     }
   }
   
-  // Проверяем сезонные паки
   if (data.seasonal_packs && data.seasonal_packs.length > 0) {
     const count = data.seasonal_packs.length;
     text += `🎁 Сезонный пак: ${count} шт.\n`;
@@ -300,6 +386,37 @@ async function showInventory(ctx) {
     parse_mode: "Markdown",
     ...Markup.inlineKeyboard(buttons)
   });
+}
+
+// ============================================
+// ПРОПУСК УРОВНЕЙ БОЕВОГО ПРОПУСКА
+// ============================================
+async function giveBattlepassLevels(ctx, target, levels) {
+  const users = getUsers();
+  const targets = target === "all" ? Object.keys(users) : [target];
+  let successCount = 0;
+  
+  for (const id of targets) {
+    if (!users[id]) continue;
+    
+    const currentXp = users[id].battlepass_xp || 0;
+    users[id].battlepass_xp = currentXp + (levels * 20);
+    
+    // Автовыдача наград
+    const { autoClaimRewards } = require('./battlepass');
+    const oldLevel = Math.floor(currentXp / 20);
+    const newLevel = Math.floor(users[id].battlepass_xp / 20);
+    
+    if (newLevel > oldLevel) {
+      const isPremium = users[id].battlepass_premium || 0;
+      await autoClaimRewards(users[id], newLevel, isPremium);
+    }
+    
+    successCount++;
+  }
+  
+  saveUsers(users);
+  return successCount;
 }
 
 async function showAdminMenu(ctx) {
@@ -341,6 +458,7 @@ async function showAdminMenu(ctx) {
       [Markup.button.callback("📦 Выдать карту", "admin_card")],
       [Markup.button.callback("📦 Выдать паки", "admin_packs")],
       [Markup.button.callback("🎁 Сезонный пак", "admin_season")],
+      [Markup.button.callback("🎖️ Пропуск уровней", "admin_battlepass")],
       [Markup.button.callback("📢 Рассылка", "admin_broadcast")],
       [Markup.button.callback("🗑️ Очистить БД", "admin_clear_db")],
       [Markup.button.callback("🔙 Главное меню", "back")],
@@ -352,8 +470,9 @@ async function showAdminMenu(ctx) {
       keyboard: [
         ["💰 Выдать монеты", "💎 Выдать кристаллы"],
         ["📦 Выдать карту", "📦 Выдать паки"],
-        ["🎁 Сезонный пак", "📢 Рассылка"],
-        ["🗑️ Очистить БД", "🔙 Главное меню"],
+        ["🎁 Сезонный пак", "🎖️ Пропуск уровней"],
+        ["📢 Рассылка", "🗑️ Очистить БД"],
+        ["🔙 Главное меню"],
       ],
       resize_keyboard: true,
       one_time_keyboard: false
@@ -376,6 +495,11 @@ module.exports = (bot) => {
   // ОТКРЫТЬ ПАК ПО КНОПКЕ
   bot.action(/open_pack_(.+)_(.+)/, async (ctx) => {
     await openPackByButton(ctx);
+  });
+
+  // ОТКРЫТЬ ВСЕ ПАКИ СРАЗУ
+  bot.action(/open_all_packs_(.+)_(.+)/, async (ctx) => {
+    await openMultiplePacks(ctx);
   });
 
   // ОТКРЫТЬ СЕЗОННЫЙ ПАК
@@ -432,6 +556,16 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await ctx.reply(
       "🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all` для всех.\n\nМожно указать количество: `ID 3` — выдаст 3 пака",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.action("admin_battlepass", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(
+      "🎖️ *Пропуск уровней боевого пропуска*\n\nФормат: `ID количество_уровней`\n\nПримеры:\n" +
+      "`123456789 5` — пропустить 5 уровней\n" +
+      "`all 10` — всем пропустить 10 уровней",
       { parse_mode: "Markdown" }
     );
   });
@@ -510,6 +644,15 @@ module.exports = (bot) => {
     if (!isAdmin(userId)) return;
     await ctx.reply(
       "🎁 *Сезонный пак*\n\nОтправь ID пользователя:\n`123456789`\nИли `all`\n\nМожно указать количество: `ID 3`",
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.hears("🎖️ Пропуск уровней", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply(
+      "🎖️ *Пропуск уровней боевого пропуска*\n\nФормат: `ID количество_уровней`\n\nПример: `123456789 5`",
       { parse_mode: "Markdown" }
     );
   });
@@ -688,6 +831,71 @@ module.exports = (bot) => {
       );
       
       await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
+      return;
+    }
+    
+    // Пропуск уровней боевого пропуска
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[0] !== "all") {
+      const target = parts[0];
+      const levels = parseInt(parts[1]);
+      
+      if (levels < 1 || levels > 30) {
+        await ctx.reply("❌ Количество уровней должно быть от 1 до 30!");
+        return;
+      }
+      
+      const users = getUsers();
+      
+      if (!users[target]) {
+        await ctx.reply("❌ Пользователь " + target + " не найден!");
+        return;
+      }
+      
+      const currentXp = users[target].battlepass_xp || 0;
+      users[target].battlepass_xp = currentXp + (levels * 20);
+      
+      const oldLevel = Math.floor(currentXp / 20);
+      const newLevel = Math.floor(users[target].battlepass_xp / 20);
+      
+      if (newLevel > oldLevel) {
+        const { autoClaimRewards } = require('./battlepass');
+        const isPremium = users[target].battlepass_premium || 0;
+        await autoClaimRewards(users[target], newLevel, isPremium);
+      }
+      
+      saveUsers(users);
+      await ctx.reply("✅ Пропущено " + levels + " уровней для пользователя " + target + "!");
+      return;
+    }
+    
+    // Пропуск уровней всем
+    if (parts.length === 2 && parts[0] === "all" && !isNaN(parts[1])) {
+      const levels = parseInt(parts[1]);
+      
+      if (levels < 1 || levels > 30) {
+        await ctx.reply("❌ Количество уровней должно быть от 1 до 30!");
+        return;
+      }
+      
+      const users = getUsers();
+      const ids = Object.keys(users);
+      
+      for (const id of ids) {
+        const currentXp = users[id].battlepass_xp || 0;
+        users[id].battlepass_xp = currentXp + (levels * 20);
+        
+        const oldLevel = Math.floor(currentXp / 20);
+        const newLevel = Math.floor(users[id].battlepass_xp / 20);
+        
+        if (newLevel > oldLevel) {
+          const { autoClaimRewards } = require('./battlepass');
+          const isPremium = users[id].battlepass_premium || 0;
+          await autoClaimRewards(users[id], newLevel, isPremium);
+        }
+      }
+      
+      saveUsers(users);
+      await ctx.reply("✅ Пропущено " + levels + " уровней для всех " + ids.length + " пользователей!");
       return;
     }
     
