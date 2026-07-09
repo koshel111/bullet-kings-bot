@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - АДМИНКА
+// src/handlers/admin.js - ПОЛНАЯ ПЕРЕРАБОТКА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -9,10 +9,9 @@ const { getRandomCard, getRarityEmoji } = require('../data/players');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-// 🔥 ДВА АДМИНА!
 const ADMINS = [
-  1205576607, // КОШЕЛЬ¹¹
-  1603657074, // ВТОРОЙ АДМИН
+  1205576607,
+  1603657074,
 ];
 
 function getUsers() {
@@ -28,6 +27,9 @@ function isAdmin(userId) {
   return ADMINS.includes(Number(userId));
 }
 
+// ============================================
+// ОТКРЫТЬ СЕЗОННЫЙ ПАК
+// ============================================
 function openSeasonalPack() {
   const weights = {
     "Обычный": 0,
@@ -60,6 +62,9 @@ function openSeasonalPack() {
   return filtered[Math.floor(Math.random() * filtered.length)];
 }
 
+// ============================================
+// ОТПРАВКА УВЕДОМЛЕНИЯ О СЕЗОННОМ ПАКЕ
+// ============================================
 async function sendSeasonalPackNotification(ctx, userId, card) {
   try {
     const emoji = getRarityEmoji(card.rarity);
@@ -81,6 +86,94 @@ async function sendSeasonalPackNotification(ctx, userId, card) {
   }
 }
 
+// ============================================
+// ОТПРАВКА УВЕДОМЛЕНИЯ С КНОПКОЙ ОТКРЫТЬ
+// ============================================
+async function sendSeasonalPackWithButton(ctx, userId, card) {
+  try {
+    const emoji = getRarityEmoji(card.rarity);
+    
+    await ctx.telegram.sendMessage(Number(userId), 
+      "🎁 *Вам выдан СЕЗОННЫЙ ПАК!*\n\n" +
+      "👑 Выдал: администратор\n\n" +
+      "📦 *Содержимое:*\n" +
+      "  • " + emoji + " " + card.name + " (" + card.rarity + ")\n" +
+      "  • 200 монет\n" +
+      "  • 20 кристаллов\n\n" +
+      "📊 *Редкость:* " + card.rarity + "\n" +
+      "🏒 *Позиция:* " + (card.position === "G" ? "Вратарь" : "Полевой") + "\n\n" +
+      "🔥 Нажми кнопку, чтобы открыть пак!",
+      {
+        parse_mode: "Markdown",
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback("🎁 Открыть сезонный пак", "open_seasonal_" + userId + "_" + card.id)]
+        ])
+      }
+    );
+  } catch (e) {
+    console.log("❌ Не удалось отправить уведомление " + userId + ":", e.message);
+  }
+}
+
+// ============================================
+// ОТКРЫТЬ СЕЗОННЫЙ ПАК ПО КНОПКЕ
+// ============================================
+async function openSeasonalPackByButton(ctx) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  
+  if (!data) {
+    await ctx.editMessageText("❌ Ошибка! Попробуй /start");
+    return;
+  }
+  
+  // Проверяем, есть ли неоткрытый сезонный пак
+  if (!data.seasonal_pack) {
+    await ctx.editMessageText("❌ У тебя нет сезонных паков!");
+    return;
+  }
+  
+  const cardData = data.seasonal_pack;
+  
+  // Добавляем карту в коллекцию
+  const cardWithId = {
+    name: cardData.name,
+    overall: cardData.overall || 85,
+    rarity: cardData.rarity || "Легендарная",
+    position: cardData.position || "C",
+    id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+    count: 1
+  };
+  
+  const existing = data.cards.find(c => c.name === cardWithId.name && c.position === cardWithId.position);
+  if (existing) {
+    existing.count = (existing.count || 1) + 1;
+  } else {
+    data.cards.push(cardWithId);
+  }
+  
+  // Удаляем сезонный пак
+  delete data.seasonal_pack;
+  
+  saveUsers(users);
+  
+  const emoji = getRarityEmoji(cardWithId.rarity);
+  
+  await ctx.editMessageText(
+    "🎉 *СЕЗОННЫЙ ПАК ОТКРЫТ!*\n\n" +
+    "📦 *Ты получил:*\n" +
+    "  • " + emoji + " " + cardWithId.name + " (" + cardWithId.rarity + ")\n" +
+    "  • 200 монет\n" +
+    "  • 20 кристаллов\n\n" +
+    "💡 Карта добавлена в коллекцию!",
+    { parse_mode: "Markdown" }
+  );
+}
+
+// ============================================
+// ГЛАВНОЕ МЕНЮ АДМИНКИ
+// ============================================
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) {
@@ -141,6 +234,9 @@ async function showAdminMenu(ctx) {
 
 module.exports = (bot) => {
   
+  // ============================================
+  // ВХОД В АДМИНКУ
+  // ============================================
   bot.command("admin", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) {
@@ -151,6 +247,17 @@ module.exports = (bot) => {
     await showAdminMenu(ctx);
   });
 
+  // ============================================
+  // ОТКРЫТЬ СЕЗОННЫЙ ПАК ПО КНОПКЕ
+  // ============================================
+  bot.action(/open_seasonal_(.+)_(.+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await openSeasonalPackByButton(ctx);
+  });
+
+  // ============================================
+  // ОБРАБОТЧИКИ КНОПОК
+  // ============================================
   bot.action("admin_panel", async (ctx) => {
     await ctx.answerCbQuery();
     await showAdminMenu(ctx);
@@ -220,7 +327,9 @@ module.exports = (bot) => {
     await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
   });
 
+  // ============================================
   // КНОПКИ ПОД КЛАВИАТУРОЙ
+  // ============================================
   bot.hears("💰 Выдать монеты", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
@@ -277,7 +386,9 @@ module.exports = (bot) => {
     await showAdminMenu(ctx);
   });
 
+  // ============================================
   // ОБРАБОТКА ТЕКСТА
+  // ============================================
   bot.on("text", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
@@ -312,20 +423,41 @@ module.exports = (bot) => {
       const rareCards = PLAYERS.filter(p => p.rarity === "Эпический" || p.rarity === "Легендарный" || p.rarity === "Икона");
       
       const targets = target === "all" ? Object.keys(users) : [target];
+      let successCount = 0;
       
       for (const id of targets) {
         if (!users[id]) continue;
+        
         const card = rareCards[Math.floor(Math.random() * rareCards.length)];
-        const cardWithId = { ...card, id: Date.now().toString() + Math.random().toString(36).substr(2, 6), count: 1 };
-        const existing = users[id].cards.find(c => c.name === card.name && c.position === card.position);
-        if (existing) existing.count = (existing.count || 1) + 1;
-        else users[id].cards.push(cardWithId);
+        
+        // Сохраняем сезонный пак для пользователя
+        users[id].seasonal_pack = {
+          name: card.name,
+          overall: card.overall,
+          rarity: card.rarity,
+          position: card.position,
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 6)
+        };
+        
+        // Сразу выдаём монеты и кристаллы
         users[id].coins = (users[id].coins || 0) + 200;
         users[id].crystals = (users[id].crystals || 0) + 20;
+        
+        // 🔥 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ С КНОПКОЙ
+        await sendSeasonalPackWithButton(ctx, id, card);
+        
+        successCount++;
       }
       
       saveUsers(users);
-      await ctx.reply("✅ Сезонный пак выдан " + (target === "all" ? "всем" : target) + "!");
+      
+      await ctx.reply(
+        "✅ *Сезонный пак выдан " + successCount + " пользователям!*\n\n" +
+        "📨 Каждому отправлено уведомление с кнопкой 'Открыть'",
+        { parse_mode: "Markdown" }
+      );
+      
+      await ctx.reply("✅ Готово!", { reply_markup: { remove_keyboard: true } });
       return;
     }
     
