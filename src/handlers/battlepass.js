@@ -91,6 +91,36 @@ function getRandomArena() {
   return { name: arena.name, rarity: arena.rarity, emoji: arena.emoji || "🏟️" };
 }
 
+function openPack(packType) {
+  const weights = {
+    "basic": { "Обычный": 45, "Редкий": 30, "Элитный": 18, "Эпический": 6.9, "Легендарный": 0.1, "Икона": 0 },
+    "premium": { "Обычный": 0, "Редкий": 30, "Элитный": 35, "Эпический": 25, "Легендарный": 9, "Икона": 1 },
+    "legendary": { "Обычный": 0, "Редкий": 0, "Элитный": 15, "Эпический": 35, "Легендарный": 40, "Икона": 10 },
+    "seasonal": { "Обычный": 0, "Редкий": 0, "Элитный": 5, "Эпический": 10, "Легендарный": 50, "Икона": 35 },
+  };
+  
+  const packWeights = weights[packType] || weights.basic;
+  const total = Object.values(packWeights).reduce((a, b) => a + b, 0);
+  let random = Math.random() * total;
+  let selectedRarity = "Обычный";
+  for (const [rarity, weight] of Object.entries(packWeights)) {
+    random -= weight;
+    if (random <= 0) { selectedRarity = rarity; break; }
+  }
+  
+  const { PLAYERS } = require('../data/players');
+  const filtered = PLAYERS.filter(p => p.rarity === selectedRarity);
+  if (filtered.length === 0) return PLAYERS[Math.floor(Math.random() * PLAYERS.length)];
+  return filtered[Math.floor(Math.random() * filtered.length)];
+}
+
+function getPositionName(position) {
+  if (position === 'G') return 'Вратарь';
+  if (position === 'LW' || position === 'RW' || position === 'C') return 'Нападающий';
+  if (position === 'D') return 'Защитник';
+  return 'Полевой';
+}
+
 function giveReward(data, reward, isPremium = false) {
   const rewards = isPremium ? reward.premium : reward.free;
   if (!rewards) return [];
@@ -106,7 +136,6 @@ function giveReward(data, reward, isPremium = false) {
     rewardText.push("💎 " + rewards.crystals + " кристаллов");
   }
   
-  // 🔥 ПАКИ ДОБАВЛЯЮТСЯ В ИНВЕНТАРЬ
   if (rewards.pack) {
     if (!data.packs) data.packs = {};
     if (!data.packs[rewards.pack]) data.packs[rewards.pack] = [];
@@ -165,9 +194,6 @@ function giveReward(data, reward, isPremium = false) {
   return rewardText;
 }
 
-// ============================================
-// 🔥 ОТПРАВКА УВЕДОМЛЕНИЯ О ПАКЕ
-// ============================================
 async function sendPackNotification(ctx, userId, packType) {
   try {
     const packNames = {
@@ -185,7 +211,7 @@ async function sendPackNotification(ctx, userId, packType) {
     await ctx.telegram.sendMessage(Number(userId), text, {
       parse_mode: "Markdown",
       ...Markup.inlineKeyboard([
-        [Markup.button.callback(`📦 Открыть ${packNames[packType] || packType}`, `open_pack_${packType}_${userId}`)]
+        [Markup.button.callback("📦 Открыть пак", "open_pack_" + packType + "_" + userId)]
       ])
     });
   } catch (e) {
@@ -211,7 +237,6 @@ function autoClaimRewards(data, currentLevel, isPremium = false, ctx = null) {
     newRewards++;
     rewardList.push({ level, rewardText, isPremium });
     
-    // 🔥 ЗАПОМИНАЕМ, ЧТО БЫЛ ВЫДАН ПАК
     const rewards = isPremium ? reward.premium : reward.free;
     if (rewards && rewards.pack) {
       packNotifications.push({ level, packType: rewards.pack });
@@ -220,7 +245,6 @@ function autoClaimRewards(data, currentLevel, isPremium = false, ctx = null) {
   
   data.claimed_rewards = claimed;
   
-  // 🔥 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЯ О ПАКАХ
   if (ctx && packNotifications.length > 0) {
     setTimeout(async () => {
       for (const notif of packNotifications) {
@@ -417,7 +441,6 @@ module.exports = (bot) => {
     await showBattlepass(ctx);
   });
 
-  // 🔥 ОБРАБОТЧИК ДЛЯ ОТКРЫТИЯ ПАКА ИЗ БП
   bot.action(/open_pack_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const packType = ctx.match[1];
@@ -451,10 +474,9 @@ module.exports = (bot) => {
     const packNames = { basic: "Базовый", premium: "Премиум", legendary: "Легендарный", seasonal: "Сезонный" };
     
     const remaining = data.packs?.[packType]?.length || 0;
-    let text = `🎉 *${packNames[packType] || packType} пак открыт!*\n\n📋 *Карта:*\n  ${emoji} *${cardWithId.name}*\n  🏒 Амплуа: ${posName}\n  📊 Рейтинг: ${cardWithId.overall} OVR\n  🏆 Редкость: ${cardWithId.rarity}\n\n💡 Карта добавлена в коллекцию!`;
-    if (remaining > 0) text += `\n\n📦 Осталось паков: ${remaining}`;
+    let text = "🎉 *" + (packNames[packType] || packType) + " пак открыт!*\n\n📋 *Карта:*\n  " + emoji + " *" + cardWithId.name + "*\n  🏒 Амплуа: " + posName + "\n  📊 Рейтинг: " + cardWithId.overall + " OVR\n  🏆 Редкость: " + cardWithId.rarity + "\n\n💡 Карта добавлена в коллекцию!";
+    if (remaining > 0) text += "\n\n📦 Осталось паков: " + remaining;
     
     await ctx.editMessageText(text, { parse_mode: "Markdown" });
   });
 };
-
