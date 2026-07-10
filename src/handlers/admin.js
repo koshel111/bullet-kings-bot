@@ -442,6 +442,28 @@ async function showArenasManagement(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
+async function showJerseysList(ctx) {
+  const userId = ctx.from.id;
+  if (!isAdmin(userId)) return;
+  let text = "🎽 *Список ID форм:*\n\n";
+  ALL_JERSEYS.forEach(j => {
+    text += (j.active !== false ? "✅" : "❌") + " `" + j.id + "` — " + j.name + "\n";
+  });
+  text += "\n📌 *Пример:* `shop_add_form csk`";
+  await ctx.reply(text, { parse_mode: "Markdown" });
+}
+
+async function showArenasList(ctx) {
+  const userId = ctx.from.id;
+  if (!isAdmin(userId)) return;
+  let text = "🏟️ *Список ID арен:*\n\n";
+  ALL_ARENAS.forEach(a => {
+    text += (a.active !== false ? "✅" : "❌") + " `" + a.id + "` — " + a.name + "\n";
+  });
+  text += "\n📌 *Пример:* `shop_add_arena msg`";
+  await ctx.reply(text, { parse_mode: "Markdown" });
+}
+
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) { await ctx.reply("⛔ Доступ запрещён!"); return; }
@@ -505,9 +527,11 @@ module.exports = (bot) => {
   bot.action(/open_all_packs_(.+)_(.+)/, async (ctx) => { await openMultiplePacks(ctx); });
   bot.action(/open_seasonal_(.+)/, async (ctx) => { await openSeasonalPackByButton(ctx); });
   bot.action("inventory", async (ctx) => { await ctx.answerCbQuery(); await showInventory(ctx); });
-  bot.action("admin_cosmetics_jerseys", async (ctx) => {`n    await ctx.answerCbQuery();`n    await showJerseysManagement(ctx);`n  });`n`n  bot.action("admin_cosmetics_arenas", async (ctx) => {`n    await ctx.answerCbQuery();`n    await showArenasManagement(ctx);`n  });`n`n  bot.action("admin_cosmetics_jerseys_list", async (ctx) => {`n    await ctx.answerCbQuery();`n    await showJerseysList(ctx);`n  });`n`n  bot.action("admin_cosmetics_arenas_list", async (ctx) => {`n    await ctx.answerCbQuery();`n    await showArenasList(ctx);`n  });`n`n  bot.action("admin_panel", async (ctx) => { await ctx.answerCbQuery(); await showAdminMenu(ctx); });
+  bot.action("admin_panel", async (ctx) => { await ctx.answerCbQuery(); await showAdminMenu(ctx); });
 
-  // 🔥 ВСЕ ОБРАБОТЧИКИ ДЛЯ КОСМЕТИКИ
+  // ============================================
+  // УПРАВЛЕНИЕ КОСМЕТИКОЙ
+  // ============================================
   bot.action("admin_cosmetics", async (ctx) => {
     await ctx.answerCbQuery();
     await showCosmeticsManagement(ctx);
@@ -521,6 +545,16 @@ module.exports = (bot) => {
   bot.action("admin_cosmetics_arenas", async (ctx) => {
     await ctx.answerCbQuery();
     await showArenasManagement(ctx);
+  });
+
+  bot.action("admin_cosmetics_jerseys_list", async (ctx) => {
+    await ctx.answerCbQuery();
+    await showJerseysList(ctx);
+  });
+
+  bot.action("admin_cosmetics_arenas_list", async (ctx) => {
+    await ctx.answerCbQuery();
+    await showArenasList(ctx);
   });
 
   bot.action("admin_coins", async (ctx) => {
@@ -919,7 +953,7 @@ module.exports = (bot) => {
       }
     }
     
-    // КОСМЕТИКА
+    // УПРАВЛЕНИЕ МАГАЗИНОМ
     if (text.startsWith("shop_add_form ")) {
       const id = text.replace("shop_add_form ", "").trim();
       const item = getJerseyById(id);
@@ -993,4 +1027,3 @@ module.exports = (bot) => {
   });
 
 };
-
