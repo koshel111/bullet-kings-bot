@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
+// src/handlers/battlepass.js - БОЕВОЙ ПРОПУСК
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -79,50 +79,50 @@ function getProgress(level) {
   return Math.min(progress, 100);
 }
 
+// 🔥 ФУНКЦИЯ ВЫДАЧИ НАГРАДЫ С ПРОВЕРКОЙ ПАКОВ
 function giveReward(data, reward, isPremium = false) {
   const rewards = isPremium ? reward.premium : reward.free;
   if (!rewards) return;
 
-  if (rewards.coins) data.coins = (data.coins || 0) + rewards.coins;
-  if (rewards.crystals) data.crystals = (data.crystals || 0) + rewards.crystals;
+  console.log("🎁 Выдача награды:", rewards);
+
+  if (rewards.coins) {
+    data.coins = (data.coins || 0) + rewards.coins;
+    console.log("  ✅ Монеты: +" + rewards.coins);
+  }
+  if (rewards.crystals) {
+    data.crystals = (data.crystals || 0) + rewards.crystals;
+    console.log("  ✅ Кристаллы: +" + rewards.crystals);
+  }
   
+  // 🔥 ВЫДАЧА ПАКОВ
   if (rewards.pack) {
-    const { getRandomCard } = require('../data/players');
-    const weights = {
-      "Базовый": { "Обычный": 45, "Редкий": 30, "Элитный": 18, "Эпический": 6.9, "Легендарный": 0.1, "Икона": 0 },
-      "Премиум": { "Обычный": 0, "Редкий": 30, "Элитный": 35, "Эпический": 25, "Легендарный": 9, "Икона": 1 },
-      "Легендарный": { "Обычный": 0, "Редкий": 0, "Элитный": 15, "Эпический": 35, "Легендарный": 40, "Икона": 10 },
-      "Сезонный": { "Обычный": 0, "Редкий": 0, "Элитный": 5, "Эпический": 10, "Легендарный": 50, "Икона": 35 },
-    };
+    console.log("  📦 Пак: " + rewards.pack);
     
-    const packWeights = weights[rewards.pack] || weights["Базовый"];
-    const total = Object.values(packWeights).reduce((a, b) => a + b, 0);
-    let random = Math.random() * total;
-    let selectedRarity = "Обычный";
-    for (const [rarity, weight] of Object.entries(packWeights)) {
-      random -= weight;
-      if (random <= 0) { selectedRarity = rarity; break; }
-    }
+    if (!data.packs) data.packs = {};
+    if (!data.packs[rewards.pack]) data.packs[rewards.pack] = [];
     
-    const card = getRandomCard(selectedRarity);
-    if (card) {
-      const cardWithId = { ...card, id: Date.now().toString() + Math.random().toString(36).substr(2, 6), count: 1 };
-      const existing = data.cards.find(c => c.name === card.name && c.position === card.position);
-      if (existing) existing.count = (existing.count || 1) + 1;
-      else data.cards.push(cardWithId);
-    }
+    // Добавляем пак
+    data.packs[rewards.pack].push({
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+      obtained: Date.now()
+    });
+    
+    console.log("  ✅ Пак добавлен в инвентарь!");
   }
   
   if (rewards.jersey) {
     if (!data.jerseys) data.jerseys = [];
     const jerseyId = "bp_jersey_" + Date.now();
     data.jerseys.push({ id: jerseyId, name: rewards.jersey, rarity: rewards.jersey, isTemporary: !isPremium });
+    console.log("  ✅ Форма: " + rewards.jersey);
   }
   
   if (rewards.arena) {
     if (!data.arenas) data.arenas = [];
     const arenaId = "bp_arena_" + Date.now();
     data.arenas.push({ id: arenaId, name: rewards.arena, rarity: rewards.arena, isTemporary: !isPremium });
+    console.log("  ✅ Арена: " + rewards.arena);
   }
   
   if (rewards.card) {
@@ -141,12 +141,15 @@ function giveReward(data, reward, isPremium = false) {
     } else {
       data.cards.push(cardData);
     }
+    console.log("  ✅ Карта: " + cardData.name + " (" + cardData.overall + " OVR)");
   }
 }
 
+// 🔥 АВТОВЫДАЧА НАГРАД
 function autoClaimRewards(data, currentLevel, isPremium = false) {
   const claimed = data.claimed_rewards || [];
   let newRewards = 0;
+  let rewardList = [];
   
   for (let level = 1; level <= currentLevel; level++) {
     const key = isPremium ? "p_" + level : "f_" + level;
@@ -155,20 +158,34 @@ function autoClaimRewards(data, currentLevel, isPremium = false) {
     const reward = BATTLEPASS.REWARDS[level];
     if (!reward) continue;
     
+    console.log("🎯 Выдача награды за уровень " + level + " (премиум: " + isPremium + ")");
     giveReward(data, reward, isPremium);
     claimed.push(key);
     newRewards++;
+    rewardList.push({ level, reward, isPremium });
   }
   
   data.claimed_rewards = claimed;
-  return newRewards;
+  return { newRewards, rewardList };
+}
+
+// 🔥 ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ СТАТУСА УРОВНЯ
+function getLevelStatus(data, level, isPremium = false) {
+  const claimed = data.claimed_rewards || [];
+  const key = isPremium ? "p_" + level : "f_" + level;
+  return claimed.includes(key);
 }
 
 async function showBattlepass(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
-  if (!data) { await ctx.reply("❌ Ошибка! Попробуй /start"); return; }
+  
+  if (!data) {
+    await ctx.reply("❌ Ошибка! Попробуй /start");
+    return;
+  }
+  
   const xp = data.battlepass_xp || 0;
   const { level } = getLevelByXP(xp);
   const progress = getProgress(level);
@@ -184,29 +201,27 @@ async function showBattlepass(ctx) {
   
   if (isPremium) {
     text += "💎 *Премиум активирован!*\n\n";
-    text += "📋 *Премиум даёт:*\n";
-    text += "  ✅ В 2 раза больше наград\n";
-    text += "  ✅ Постоянные формы и арены\n";
-    text += "  ✅ Улучшенные паки\n";
-    text += "  ✅ Семён Кошелев 96 OVR\n";
-    text += "  ✅ Сезонный пак на 30 уровне\n\n";
   } else {
     text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
-    text += "📋 *Премиум даёт:*\n";
-    text += "  ✅ В 2 раза больше наград\n";
-    text += "  ✅ Постоянные формы и арены\n";
-    text += "  ✅ Улучшенные паки\n";
-    text += "  ✅ Семён Кошелев 96 OVR (вместо 93)\n";
-    text += "  ✅ Сезонный пак на 30 уровне\n\n";
   }
   
   text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
+  
   for (let i = 1; i <= maxLevel; i++) {
     const reward = BATTLEPASS.REWARDS[i];
     if (!reward) continue;
+    
+    // 🔥 ПРОВЕРЯЕМ СТАТУС
+    const freeClaimed = getLevelStatus(data, i, false);
+    const premiumClaimed = getLevelStatus(data, i, true);
+    
+    const freeCheck = freeClaimed ? "✅" : "⬜";
+    const premiumCheck = premiumClaimed ? "✅" : "⬜";
+    
     text += "📍 *Уровень " + i + "*\n";
+    
     if (reward.free) {
-      text += "🆓 Бесплатный: ";
+      text += freeCheck + " 🆓 Бесплатный: ";
       const free = reward.free;
       const parts = [];
       if (free.coins) parts.push("⭐ " + free.coins);
@@ -217,8 +232,9 @@ async function showBattlepass(ctx) {
       if (free.card) parts.push("🃏 " + free.card + " (" + (free.overall || 93) + " OVR)");
       text += parts.join(", ") + "\n";
     }
+    
     if (isPremium && reward.premium) {
-      text += "💎 Премиум: ";
+      text += premiumCheck + " 💎 Премиум: ";
       const premium = reward.premium;
       const parts = [];
       if (premium.coins) parts.push("⭐ " + premium.coins);
@@ -229,49 +245,92 @@ async function showBattlepass(ctx) {
       if (premium.card) parts.push("🃏 " + premium.card + " (" + (premium.overall || 96) + " OVR)");
       text += parts.join(", ") + "\n";
     }
+    
     text += "\n";
   }
   
   const buttons = [];
-  if (!isPremium) buttons.push([Markup.button.callback("💎 Купить премиум (" + BATTLEPASS.PRICE + "💎)", "bp_buy")]);
+  if (!isPremium) {
+    buttons.push([Markup.button.callback("💎 Купить премиум (" + BATTLEPASS.PRICE + "💎)", "bp_buy")]);
+  }
   buttons.push([Markup.button.callback("🔄 Обновить", "bp_refresh")]);
   buttons.push([Markup.button.callback("🔙 Назад", "back")]);
-  await ctx.reply(text, { parse_mode: "Markdown", ...Markup.inlineKeyboard(buttons) });
+  
+  await ctx.reply(text, {
+    parse_mode: "Markdown",
+    ...Markup.inlineKeyboard(buttons)
+  });
 }
 
 async function buyPremium(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
-  if (!data) { await ctx.reply("❌ Ошибка! Попробуй /start"); return; }
-  if (data.battlepass_premium) { await ctx.reply("💎 У тебя уже есть премиум!"); return; }
+  
+  if (!data) {
+    await ctx.reply("❌ Ошибка! Попробуй /start");
+    return;
+  }
+  
+  if (data.battlepass_premium) {
+    await ctx.reply("💎 У тебя уже есть премиум!");
+    return;
+  }
+  
   if ((data.crystals || 0) < BATTLEPASS.PRICE) {
     await ctx.reply("❌ Недостаточно кристаллов! Нужно " + BATTLEPASS.PRICE + "💎");
     return;
   }
+  
   data.crystals -= BATTLEPASS.PRICE;
   data.battlepass_premium = 1;
+  
   const xp = data.battlepass_xp || 0;
   const { level } = getLevelByXP(xp);
-  const claimed = autoClaimRewards(data, level, true);
+  const result = autoClaimRewards(data, level, true);
+  
   saveUsers(users);
-  await ctx.reply("✅ *Премиум куплен!*\n\n💎 Выдано " + claimed + " наград за премиум путь!\n📊 Текущий уровень: " + level, { parse_mode: "Markdown" });
+  
+  let text = "✅ *Премиум куплен!*\n\n";
+  text += "💎 Выдано " + result.newRewards + " наград за премиум путь!\n";
+  text += "📊 Текущий уровень: " + level + "\n\n";
+  text += "📋 *Полученные награды:*\n";
+  
+  result.rewardList.forEach(item => {
+    const reward = item.reward;
+    const parts = [];
+    if (reward.premium.coins) parts.push("⭐ " + reward.premium.coins);
+    if (reward.premium.crystals) parts.push("💎 " + reward.premium.crystals);
+    if (reward.premium.pack) parts.push("📦 " + reward.premium.pack + " пак");
+    if (reward.premium.jersey) parts.push("🎽 " + reward.premium.jersey);
+    if (reward.premium.arena) parts.push("🏟️ " + reward.premium.arena);
+    if (reward.premium.card) parts.push("🃏 " + reward.premium.card);
+    text += "  • Уровень " + item.level + ": " + parts.join(", ") + "\n";
+  });
+  
+  await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
 async function addXP(userId, amount) {
   const users = getUsers();
   const data = users[userId];
   if (!data) return;
+  
   const oldLevel = getLevelByXP(data.battlepass_xp || 0).level;
   data.battlepass_xp = (data.battlepass_xp || 0) + amount;
   const newLevel = getLevelByXP(data.battlepass_xp).level;
+  
   if (newLevel > oldLevel) {
-    autoClaimRewards(data, newLevel, data.battlepass_premium || 0);
+    const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0);
+    if (result.newRewards > 0) {
+      console.log("🎉 Новые награды: " + result.newRewards + " шт.");
+    }
   }
+  
   saveUsers(users);
 }
 
-// 🔥 ЭКСПОРТ
+// ЭКСПОРТ
 module.exports = {
   addXP,
   XP_PER_MATCH,
@@ -287,10 +346,12 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await showBattlepass(ctx);
   });
+
   bot.action("bp_buy", async (ctx) => {
     await ctx.answerCbQuery();
     await buyPremium(ctx);
   });
+
   bot.action("bp_refresh", async (ctx) => {
     await ctx.answerCbQuery();
     await showBattlepass(ctx);
