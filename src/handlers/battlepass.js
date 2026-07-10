@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - С УВЕДОМЛЕНИЯМИ
+// src/handlers/battlepass.js - ФИНАЛЬНАЯ ВЕРСИЯ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -146,6 +146,7 @@ function giveReward(data, reward, isPremium = false) {
     rewardText.push("📦 " + rewards.pack + " пак");
   }
   
+  // 🔥 ФОРМЫ - НАВСЕГДА (БЕЗ ВРЕМЕННЫХ)
   if (rewards.jersey) {
     if (!data.jerseys) data.jerseys = [];
     const randomJersey = getRandomJersey();
@@ -154,11 +155,12 @@ function giveReward(data, reward, isPremium = false) {
       name: randomJersey.name, 
       rarity: randomJersey.rarity, 
       emoji: randomJersey.emoji,
-      isTemporary: !isPremium 
+      isTemporary: false  // 🔥 НАВСЕГДА!
     });
     rewardText.push("🎽 " + randomJersey.name + " (" + randomJersey.rarity + ")");
   }
   
+  // 🔥 АРЕНЫ - НАВСЕГДА (БЕЗ ВРЕМЕННЫХ)
   if (rewards.arena) {
     if (!data.arenas) data.arenas = [];
     const randomArena = getRandomArena();
@@ -167,7 +169,7 @@ function giveReward(data, reward, isPremium = false) {
       name: randomArena.name, 
       rarity: randomArena.rarity, 
       emoji: randomArena.emoji,
-      isTemporary: !isPremium 
+      isTemporary: false  // 🔥 НАВСЕГДА!
     });
     rewardText.push("🏟️ " + randomArena.name + " (" + randomArena.rarity + ")");
   }
@@ -211,7 +213,7 @@ async function sendPackNotification(ctx, userId, packType) {
     await ctx.telegram.sendMessage(Number(userId), text, {
       parse_mode: "Markdown",
       ...Markup.inlineKeyboard([
-        [Markup.button.callback("📦 Открыть пак", "open_pack_" + packType + "_" + userId)]
+        [Markup.button.callback("📦 Открыть пак", "open_bp_pack_" + packType + "_" + userId)]
       ])
     });
   } catch (e) {
@@ -313,8 +315,8 @@ async function showBattlepass(ctx) {
       if (free.coins) parts.push("⭐ " + free.coins);
       if (free.crystals) parts.push("💎 " + free.crystals);
       if (free.pack) parts.push("📦 " + free.pack + " пак");
-      if (free.jersey) parts.push("🎽 Рандомная форма");
-      if (free.arena) parts.push("🏟️ Рандомная арена");
+      if (free.jersey) parts.push("🎽 Форма (навсегда)");
+      if (free.arena) parts.push("🏟️ Арена (навсегда)");
       if (free.card) parts.push("🃏 " + free.card + " (" + (free.overall || 93) + " OVR)");
       text += parts.join(", ") + "\n";
     }
@@ -326,8 +328,8 @@ async function showBattlepass(ctx) {
       if (premium.coins) parts.push("⭐ " + premium.coins);
       if (premium.crystals) parts.push("💎 " + premium.crystals);
       if (premium.pack) parts.push("📦 " + premium.pack + " пак");
-      if (premium.jersey) parts.push("🎽 Рандомная форма (навсегда)");
-      if (premium.arena) parts.push("🏟️ Рандомная арена (навсегда)");
+      if (premium.jersey) parts.push("🎽 Форма (навсегда)");
+      if (premium.arena) parts.push("🏟️ Арена (навсегда)");
       if (premium.card) parts.push("🃏 " + premium.card + " (" + (premium.overall || 96) + " OVR)");
       text += parts.join(", ") + "\n";
     }
@@ -441,7 +443,8 @@ module.exports = (bot) => {
     await showBattlepass(ctx);
   });
 
-  bot.action(/open_pack_(.+)_(.+)/, async (ctx) => {
+  // 🔥 ОБРАБОТЧИК ДЛЯ ПАКОВ ИЗ БП
+  bot.action(/open_bp_pack_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const packType = ctx.match[1];
     const userId = ctx.from.id;
