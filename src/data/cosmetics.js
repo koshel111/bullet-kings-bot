@@ -212,5 +212,6 @@ module.exports = {
   getJerseyById,
   getArenaById,
   getRotationJerseys,
-  getRotationArenas,
+  getRotationArenas,`n  getShopStats,
 };
+
