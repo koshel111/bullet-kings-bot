@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
+// src/handlers/battlepass.js - С УВЕДОМЛЕНИЯМИ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -106,6 +106,7 @@ function giveReward(data, reward, isPremium = false) {
     rewardText.push("💎 " + rewards.crystals + " кристаллов");
   }
   
+  // 🔥 ПАКИ ДОБАВЛЯЮТСЯ В ИНВЕНТАРЬ
   if (rewards.pack) {
     if (!data.packs) data.packs = {};
     if (!data.packs[rewards.pack]) data.packs[rewards.pack] = [];
@@ -113,7 +114,7 @@ function giveReward(data, reward, isPremium = false) {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
       obtained: Date.now()
     });
-    rewardText.push("📦 " + rewards.pack + " пак (в инвентаре)");
+    rewardText.push("📦 " + rewards.pack + " пак");
   }
   
   if (rewards.jersey) {
@@ -164,10 +165,39 @@ function giveReward(data, reward, isPremium = false) {
   return rewardText;
 }
 
-function autoClaimRewards(data, currentLevel, isPremium = false) {
+// ============================================
+// 🔥 ОТПРАВКА УВЕДОМЛЕНИЯ О ПАКЕ
+// ============================================
+async function sendPackNotification(ctx, userId, packType) {
+  try {
+    const packNames = {
+      "Базовый": "📦 Базовый пак",
+      "Премиум": "🎁 Премиум пак",
+      "Легендарный": "💎 Легендарный пак",
+      "Сезонный": "🎁 Сезонный пак"
+    };
+    
+    const text = 
+      "🎖️ *Вы получили пак из боевого пропуска!*\n\n" +
+      "📦 " + (packNames[packType] || packType) + "\n\n" +
+      "🔥 Нажми кнопку, чтобы открыть пак!";
+    
+    await ctx.telegram.sendMessage(Number(userId), text, {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback(`📦 Открыть ${packNames[packType] || packType}`, `open_pack_${packType}_${userId}`)]
+      ])
+    });
+  } catch (e) {
+    console.log("❌ Не удалось отправить уведомление о паке:", e.message);
+  }
+}
+
+function autoClaimRewards(data, currentLevel, isPremium = false, ctx = null) {
   const claimed = data.claimed_rewards || [];
   let newRewards = 0;
   let rewardList = [];
+  let packNotifications = [];
   
   for (let level = 1; level <= currentLevel; level++) {
     const key = isPremium ? "p_" + level : "f_" + level;
@@ -180,10 +210,27 @@ function autoClaimRewards(data, currentLevel, isPremium = false) {
     claimed.push(key);
     newRewards++;
     rewardList.push({ level, rewardText, isPremium });
+    
+    // 🔥 ЗАПОМИНАЕМ, ЧТО БЫЛ ВЫДАН ПАК
+    const rewards = isPremium ? reward.premium : reward.free;
+    if (rewards && rewards.pack) {
+      packNotifications.push({ level, packType: rewards.pack });
+    }
   }
   
   data.claimed_rewards = claimed;
-  return { newRewards, rewardList };
+  
+  // 🔥 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЯ О ПАКАХ
+  if (ctx && packNotifications.length > 0) {
+    setTimeout(async () => {
+      for (const notif of packNotifications) {
+        await sendPackNotification(ctx, ctx.from.id, notif.packType);
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }, 1000);
+  }
+  
+  return { newRewards, rewardList, packNotifications };
 }
 
 function getLevelStatus(data, level, isPremium = false) {
@@ -302,7 +349,7 @@ async function buyPremium(ctx) {
   
   const xp = data.battlepass_xp || 0;
   const { level } = getLevelByXP(xp);
-  const result = autoClaimRewards(data, level, true);
+  const result = autoClaimRewards(data, level, true, ctx);
   
   saveUsers(users);
   
@@ -318,10 +365,15 @@ async function buyPremium(ctx) {
     }
   });
   
+  if (result.packNotifications && result.packNotifications.length > 0) {
+    text += "\n\n📦 *Паки отправлены в инвентарь!*\n";
+    text += "💡 Уведомления о паках придут через секунду.";
+  }
+  
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
-async function addXP(userId, amount) {
+async function addXP(userId, amount, ctx = null) {
   const users = getUsers();
   const data = users[userId];
   if (!data) return;
@@ -331,7 +383,7 @@ async function addXP(userId, amount) {
   const newLevel = getLevelByXP(data.battlepass_xp).level;
   
   if (newLevel > oldLevel) {
-    const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0);
+    const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0, ctx);
     if (result.newRewards > 0) {
       console.log("🎉 Новые награды: " + result.newRewards + " шт.");
     }
@@ -364,4 +416,45 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await showBattlepass(ctx);
   });
+
+  // 🔥 ОБРАБОТЧИК ДЛЯ ОТКРЫТИЯ ПАКА ИЗ БП
+  bot.action(/open_pack_(.+)_(.+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const packType = ctx.match[1];
+    const userId = ctx.from.id;
+    const users = getUsers();
+    const data = users[userId];
+    
+    if (!data) {
+      await ctx.editMessageText("❌ Ошибка! Попробуй /start");
+      return;
+    }
+    
+    if (!data.packs || !data.packs[packType] || data.packs[packType].length === 0) {
+      await ctx.editMessageText("❌ У тебя нет таких паков!");
+      return;
+    }
+    
+    data.packs[packType].shift();
+    if (data.packs[packType].length === 0) delete data.packs[packType];
+    
+    const card = openPack(packType);
+    const cardWithId = { ...card, id: Date.now().toString() + Math.random().toString(36).substr(2, 6), count: 1 };
+    const existing = data.cards.find(c => c.name === cardWithId.name && c.position === cardWithId.position);
+    if (existing) existing.count = (existing.count || 1) + 1;
+    else data.cards.push(cardWithId);
+    
+    saveUsers(users);
+    
+    const emoji = getRarityEmoji(cardWithId.rarity);
+    const posName = getPositionName(cardWithId.position);
+    const packNames = { basic: "Базовый", premium: "Премиум", legendary: "Легендарный", seasonal: "Сезонный" };
+    
+    const remaining = data.packs?.[packType]?.length || 0;
+    let text = `🎉 *${packNames[packType] || packType} пак открыт!*\n\n📋 *Карта:*\n  ${emoji} *${cardWithId.name}*\n  🏒 Амплуа: ${posName}\n  📊 Рейтинг: ${cardWithId.overall} OVR\n  🏆 Редкость: ${cardWithId.rarity}\n\n💡 Карта добавлена в коллекцию!`;
+    if (remaining > 0) text += `\n\n📦 Осталось паков: ${remaining}`;
+    
+    await ctx.editMessageText(text, { parse_mode: "Markdown" });
+  });
 };
+
