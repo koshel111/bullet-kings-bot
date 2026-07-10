@@ -69,7 +69,7 @@ function openPack(packType) {
 }
 
 // ============================================
-// 🔥 ФУНКЦИЯ ДЛЯ ВЫДАЧИ НАГРАД (СКОПИРОВАНА ИЗ BATTLEPASS.JS)
+// ФУНКЦИИ ДЛЯ НАГРАД (скопированы из battlepass.js)
 // ============================================
 function giveReward(data, reward, isPremium = false) {
   const rewards = isPremium ? reward.premium : reward.free;
@@ -136,12 +136,10 @@ function giveReward(data, reward, isPremium = false) {
   }
 }
 
-// 🔥 ФУНКЦИЯ autoClaimRewards — СКОПИРОВАНА!
 function autoClaimRewards(data, currentLevel, isPremium = false) {
   const claimed = data.claimed_rewards || [];
   let newRewards = 0;
   
-  // Настройки наград (копия из battlepass.js)
   const REWARDS = {
     1: { free: { coins: 20 }, premium: { coins: 50, crystals: 5 } },
     2: { free: { coins: 25 }, premium: { coins: 60 } },
@@ -509,9 +507,20 @@ module.exports = (bot) => {
   bot.action("inventory", async (ctx) => { await ctx.answerCbQuery(); await showInventory(ctx); });
   bot.action("admin_panel", async (ctx) => { await ctx.answerCbQuery(); await showAdminMenu(ctx); });
 
+  // 🔥 ВСЕ ОБРАБОТЧИКИ ДЛЯ КОСМЕТИКИ
   bot.action("admin_cosmetics", async (ctx) => {
     await ctx.answerCbQuery();
     await showCosmeticsManagement(ctx);
+  });
+
+  bot.action("admin_cosmetics_jerseys", async (ctx) => {
+    await ctx.answerCbQuery();
+    await showJerseysManagement(ctx);
+  });
+
+  bot.action("admin_cosmetics_arenas", async (ctx) => {
+    await ctx.answerCbQuery();
+    await showArenasManagement(ctx);
   });
 
   bot.action("admin_coins", async (ctx) => {
@@ -579,7 +588,7 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ГЛАВНАЯ ОБРАБОТКА КОМАНД
+  // ОБРАБОТКА КОМАНД
   // ============================================
   bot.on("text", async (ctx) => {
     const userId = ctx.from.id;
@@ -587,29 +596,22 @@ module.exports = (bot) => {
     const text = ctx.text.trim();
     const parts = text.split("_");
     
-    // ============================================
-    // ПРОПУСК УРОВНЕЙ: skip_ID_уровней
-    // ============================================
+    // ПРОПУСК УРОВНЕЙ
     if (text.startsWith("skip_") && parts.length === 3) {
       const target = parts[1];
       const levels = parseInt(parts[2]);
-      
       if (isNaN(levels) || levels < 1 || levels > 30) {
         await ctx.reply("❌ Количество уровней должно быть от 1 до 30!");
         return;
       }
-      
       const users = getUsers();
       const ids = Object.keys(users);
-      
       if (ids.length === 0) {
-        await ctx.reply("❌ Нет зарегистрированных пользователей! Попроси их нажать /start");
+        await ctx.reply("❌ Нет зарегистрированных пользователей!");
         return;
       }
-      
       if (target === "all") {
-        let count = 0;
-        let levelsInfo = [];
+        let count = 0, levelsInfo = [];
         for (const id of ids) {
           if (!users[id]) continue;
           const currentXp = users[id].battlepass_xp || 0;
@@ -624,14 +626,12 @@ module.exports = (bot) => {
           count++;
         }
         saveUsers(users);
-        
         let report = `✅ *Результат:* Пропущено ${levels} уровней для всех ${count} пользователей!\n\n📊 *Детали:*\n`;
         levelsInfo.forEach(info => {
           report += `👤 ${info.id}: ${info.oldLevel} → ${info.newLevel}\n`;
         });
         await ctx.reply(report, { parse_mode: "Markdown" });
         return;
-        
       } else if (users[target]) {
         const currentXp = users[target].battlepass_xp || 0;
         const oldLevel = Math.floor(currentXp / 20);
@@ -644,29 +644,23 @@ module.exports = (bot) => {
         saveUsers(users);
         await ctx.reply("✅ *Результат:* Пропущено " + levels + " уровней для пользователя `" + target + "`!\n📊 " + oldLevel + " → " + newLevel, { parse_mode: "Markdown" });
         return;
-        
       } else {
-        await ctx.reply("❌ Пользователь `" + target + "` не найден! Он должен нажать /start", { parse_mode: "Markdown" });
+        await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
         return;
       }
     }
     
-    // ============================================
-    // ПРЕМИУМ: premium_ID
-    // ============================================
+    // ПРЕМИУМ
     if (text.startsWith("premium_") && parts.length === 2) {
       const target = parts[1];
       const users = getUsers();
       const ids = Object.keys(users);
-      
       if (ids.length === 0) {
-        await ctx.reply("❌ Нет зарегистрированных пользователей! Попроси их нажать /start");
+        await ctx.reply("❌ Нет зарегистрированных пользователей!");
         return;
       }
-      
       if (target === "all") {
-        let count = 0;
-        let premiumList = [];
+        let count = 0, premiumList = [];
         for (const id of ids) {
           if (!users[id]) continue;
           users[id].battlepass_premium = 1;
@@ -678,14 +672,12 @@ module.exports = (bot) => {
           count++;
         }
         saveUsers(users);
-        
         let report = `✅ *Результат:* Премиум выдан всем ${count} пользователям!\n\n📊 *Список:*\n`;
         premiumList.forEach(id => {
           report += `👤 ${id}\n`;
         });
         await ctx.reply(report, { parse_mode: "Markdown" });
         return;
-        
       } else if (users[target]) {
         users[target].battlepass_premium = 1;
         const xp = users[target].battlepass_xp || 0;
@@ -695,21 +687,18 @@ module.exports = (bot) => {
         saveUsers(users);
         await ctx.reply("✅ *Результат:* Премиум выдан пользователю `" + target + "`!", { parse_mode: "Markdown" });
         return;
-        
       } else {
-        await ctx.reply("❌ Пользователь `" + target + "` не найден! Он должен нажать /start", { parse_mode: "Markdown" });
+        await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
         return;
       }
     }
     
-    // ============================================
-    // МОНЕТЫ: coins_ID_СУММА
-    // ============================================
+    // МОНЕТЫ
     if (text.startsWith("coins_") && parts.length === 3) {
       const target = parts[1];
       const amount = parseInt(parts[2]);
       if (isNaN(amount) || amount <= 0) {
-        await ctx.reply("❌ Укажи сумму! Пример: `coins_123456789_500`");
+        await ctx.reply("❌ Укажи сумму!");
         return;
       }
       const users = getUsers();
@@ -736,14 +725,12 @@ module.exports = (bot) => {
       }
     }
     
-    // ============================================
-    // КРИСТАЛЛЫ: crystals_ID_СУММА
-    // ============================================
+    // КРИСТАЛЛЫ
     if (text.startsWith("crystals_") && parts.length === 3) {
       const target = parts[1];
       const amount = parseInt(parts[2]);
       if (isNaN(amount) || amount <= 0) {
-        await ctx.reply("❌ Укажи сумму! Пример: `crystals_123456789_50`");
+        await ctx.reply("❌ Укажи сумму!");
         return;
       }
       const users = getUsers();
@@ -770,9 +757,7 @@ module.exports = (bot) => {
       }
     }
     
-    // ============================================
-    // КАРТА: card_ID_Название
-    // ============================================
+    // КАРТА
     if (text.startsWith("card_") && parts.length >= 3) {
       const target = parts[1];
       const cardName = parts.slice(2).join(" ");
@@ -810,9 +795,7 @@ module.exports = (bot) => {
       }
     }
     
-    // ============================================
-    // ПАКИ: pack_ID_тип_количество
-    // ============================================
+    // ПАКИ
     if (text.startsWith("pack_") && parts.length === 4) {
       const target = parts[1];
       const packType = parts[2];
@@ -858,9 +841,7 @@ module.exports = (bot) => {
       }
     }
     
-    // ============================================
-    // СЕЗОННЫЙ ПАК: seasonal_ID_количество
-    // ============================================
+    // СЕЗОННЫЙ ПАК
     if (text.startsWith("seasonal_") && parts.length === 3) {
       const target = parts[1];
       const count = parseInt(parts[2]);
@@ -903,9 +884,7 @@ module.exports = (bot) => {
       }
     }
     
-    // ============================================
-    // РАССЫЛКА: broadcast_ID_сообщение
-    // ============================================
+    // РАССЫЛКА
     if (text.startsWith("broadcast_") && parts.length >= 3) {
       const target = parts[1];
       const message = parts.slice(2).join(" ");
@@ -940,9 +919,7 @@ module.exports = (bot) => {
       }
     }
     
-    // ============================================
-    // УПРАВЛЕНИЕ МАГАЗИНОМ
-    // ============================================
+    // КОСМЕТИКА
     if (text.startsWith("shop_add_form ")) {
       const id = text.replace("shop_add_form ", "").trim();
       const item = getJerseyById(id);
@@ -983,9 +960,6 @@ module.exports = (bot) => {
       return;
     }
     
-    // ============================================
-    // shop_list
-    // ============================================
     if (text === "shop_list") {
       let text2 = "📋 *Все предметы косметики*\n\n🎽 *Формы:*\n";
       ALL_JERSEYS.forEach(j => {
@@ -999,9 +973,6 @@ module.exports = (bot) => {
       return;
     }
     
-    // ============================================
-    // НЕИЗВЕСТНАЯ КОМАНДА
-    // ============================================
     await ctx.reply("❌ Неизвестная команда!\n\n📋 *Доступные команды:*\n" +
       "`coins_ID_СУММА` — монеты\n" +
       "`crystals_ID_СУММА` — кристаллы\n" +
