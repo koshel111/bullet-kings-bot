@@ -180,29 +180,27 @@ async function showCosmeticsInventory(ctx) {
     let text = "📦 *Моя косметика*\n\n";
     let hasItems = false;
     
+    // 🔥 ФИКС: правильный вывод форм
     if (data.jerseys && data.jerseys.length > 0) {
       text += "🎽 *Формы:*\n";
       data.jerseys.forEach((jersey) => {
-        if (typeof jersey === 'string') {
-          const fullJersey = getJerseyById(jersey);
-          if (fullJersey) text += "  • " + fullJersey.emoji + " " + fullJersey.name + " (" + fullJersey.rarity + ")\n";
-        } else {
-          text += "  • " + jersey.emoji + " " + jersey.name + " (" + jersey.rarity + ")\n";
-        }
+        const name = jersey.name || "Неизвестно";
+        const rarity = jersey.rarity || "Обычная";
+        const emoji = jersey.emoji || "🎽";
+        text += "  • " + emoji + " " + name + " (" + rarity + ")\n";
       });
       hasItems = true;
       text += "\n";
     }
     
+    // 🔥 ФИКС: правильный вывод арен
     if (data.arenas && data.arenas.length > 0) {
       text += "🏟️ *Арены:*\n";
       data.arenas.forEach((arena) => {
-        if (typeof arena === 'string') {
-          const fullArena = getArenaById(arena);
-          if (fullArena) text += "  • " + fullArena.emoji + " " + fullArena.name + " (" + fullArena.rarity + ")\n";
-        } else {
-          text += "  • " + arena.emoji + " " + arena.name + " (" + arena.rarity + ")\n";
-        }
+        const name = arena.name || "Неизвестно";
+        const rarity = arena.rarity || "Обычная";
+        const emoji = arena.emoji || "🏟️";
+        text += "  • " + emoji + " " + name + " (" + rarity + ")\n";
       });
       hasItems = true;
       text += "\n";

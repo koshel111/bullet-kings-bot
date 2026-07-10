@@ -96,7 +96,7 @@ function giveReward(data, reward, isPremium = false) {
   }
   
   // 🔥 ВЫДАЧА ПАКОВ
-  if (rewards.pack) {
+  if (rewards.pack) {`n    console.log("  📦 Пак: " + rewards.pack);`n    if (!data.packs) data.packs = {};`n    if (!data.packs[rewards.pack]) data.packs[rewards.pack] = [];`n    data.packs[rewards.pack].push({ id: Date.now().toString() + Math.random().toString(36).substr(2, 6), obtained: Date.now() });`n    console.log("  ✅ Пак добавлен в инвентарь!");`n  }
     console.log("  📦 Пак: " + rewards.pack);
     
     if (!data.packs) data.packs = {};
@@ -357,3 +357,4 @@ module.exports = (bot) => {
     await showBattlepass(ctx);
   });
 };
+

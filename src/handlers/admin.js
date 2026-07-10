@@ -505,7 +505,7 @@ module.exports = (bot) => {
   bot.action(/open_all_packs_(.+)_(.+)/, async (ctx) => { await openMultiplePacks(ctx); });
   bot.action(/open_seasonal_(.+)/, async (ctx) => { await openSeasonalPackByButton(ctx); });
   bot.action("inventory", async (ctx) => { await ctx.answerCbQuery(); await showInventory(ctx); });
-  bot.action("admin_panel", async (ctx) => { await ctx.answerCbQuery(); await showAdminMenu(ctx); });
+  bot.action("admin_cosmetics_jerseys", async (ctx) => {`n    await ctx.answerCbQuery();`n    await showJerseysManagement(ctx);`n  });`n`n  bot.action("admin_cosmetics_arenas", async (ctx) => {`n    await ctx.answerCbQuery();`n    await showArenasManagement(ctx);`n  });`n`n  bot.action("admin_cosmetics_jerseys_list", async (ctx) => {`n    await ctx.answerCbQuery();`n    await showJerseysList(ctx);`n  });`n`n  bot.action("admin_cosmetics_arenas_list", async (ctx) => {`n    await ctx.answerCbQuery();`n    await showArenasList(ctx);`n  });`n`n  bot.action("admin_panel", async (ctx) => { await ctx.answerCbQuery(); await showAdminMenu(ctx); });
 
   // 🔥 ВСЕ ОБРАБОТЧИКИ ДЛЯ КОСМЕТИКИ
   bot.action("admin_cosmetics", async (ctx) => {
@@ -993,3 +993,4 @@ module.exports = (bot) => {
   });
 
 };
+
