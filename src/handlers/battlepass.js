@@ -22,36 +22,36 @@ function saveUsers(users) {
 const BATTLEPASS = {
   MAX_LEVEL: 30,
   XP_PER_LEVEL: 20,
-  PRICE: 100,
+  PRICE: 300, // 🔥 ПРЕМИУМ ТЕПЕРЬ 300 КРИСТАЛЛОВ
   SEASON_NAME: "🏆 Начало великой истории",
   REWARDS: {
     1: { free: { coins: 20 }, premium: { coins: 50, crystals: 5 } },
     2: { free: { coins: 25 }, premium: { coins: 60 } },
-    3: { free: { jersey: true }, premium: { jersey: true } },
+    3: { free: { jersey: true }, premium: { coins: 100 } }, // 🔥 ВМЕСТО ФОРМЫ - 100 МОНЕТ
     4: { free: { coins: 30 }, premium: { coins: 70, crystals: 5 } },
     5: { free: { crystals: 5 }, premium: { crystals: 10 } },
     6: { free: { coins: 35 }, premium: { coins: 80 } },
     7: { free: { pack: "Базовый" }, premium: { pack: "Премиум" } },
     8: { free: { coins: 40 }, premium: { coins: 90, crystals: 10 } },
-    9: { free: { crystals: 10 }, premium: { arena: true } },
+    9: { free: { crystals: 10 }, premium: { coins: 100 } }, // 🔥 ВМЕСТО АРЕНЫ - 100 МОНЕТ
     10: { free: { coins: 50 }, premium: { coins: 100, crystals: 15 } },
-    11: { free: { jersey: true }, premium: { jersey: true } },
+    11: { free: { jersey: true }, premium: { coins: 100 } }, // 🔥 ВМЕСТО ФОРМЫ - 100 МОНЕТ
     12: { free: { coins: 60 }, premium: { coins: 120, crystals: 5 } },
     13: { free: { crystals: 15 }, premium: { crystals: 25 } },
     14: { free: { coins: 70 }, premium: { coins: 140 } },
     15: { free: { pack: "Премиум" }, premium: { pack: "Легендарный" } },
     16: { free: { coins: 80 }, premium: { coins: 160, crystals: 10 } },
-    17: { free: { arena: true }, premium: { arena: true } },
+    17: { free: { arena: true }, premium: { coins: 100 } }, // 🔥 ВМЕСТО АРЕНЫ - 100 МОНЕТ
     18: { free: { coins: 90 }, premium: { coins: 180, crystals: 15 } },
     19: { free: { crystals: 20 }, premium: { crystals: 30 } },
     20: { free: { coins: 100 }, premium: { coins: 200, crystals: 20 } },
-    21: { free: { jersey: true }, premium: { jersey: true } },
+    21: { free: { jersey: true }, premium: { coins: 100 } }, // 🔥 ВМЕСТО ФОРМЫ - 100 МОНЕТ
     22: { free: { coins: 110 }, premium: { coins: 220, crystals: 10 } },
     23: { free: { crystals: 25 }, premium: { crystals: 35 } },
     24: { free: { coins: 120 }, premium: { coins: 240, crystals: 15 } },
     25: { free: { pack: "Сезонный" }, premium: { pack: "Сезонный", crystals: 50 } },
     26: { free: { coins: 130 }, premium: { coins: 260, crystals: 20 } },
-    27: { free: { arena: true }, premium: { arena: true } },
+    27: { free: { arena: true }, premium: { coins: 100 } }, // 🔥 ВМЕСТО АРЕНЫ - 100 МОНЕТ
     28: { free: { coins: 140 }, premium: { coins: 280, crystals: 25 } },
     29: { free: { crystals: 30 }, premium: { crystals: 40 } },
     30: { 
@@ -146,7 +146,6 @@ function giveReward(data, reward, isPremium = false) {
     rewardText.push("📦 " + rewards.pack + " пак");
   }
   
-  // 🔥 ФОРМЫ - НАВСЕГДА (БЕЗ ВРЕМЕННЫХ)
   if (rewards.jersey) {
     if (!data.jerseys) data.jerseys = [];
     const randomJersey = getRandomJersey();
@@ -155,12 +154,11 @@ function giveReward(data, reward, isPremium = false) {
       name: randomJersey.name, 
       rarity: randomJersey.rarity, 
       emoji: randomJersey.emoji,
-      isTemporary: false  // 🔥 НАВСЕГДА!
+      isTemporary: false
     });
     rewardText.push("🎽 " + randomJersey.name + " (" + randomJersey.rarity + ")");
   }
   
-  // 🔥 АРЕНЫ - НАВСЕГДА (БЕЗ ВРЕМЕННЫХ)
   if (rewards.arena) {
     if (!data.arenas) data.arenas = [];
     const randomArena = getRandomArena();
@@ -169,7 +167,7 @@ function giveReward(data, reward, isPremium = false) {
       name: randomArena.name, 
       rarity: randomArena.rarity, 
       emoji: randomArena.emoji,
-      isTemporary: false  // 🔥 НАВСЕГДА!
+      isTemporary: false
     });
     rewardText.push("🏟️ " + randomArena.name + " (" + randomArena.rarity + ")");
   }
@@ -291,7 +289,7 @@ async function showBattlepass(ctx) {
   if (isPremium) {
     text += "💎 *Премиум активирован!*\n\n";
   } else {
-    text += "💎 Купить премиум за 100 кристаллов\n\n";
+    text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
   }
   
   text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
@@ -339,7 +337,7 @@ async function showBattlepass(ctx) {
   
   const buttons = [];
   if (!isPremium) {
-    buttons.push([Markup.button.callback("💎 Купить премиум (100💎)", "bp_buy")]);
+    buttons.push([Markup.button.callback("💎 Купить премиум (" + BATTLEPASS.PRICE + "💎)", "bp_buy")]);
   }
   buttons.push([Markup.button.callback("🔄 Обновить", "bp_refresh")]);
   buttons.push([Markup.button.callback("🔙 Назад", "back")]);
@@ -365,12 +363,12 @@ async function buyPremium(ctx) {
     return;
   }
   
-  if ((data.crystals || 0) < 100) {
-    await ctx.reply("❌ Недостаточно кристаллов! Нужно 100💎");
+  if ((data.crystals || 0) < BATTLEPASS.PRICE) {
+    await ctx.reply("❌ Недостаточно кристаллов! Нужно " + BATTLEPASS.PRICE + "💎");
     return;
   }
   
-  data.crystals -= 100;
+  data.crystals -= BATTLEPASS.PRICE;
   data.battlepass_premium = 1;
   
   const xp = data.battlepass_xp || 0;
@@ -443,7 +441,6 @@ module.exports = (bot) => {
     await showBattlepass(ctx);
   });
 
-  // 🔥 ОБРАБОТЧИК ДЛЯ ПАКОВ ИЗ БП
   bot.action(/open_bp_pack_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const packType = ctx.match[1];
