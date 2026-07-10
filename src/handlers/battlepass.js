@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - БОЕВОЙ ПРОПУСК
+// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -75,7 +75,6 @@ function getProgress(level) {
   return Math.round((level / 30) * 100);
 }
 
-// 🔥 ПОЛУЧИТЬ РАНДОМНУЮ ФОРМУ
 function getRandomJersey() {
   if (!ALL_JERSEYS || ALL_JERSEYS.length === 0) {
     return { name: "Обычная форма", rarity: "Обычная", emoji: "🎽" };
@@ -84,7 +83,6 @@ function getRandomJersey() {
   return { name: jersey.name, rarity: jersey.rarity, emoji: jersey.emoji || "🎽" };
 }
 
-// 🔥 ПОЛУЧИТЬ РАНДОМНУЮ АРЕНУ
 function getRandomArena() {
   if (!ALL_ARENAS || ALL_ARENAS.length === 0) {
     return { name: "Обычная арена", rarity: "Обычная", emoji: "🏟️" };
@@ -95,24 +93,20 @@ function getRandomArena() {
 
 function giveReward(data, reward, isPremium = false) {
   const rewards = isPremium ? reward.premium : reward.free;
-  if (!rewards) return;
+  if (!rewards) return [];
 
   let rewardText = [];
 
   if (rewards.coins) {
     data.coins = (data.coins || 0) + rewards.coins;
     rewardText.push("⭐ " + rewards.coins + " монет");
-    console.log("  ✅ Монеты: +" + rewards.coins);
   }
   if (rewards.crystals) {
     data.crystals = (data.crystals || 0) + rewards.crystals;
     rewardText.push("💎 " + rewards.crystals + " кристаллов");
-    console.log("  ✅ Кристаллы: +" + rewards.crystals);
   }
   
-  // 🔥 ВЫДАЧА ПАКОВ (НЕ ОТКРЫВАЮТСЯ СРАЗУ)
   if (rewards.pack) {
-    console.log("  📦 Пак: " + rewards.pack);
     if (!data.packs) data.packs = {};
     if (!data.packs[rewards.pack]) data.packs[rewards.pack] = [];
     data.packs[rewards.pack].push({
@@ -120,10 +114,8 @@ function giveReward(data, reward, isPremium = false) {
       obtained: Date.now()
     });
     rewardText.push("📦 " + rewards.pack + " пак (в инвентаре)");
-    console.log("  ✅ Пак добавлен в инвентарь!");
   }
   
-  // 🔥 ВЫДАЧА ФОРМЫ (С КОНКРЕТНЫМ НАЗВАНИЕМ)
   if (rewards.jersey) {
     if (!data.jerseys) data.jerseys = [];
     const randomJersey = getRandomJersey();
@@ -135,10 +127,8 @@ function giveReward(data, reward, isPremium = false) {
       isTemporary: !isPremium 
     });
     rewardText.push("🎽 " + randomJersey.name + " (" + randomJersey.rarity + ")");
-    console.log("  ✅ Форма: " + randomJersey.name + " (" + randomJersey.rarity + ")");
   }
   
-  // 🔥 ВЫДАЧА АРЕНЫ (С КОНКРЕТНЫМ НАЗВАНИЕМ)
   if (rewards.arena) {
     if (!data.arenas) data.arenas = [];
     const randomArena = getRandomArena();
@@ -150,10 +140,8 @@ function giveReward(data, reward, isPremium = false) {
       isTemporary: !isPremium 
     });
     rewardText.push("🏟️ " + randomArena.name + " (" + randomArena.rarity + ")");
-    console.log("  ✅ Арена: " + randomArena.name + " (" + randomArena.rarity + ")");
   }
   
-  // 🔥 ВЫДАЧА КАРТЫ
   if (rewards.card) {
     const cardData = {
       name: rewards.card,
@@ -171,7 +159,6 @@ function giveReward(data, reward, isPremium = false) {
       data.cards.push(cardData);
     }
     rewardText.push("🃏 " + cardData.name + " (" + cardData.overall + " OVR)");
-    console.log("  ✅ Карта: " + cardData.name + " (" + cardData.overall + " OVR)");
   }
   
   return rewardText;
@@ -189,7 +176,6 @@ function autoClaimRewards(data, currentLevel, isPremium = false) {
     const reward = BATTLEPASS.REWARDS[level];
     if (!reward) continue;
     
-    console.log("🎯 Выдача награды за уровень " + level + " (премиум: " + isPremium + ")");
     const rewardText = giveReward(data, reward, isPremium);
     claimed.push(key);
     newRewards++;
