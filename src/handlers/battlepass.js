@@ -1,11 +1,12 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
+// src/handlers/battlepass.js - БОЕВОЙ ПРОПУСК
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 const { getRarityEmoji, getRandomCard } = require('../data/players');
+const { ALL_JERSEYS, ALL_ARENAS } = require('../data/cosmetics');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -26,31 +27,31 @@ const BATTLEPASS = {
   REWARDS: {
     1: { free: { coins: 20 }, premium: { coins: 50, crystals: 5 } },
     2: { free: { coins: 25 }, premium: { coins: 60 } },
-    3: { free: { jersey: "Обычная" }, premium: { jersey: "Обычная" } },
+    3: { free: { jersey: true }, premium: { jersey: true } },
     4: { free: { coins: 30 }, premium: { coins: 70, crystals: 5 } },
     5: { free: { crystals: 5 }, premium: { crystals: 10 } },
     6: { free: { coins: 35 }, premium: { coins: 80 } },
     7: { free: { pack: "Базовый" }, premium: { pack: "Премиум" } },
     8: { free: { coins: 40 }, premium: { coins: 90, crystals: 10 } },
-    9: { free: { crystals: 10 }, premium: { arena: "Обычная" } },
+    9: { free: { crystals: 10 }, premium: { arena: true } },
     10: { free: { coins: 50 }, premium: { coins: 100, crystals: 15 } },
-    11: { free: { jersey: "Редкая" }, premium: { jersey: "Редкая" } },
+    11: { free: { jersey: true }, premium: { jersey: true } },
     12: { free: { coins: 60 }, premium: { coins: 120, crystals: 5 } },
     13: { free: { crystals: 15 }, premium: { crystals: 25 } },
     14: { free: { coins: 70 }, premium: { coins: 140 } },
     15: { free: { pack: "Премиум" }, premium: { pack: "Легендарный" } },
     16: { free: { coins: 80 }, premium: { coins: 160, crystals: 10 } },
-    17: { free: { arena: "Редкая" }, premium: { arena: "Редкая" } },
+    17: { free: { arena: true }, premium: { arena: true } },
     18: { free: { coins: 90 }, premium: { coins: 180, crystals: 15 } },
     19: { free: { crystals: 20 }, premium: { crystals: 30 } },
     20: { free: { coins: 100 }, premium: { coins: 200, crystals: 20 } },
-    21: { free: { jersey: "Эпическая" }, premium: { jersey: "Эпическая" } },
+    21: { free: { jersey: true }, premium: { jersey: true } },
     22: { free: { coins: 110 }, premium: { coins: 220, crystals: 10 } },
     23: { free: { crystals: 25 }, premium: { crystals: 35 } },
     24: { free: { coins: 120 }, premium: { coins: 240, crystals: 15 } },
     25: { free: { pack: "Сезонный" }, premium: { pack: "Сезонный", crystals: 50 } },
     26: { free: { coins: 130 }, premium: { coins: 260, crystals: 20 } },
-    27: { free: { arena: "Эпическая" }, premium: { arena: "Эпическая" } },
+    27: { free: { arena: true }, premium: { arena: true } },
     28: { free: { coins: 140 }, premium: { coins: 280, crystals: 25 } },
     29: { free: { crystals: 30 }, premium: { crystals: 40 } },
     30: { 
@@ -60,9 +61,6 @@ const BATTLEPASS = {
   }
 };
 
-// ============================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ============================================
 function getLevelByXP(xp) {
   let level = 0;
   let remainingXp = xp;
@@ -77,23 +75,42 @@ function getProgress(level) {
   return Math.round((level / 30) * 100);
 }
 
-// ============================================
-// ВЫДАЧА НАГРАДЫ
-// ============================================
+// 🔥 ПОЛУЧИТЬ РАНДОМНУЮ ФОРМУ
+function getRandomJersey() {
+  if (!ALL_JERSEYS || ALL_JERSEYS.length === 0) {
+    return { name: "Обычная форма", rarity: "Обычная", emoji: "🎽" };
+  }
+  const jersey = ALL_JERSEYS[Math.floor(Math.random() * ALL_JERSEYS.length)];
+  return { name: jersey.name, rarity: jersey.rarity, emoji: jersey.emoji || "🎽" };
+}
+
+// 🔥 ПОЛУЧИТЬ РАНДОМНУЮ АРЕНУ
+function getRandomArena() {
+  if (!ALL_ARENAS || ALL_ARENAS.length === 0) {
+    return { name: "Обычная арена", rarity: "Обычная", emoji: "🏟️" };
+  }
+  const arena = ALL_ARENAS[Math.floor(Math.random() * ALL_ARENAS.length)];
+  return { name: arena.name, rarity: arena.rarity, emoji: arena.emoji || "🏟️" };
+}
+
 function giveReward(data, reward, isPremium = false) {
   const rewards = isPremium ? reward.premium : reward.free;
   if (!rewards) return;
 
+  let rewardText = [];
+
   if (rewards.coins) {
     data.coins = (data.coins || 0) + rewards.coins;
+    rewardText.push("⭐ " + rewards.coins + " монет");
     console.log("  ✅ Монеты: +" + rewards.coins);
   }
   if (rewards.crystals) {
     data.crystals = (data.crystals || 0) + rewards.crystals;
+    rewardText.push("💎 " + rewards.crystals + " кристаллов");
     console.log("  ✅ Кристаллы: +" + rewards.crystals);
   }
   
-  // ВЫДАЧА ПАКОВ
+  // 🔥 ВЫДАЧА ПАКОВ (НЕ ОТКРЫВАЮТСЯ СРАЗУ)
   if (rewards.pack) {
     console.log("  📦 Пак: " + rewards.pack);
     if (!data.packs) data.packs = {};
@@ -102,70 +119,41 @@ function giveReward(data, reward, isPremium = false) {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
       obtained: Date.now()
     });
+    rewardText.push("📦 " + rewards.pack + " пак (в инвентаре)");
     console.log("  ✅ Пак добавлен в инвентарь!");
   }
   
-  // ВЫДАЧА КОСМЕТИКИ (рандомная форма или арена)
+  // 🔥 ВЫДАЧА ФОРМЫ (С КОНКРЕТНЫМ НАЗВАНИЕМ)
   if (rewards.jersey) {
     if (!data.jerseys) data.jerseys = [];
-    
-    // 🔥 БЕРЁМ РАНДОМНУЮ ФОРМУ ИЗ ВСЕХ ДОСТУПНЫХ
-    const { ALL_JERSEYS } = require('../data/cosmetics');
-    const allJerseys = ALL_JERSEYS || [];
-    const randomJersey = allJerseys[Math.floor(Math.random() * allJerseys.length)];
-    
-    if (randomJersey) {
-      const jerseyId = "bp_jersey_" + Date.now();
-      data.jerseys.push({ 
-        id: jerseyId, 
-        name: randomJersey.name, 
-        rarity: randomJersey.rarity, 
-        emoji: randomJersey.emoji || "🎽",
-        isTemporary: !isPremium 
-      });
-      console.log("  ✅ Форма: " + randomJersey.name + " (" + randomJersey.rarity + ")");
-    } else {
-      // Если нет форм — даём базовую
-      data.jerseys.push({ 
-        id: "bp_jersey_" + Date.now(), 
-        name: rewards.jersey + " форма", 
-        rarity: rewards.jersey, 
-        emoji: "🎽",
-        isTemporary: !isPremium 
-      });
-    }
+    const randomJersey = getRandomJersey();
+    data.jerseys.push({ 
+      id: "bp_jersey_" + Date.now(), 
+      name: randomJersey.name, 
+      rarity: randomJersey.rarity, 
+      emoji: randomJersey.emoji,
+      isTemporary: !isPremium 
+    });
+    rewardText.push("🎽 " + randomJersey.name + " (" + randomJersey.rarity + ")");
+    console.log("  ✅ Форма: " + randomJersey.name + " (" + randomJersey.rarity + ")");
   }
   
-  // ВЫДАЧА АРЕНЫ (рандомная арена)
+  // 🔥 ВЫДАЧА АРЕНЫ (С КОНКРЕТНЫМ НАЗВАНИЕМ)
   if (rewards.arena) {
     if (!data.arenas) data.arenas = [];
-    
-    const { ALL_ARENAS } = require('../data/cosmetics');
-    const allArenas = ALL_ARENAS || [];
-    const randomArena = allArenas[Math.floor(Math.random() * allArenas.length)];
-    
-    if (randomArena) {
-      const arenaId = "bp_arena_" + Date.now();
-      data.arenas.push({ 
-        id: arenaId, 
-        name: randomArena.name, 
-        rarity: randomArena.rarity, 
-        emoji: randomArena.emoji || "🏟️",
-        isTemporary: !isPremium 
-      });
-      console.log("  ✅ Арена: " + randomArena.name + " (" + randomArena.rarity + ")");
-    } else {
-      data.arenas.push({ 
-        id: "bp_arena_" + Date.now(), 
-        name: rewards.arena + " арена", 
-        rarity: rewards.arena, 
-        emoji: "🏟️",
-        isTemporary: !isPremium 
-      });
-    }
+    const randomArena = getRandomArena();
+    data.arenas.push({ 
+      id: "bp_arena_" + Date.now(), 
+      name: randomArena.name, 
+      rarity: randomArena.rarity, 
+      emoji: randomArena.emoji,
+      isTemporary: !isPremium 
+    });
+    rewardText.push("🏟️ " + randomArena.name + " (" + randomArena.rarity + ")");
+    console.log("  ✅ Арена: " + randomArena.name + " (" + randomArena.rarity + ")");
   }
   
-  // ВЫДАЧА КАРТЫ (Семён Кошелев)
+  // 🔥 ВЫДАЧА КАРТЫ
   if (rewards.card) {
     const cardData = {
       name: rewards.card,
@@ -182,13 +170,13 @@ function giveReward(data, reward, isPremium = false) {
     } else {
       data.cards.push(cardData);
     }
+    rewardText.push("🃏 " + cardData.name + " (" + cardData.overall + " OVR)");
     console.log("  ✅ Карта: " + cardData.name + " (" + cardData.overall + " OVR)");
   }
+  
+  return rewardText;
 }
 
-// ============================================
-// АВТОВЫДАЧА НАГРАД
-// ============================================
 function autoClaimRewards(data, currentLevel, isPremium = false) {
   const claimed = data.claimed_rewards || [];
   let newRewards = 0;
@@ -202,10 +190,10 @@ function autoClaimRewards(data, currentLevel, isPremium = false) {
     if (!reward) continue;
     
     console.log("🎯 Выдача награды за уровень " + level + " (премиум: " + isPremium + ")");
-    giveReward(data, reward, isPremium);
+    const rewardText = giveReward(data, reward, isPremium);
     claimed.push(key);
     newRewards++;
-    rewardList.push({ level, reward, isPremium });
+    rewardList.push({ level, rewardText, isPremium });
   }
   
   data.claimed_rewards = claimed;
@@ -218,9 +206,6 @@ function getLevelStatus(data, level, isPremium = false) {
   return claimed.includes(key);
 }
 
-// ============================================
-// ПОКАЗАТЬ ПРОПУСК
-// ============================================
 async function showBattlepass(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -306,9 +291,6 @@ async function showBattlepass(ctx) {
   });
 }
 
-// ============================================
-// КУПИТЬ ПРЕМИУМ
-// ============================================
 async function buyPremium(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -344,23 +326,15 @@ async function buyPremium(ctx) {
   text += "📋 *Полученные награды:*\n";
   
   result.rewardList.forEach(item => {
-    const reward = item.reward;
-    const parts = [];
-    if (reward.premium.coins) parts.push("⭐ " + reward.premium.coins);
-    if (reward.premium.crystals) parts.push("💎 " + reward.premium.crystals);
-    if (reward.premium.pack) parts.push("📦 " + reward.premium.pack + " пак");
-    if (reward.premium.jersey) parts.push("🎽 Рандомная форма");
-    if (reward.premium.arena) parts.push("🏟️ Рандомная арена");
-    if (reward.premium.card) parts.push("🃏 " + reward.premium.card);
-    text += "  • Уровень " + item.level + ": " + parts.join(", ") + "\n";
+    const rewardText = item.rewardText || [];
+    if (rewardText.length > 0) {
+      text += "  • Уровень " + item.level + ": " + rewardText.join(", ") + "\n";
+    }
   });
   
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
-// ============================================
-// ДОБАВИТЬ XP
-// ============================================
 async function addXP(userId, amount) {
   const users = getUsers();
   const data = users[userId];
