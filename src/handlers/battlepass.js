@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
+// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ ЭКСПОРТ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -402,7 +402,7 @@ async function buyPremium(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
-// ✅ ФУНКЦИЯ ДОБАВЛЕНИЯ XP
+// ✅ ГЛАВНАЯ ФУНКЦИЯ addXP
 async function addXP(userId, amount, ctx = null) {
   console.log('📈 [addXP] Добавляем XP:', userId, '+', amount);
   
@@ -414,7 +414,6 @@ async function addXP(userId, amount, ctx = null) {
     return false;
   }
   
-  // ✅ СОХРАНЯЕМ XP
   const currentXP = data.battlepass_xp || 0;
   data.battlepass_xp = currentXP + amount;
   
@@ -425,7 +424,6 @@ async function addXP(userId, amount, ctx = null) {
   
   console.log('📊 [addXP] Уровни:', oldLevel, '->', newLevel);
   
-  // ✅ АВТОМАТИЧЕСКИ ВЫДАЁМ НАГРАДЫ
   if (newLevel > oldLevel) {
     console.log('🎉 Новый уровень! Выдаём награды...');
     const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0, ctx);
@@ -439,17 +437,22 @@ async function addXP(userId, amount, ctx = null) {
   return true;
 }
 
-// ✅ ЭКСПОРТ
+// ✅ ЭКСПОРТИРУЕМ ВСЁ
 module.exports = {
   addXP,
   XP_PER_MATCH: 20,
   getLevelByXP,
+  getUsers,
+  saveUsers,
   autoClaimRewards,
   showBattlepass,
-  buyPremium
+  buyPremium,
+  BATTLEPASS
 };
 
-// Регистрация обработчиков
+// ============================================
+// РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ БОТА
+// ============================================
 module.exports = (bot) => {
   bot.action("battlepass", async (ctx) => {
     await ctx.answerCbQuery();

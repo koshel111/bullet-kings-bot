@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - ПОЛНАЯ ВЕРСИЯ С ИСПРАВЛЕННЫМ ИМПОРТОМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -19,16 +19,17 @@ function saveUsers(users) {
 
 const matches = {};
 
-// ✅ ПРАВИЛЬНЫЙ ИМПОРТ addXP
-const { addXP } = require('./battlepass');
+// ✅ ПРАВИЛЬНЫЙ ИМПОРТ ИЗ battlepass.js
+const battlepassModule = require('./battlepass');
+const addXP = battlepassModule.addXP;
+const XP_PER_MATCH = battlepassModule.XP_PER_MATCH || 20;
+
+console.log('✅ [game.js] addXP загружен, тип:', typeof addXP);
+console.log('✅ [game.js] XP_PER_MATCH:', XP_PER_MATCH);
 
 // Настройки XP
 const XP_WIN = 1;
 const XP_LOSS = 0;
-
-console.log('✅ addXP загружен:', typeof addXP);
-console.log('✅ XP_WIN:', XP_WIN);
-console.log('✅ XP_LOSS:', XP_LOSS);
 
 function getAIShot(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
@@ -55,7 +56,7 @@ function getAIShot(playerId, difficulty = 1) {
     if (slapCount >= 2) { weights.low += 2; }
   }
   
-  // ✅ РЕАЛЬНЫЕ СЛОЖНОСТИ ИИ
+  // РЕАЛЬНЫЕ СЛОЖНОСТИ ИИ
   const difficultyMultipliers = {
     novice: { factor: 0.4, defense: 1.4, offense: 0.3 },
     amateur: { factor: 0.6, defense: 1.1, offense: 0.5 },
@@ -65,12 +66,10 @@ function getAIShot(playerId, difficulty = 1) {
   
   const config = difficultyMultipliers[difficulty] || difficultyMultipliers.pro;
   
-  // Умножаем веса на сложность
   Object.keys(weights).forEach(key => {
     weights[key] = weights[key] * config.factor;
   });
   
-  // Добавляем вариативность
   Object.keys(weights).forEach(key => {
     weights[key] = weights[key] * (0.8 + Math.random() * 0.4);
   });
@@ -98,7 +97,6 @@ function calculateShot(playerAction, goalieAction, difficulty = 1) {
   const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
   const randomFactor = 0.7 + Math.random() * 0.6;
   
-  // ✅ РЕАЛЬНЫЕ СЛОЖНОСТИ ДЛЯ ЗАЩИТЫ
   const difficultyBonus = {
     novice: 1.4,
     amateur: 1.1,
@@ -137,7 +135,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
   const users = getUsers();
   const data = users[user.id];
   
-  // Если сдался — считаем как поражение
   const isWin = !isForfeit && match.playerScore > match.aiScore;
   
   if (!data) {
@@ -197,7 +194,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
     isForfeit: isForfeit
   };
   
-  // ✅ УДАЛЯЕМ МАТЧ
   delete matches[user.id];
   
   let resultText = '🏁 *МАТЧ ЗАВЕРШЁН!*\n\n';
@@ -581,7 +577,6 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
-    // ✅ ПРОВЕРКА ЗАВЕРШЕНИЯ
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -599,7 +594,6 @@ module.exports = (bot) => {
       console.log('⚡ ОВЕРТАЙМ! Буллиты до гола!');
     }
     
-    // ✅ БУЛЛИТЫ ДО ГОЛА
     if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) {
       match.isFinished = true;
     }
@@ -626,7 +620,6 @@ module.exports = (bot) => {
     await showPlayerSelection(ctx, user, match);
   });
 
-  // ✅ СДАЧА — СЧИТАЕТСЯ КАК ПОРАЖЕНИЕ
   bot.action('forfeit', async (ctx) => {
     console.log('🏳️ [forfeit] Сдача');
     await ctx.answerCbQuery();
@@ -635,7 +628,6 @@ module.exports = (bot) => {
     
     if (match) {
       match.isFinished = true;
-      // ✅ Завершаем матч как поражение
       await finishMatch(ctx, user, match, true);
     } else {
       await ctx.editMessageText('❌ Матч не найден!', {
