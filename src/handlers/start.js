@@ -43,12 +43,20 @@ async function showMainMenu(ctx, bot) {
       claimed_rewards: [],
       lastBonus: null,
       packs: {},
-      seasonal_packs: []
+      seasonal_packs: [],
+      jerseys: [],
+      arenas: []
     };
     saveUsers(users);
   }
   
-  const data = users[user.id];
+  // ✅ ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ДАННЫЕ ИЗ БД
+  const freshUsers = getUsers();
+  const data = freshUsers[user.id] || users[user.id];
+  
+  // ✅ ПОЛУЧАЕМ АКТУАЛЬНЫЙ XP
+  const xp = data.battlepass_xp || 0;
+  const bpLevel = Math.floor(xp / 20);
   
   const text = 
     "🏒 *Добро пожаловать в Bullet Kings!*\n\n" +
@@ -60,6 +68,8 @@ async function showMainMenu(ctx, bot) {
     "💎 Кристаллов: " + data.crystals + "\n" +
     "✅ Побед: " + data.wins + "\n" +
     "📊 Матчей: " + data.matches + "\n" +
+    "🎖️ БП уровень: " + bpLevel + "\n" +
+    "🎖️ XP: " + xp + "\n" +
     "👥 В команде: " + data.team.length + " игроков\n" +
     "📚 Карт: " + data.cards.length + "\n\n" +
     "📋 *Главное меню:*\n\n" +
@@ -95,14 +105,14 @@ module.exports = (bot) => {
     await showMainMenu(ctx, bot);
   });
 
-  bot.action("back", async (ctx) => {
-    await ctx.answerCbQuery();
-    await showMainMenu(ctx, bot);
-  });
+  // ЭКСПОРТИРУЕМ showMainMenu ДЛЯ ИСПОЛЬЗОВАНИЯ В ДРУГИХ МОДУЛЯХ
+  module.exports.showMainMenu = showMainMenu;
 
-  // ОБРАБОТЧИКИ КНОПОК В СООБЩЕНИИ (inline) — остаются
+  // ОБРАБОТЧИК play (дублируется в game.js, но оставляем для совместимости)
   bot.action("play", async (ctx) => {
     await ctx.answerCbQuery();
+    // Этот обработчик переопределён в game.js
+    // Но если его нет - показываем выбор режима
     await ctx.editMessageText(
       "🎮 *Выбери режим:*",
       {
