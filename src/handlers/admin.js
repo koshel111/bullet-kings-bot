@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - АДМИНКА
+// src/handlers/admin.js - С ЗАЩИТОЙ БД
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -17,6 +17,7 @@ const {
   getActiveJerseys,
   getActiveArenas
 } = require('../data/cosmetics');
+const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -31,6 +32,8 @@ function getUsers() {
 }
 
 function saveUsers(users) {
+  // ✅ СОЗДАЁМ БЕКАП ПЕРЕД СОХРАНЕНИЕМ
+  createBackup();
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
@@ -69,7 +72,7 @@ function openPack(packType) {
 }
 
 // ============================================
-// ФУНКЦИИ ДЛЯ НАГРАД (скопированы из battlepass.js)
+// ФУНКЦИИ ДЛЯ НАГРАД
 // ============================================
 function giveReward(data, reward, isPremium = false) {
   const rewards = isPremium ? reward.premium : reward.free;
@@ -464,6 +467,38 @@ async function showArenasList(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
+// ✅ НОВАЯ ФУНКЦИЯ — БЕКАПЫ
+async function showBackupMenu(ctx) {
+  const userId = ctx.from.id;
+  if (!isAdmin(userId)) return;
+  
+  const backups = getBackupList();
+  let text = "💾 *УПРАВЛЕНИЕ БЕКАПАМИ*\n\n";
+  
+  if (backups.length === 0) {
+    text += "❌ Нет сохранённых бекапов\n\n";
+  } else {
+    text += "📋 *Доступные бекапы:*\n";
+    backups.slice(0, 10).forEach((b, i) => {
+      text += `${i+1}. ${b.name}\n   📅 ${b.date} (${b.size})\n`;
+    });
+    text += `\n📊 Всего бекапов: ${backups.length}\n`;
+  }
+  
+  text += "\n*Выбери действие:*";
+  
+  await ctx.reply(text, {
+    parse_mode: "Markdown",
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback("💾 Создать бекап", "admin_backup_create")],
+      [Markup.button.callback("📂 Восстановить последний", "admin_backup_restore")],
+      [Markup.button.callback("🗑️ Очистить БД", "admin_clear_db")],
+      [Markup.button.callback("🔙 Назад", "admin_panel")],
+    ])
+  });
+}
+
+// ✅ ОБНОВЛЁННАЯ АДМИН-ПАНЕЛЬ
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) { await ctx.reply("⛔ Доступ запрещён!"); return; }
@@ -476,6 +511,11 @@ async function showAdminMenu(ctx) {
     totalCoins += data.coins || 0;
     totalCrystals += data.crystals || 0;
   });
+  
+  // Информация о бекапах
+  const backups = getBackupList();
+  const lastBackup = backups.length > 0 ? backups[0].name : 'Нет бекапов';
+  
   const text = 
     "👑 *АДМИН-ПАНЕЛЬ*\n\n" +
     "📊 *СТАТИСТИКА:*\n" +
@@ -483,7 +523,8 @@ async function showAdminMenu(ctx) {
     "📚 Всего карт: " + totalCards + "\n" +
     "⚔️ Матчей: " + totalMatches + "\n" +
     "⭐ Монет в игре: " + totalCoins + "\n" +
-    "💎 Кристаллов: " + totalCrystals + "\n\n" +
+    "💎 Кристаллов: " + totalCrystals + "\n" +
+    "💾 Последний бекап: " + lastBackup + "\n\n" +
     "*Выбери действие:*\n\n" +
     "📋 *Формат команд:*\n" +
     "💰 `coins_ID_СУММА` — монеты\n" +
@@ -495,6 +536,7 @@ async function showAdminMenu(ctx) {
     "💎 `premium_ID` — выдать премиум\n" +
     "📢 `broadcast_ID_сообщение` — рассылка\n\n" +
     "🌐 `all` — вместо ID для всех пользователей";
+  
   await ctx.reply(text, {
     parse_mode: "Markdown",
     ...Markup.inlineKeyboard([
@@ -507,8 +549,8 @@ async function showAdminMenu(ctx) {
       [Markup.button.callback("💎 Премиум пропуска", "admin_premium")],
       [Markup.button.callback("🃏 Все карты", "admin_all_cards")],
       [Markup.button.callback("🏪 Косметика", "admin_cosmetics")],
+      [Markup.button.callback("💾 Бекапы", "admin_backup")],
       [Markup.button.callback("📢 Рассылка", "admin_broadcast")],
-      [Markup.button.callback("🗑️ Очистить БД", "admin_clear_db")],
       [Markup.button.callback("🔙 Главное меню", "back")],
     ])
   });
@@ -557,6 +599,46 @@ module.exports = (bot) => {
     await showArenasList(ctx);
   });
 
+  // ============================================
+  // УПРАВЛЕНИЕ БЕКАПАМИ
+  // ============================================
+  bot.action("admin_backup", async (ctx) => {
+    await ctx.answerCbQuery();
+    await showBackupMenu(ctx);
+  });
+
+  bot.action("admin_backup_create", async (ctx) => {
+    await ctx.answerCbQuery();
+    const backup = createBackup();
+    if (backup) {
+      await ctx.reply(`✅ *Бекап создан!*\n\n📁 ${backup}`, { parse_mode: "Markdown" });
+    } else {
+      await ctx.reply("❌ Ошибка создания бекапа!");
+    }
+    await showBackupMenu(ctx);
+  });
+
+  bot.action("admin_backup_restore", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply("⚠️ *Восстановить последний бекап?*\n\nЭто перезапишет текущую базу данных!", {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("✅ ДА, ВОССТАНОВИТЬ", "admin_confirm_restore")],
+        [Markup.button.callback("❌ НЕТ, ОТМЕНА", "admin_backup")],
+      ])
+    });
+  });
+
+  bot.action("admin_confirm_restore", async (ctx) => {
+    await ctx.answerCbQuery();
+    if (restoreFromBackup()) {
+      await ctx.reply("✅ *База данных восстановлена из последнего бекапа!*", { parse_mode: "Markdown" });
+    } else {
+      await ctx.reply("❌ Ошибка восстановления!");
+    }
+    await showBackupMenu(ctx);
+  });
+
   bot.action("admin_coins", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply("💰 *Выдать монеты*\n\n📋 *Формат:* `coins_ID_СУММА`\n📌 *Пример:* `coins_123456789_500`", { parse_mode: "Markdown" });
@@ -602,14 +684,15 @@ module.exports = (bot) => {
     await ctx.reply("📢 *Рассылка*\n\n📋 *Формат:* `broadcast_ID_сообщение`\n📌 *Пример:* `broadcast_all_Привет_всем!`", { parse_mode: "Markdown" });
   });
 
+  // ✅ ОБНОВЛЁННАЯ ОЧИСТКА БД — С БЕКАПОМ
   bot.action("admin_clear_db", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
-    await ctx.reply("⚠️ *Очистить БД?*", {
+    await ctx.reply("⚠️ *Очистить БД?*\n\nЭто действие создаст бекап перед очисткой!", {
       parse_mode: "Markdown",
       ...Markup.inlineKeyboard([
         [Markup.button.callback("✅ ДА, УДАЛИТЬ", "admin_confirm_clear")],
-        [Markup.button.callback("❌ НЕТ, ОТМЕНА", "admin_panel")],
+        [Markup.button.callback("❌ НЕТ, ОТМЕНА", "admin_backup")],
       ])
     });
   });
@@ -617,18 +700,25 @@ module.exports = (bot) => {
   bot.action("admin_confirm_clear", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
+    
+    // ✅ СОЗДАЁМ БЕКАП ПЕРЕД ОЧИСТКОЙ
+    createBackup();
     saveUsers({});
-    await ctx.editMessageText("✅ База данных очищена!");
+    await ctx.editMessageText("✅ *База данных очищена!*\n\n💾 Бекап создан автоматически.", { parse_mode: "Markdown" });
+    await showBackupMenu(ctx);
   });
 
   // ============================================
-  // ОБРАБОТКА КОМАНД
+  // ОБРАБОТКА КОМАНД (текстовые команды)
   // ============================================
   bot.on("text", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
     const text = ctx.text.trim();
     const parts = text.split("_");
+    
+    // ... (весь остальной код обработки команд остаётся без изменений)
+    // (здесь должны быть все команды из вашего admin.js)
     
     // ПРОПУСК УРОВНЕЙ
     if (text.startsWith("skip_") && parts.length === 3) {
