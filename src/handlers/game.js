@@ -20,8 +20,7 @@ function saveUsers(users) {
 const matches = {};
 
 // ✅ ИМПОРТИРУЕМ addXP
-const battlepass = require('./battlepass');
-const addXP = battlepass.addXP || battlepass.default?.addXP;
+const { addXP } = require('./battlepass');
 
 // ✅ НОВЫЕ НАСТРОЙКИ XP
 const XP_WIN = 1;      // +1 XP за победу

@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ ЭКСПОРТ
+// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -289,7 +289,7 @@ async function showBattlepass(ctx) {
   text += "📊 Уровень: " + level + "/" + maxLevel + "\n";
   text += "🔋 XP: " + xp + " / " + ((level + 1) * 20) + "\n";
   text += "📈 Прогресс: " + progress + "%\n";
-  text += "⚡ 1 матч = 20 XP\n\n";
+  text += "⚡ Победа = 1 XP\n\n";
   
   if (isPremium) {
     text += "💎 *Премиум активирован!*\n\n";
@@ -402,34 +402,44 @@ async function buyPremium(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
-// ✅ ГЛАВНАЯ ФУНКЦИЯ — ЭКСПОРТИРУЕМ
+// ✅ ФУНКЦИЯ ДОБАВЛЕНИЯ XP
 async function addXP(userId, amount, ctx = null) {
-  console.log('📈 [addXP] Добавляем XP:', userId, amount);
+  console.log('📈 [addXP] Добавляем XP:', userId, '+', amount);
+  
   const users = getUsers();
   const data = users[userId];
+  
   if (!data) {
     console.log('❌ [addXP] Пользователь не найден!');
-    return;
+    return false;
   }
   
-  const oldLevel = getLevelByXP(data.battlepass_xp || 0).level;
-  data.battlepass_xp = (data.battlepass_xp || 0) + amount;
+  // ✅ СОХРАНЯЕМ XP
+  const currentXP = data.battlepass_xp || 0;
+  data.battlepass_xp = currentXP + amount;
+  
+  console.log('📊 [addXP] Было:', currentXP, 'Стало:', data.battlepass_xp);
+  
+  const oldLevel = getLevelByXP(currentXP).level;
   const newLevel = getLevelByXP(data.battlepass_xp).level;
   
   console.log('📊 [addXP] Уровни:', oldLevel, '->', newLevel);
   
+  // ✅ АВТОМАТИЧЕСКИ ВЫДАЁМ НАГРАДЫ
   if (newLevel > oldLevel) {
+    console.log('🎉 Новый уровень! Выдаём награды...');
     const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0, ctx);
     if (result.newRewards > 0) {
-      console.log("🎉 Новые награды: " + result.newRewards + " шт.");
+      console.log('🎉 Выдано наград:', result.newRewards);
     }
   }
   
   saveUsers(users);
-  console.log('✅ [addXP] XP добавлен!');
+  console.log('✅ [addXP] XP сохранён!');
+  return true;
 }
 
-// ✅ ЭКСПОРТИРУЕМ ВСЁ
+// ✅ ЭКСПОРТ
 module.exports = {
   addXP,
   XP_PER_MATCH: 20,
@@ -439,7 +449,7 @@ module.exports = {
   buyPremium
 };
 
-// Регистрация обработчиков бота
+// Регистрация обработчиков
 module.exports = (bot) => {
   bot.action("battlepass", async (ctx) => {
     await ctx.answerCbQuery();
