@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ПОЛНЫЙ ФАЙЛ
+// src/handlers/battlepass.js - С ПРИНУДИТЕЛЬНЫМ ЧТЕНИЕМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -10,7 +10,7 @@ const { ALL_JERSEYS, ALL_ARENAS } = require('../data/cosmetics');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-// ФУНКЦИЯ ДЛЯ ПРЯМОГО ЧТЕНИЯ ИЗ ФАЙЛА (без кэша)
+// ✅ ФУНКЦИЯ ДЛЯ ПРЯМОГО ЧТЕНИЯ ИЗ ФАЙЛА (без кэша)
 function getUsersDirect() {
   try {
     if (!fs.existsSync(DB_PATH)) return {};
@@ -275,11 +275,11 @@ function getLevelStatus(data, level, isPremium = false) {
   return claimed.includes(key);
 }
 
-// ОСНОВНАЯ ФУНКЦИЯ ПОКАЗА БОЕВОГО ПРОПУСКА
+// ✅ ОСНОВНАЯ ФУНКЦИЯ ПОКАЗА БОЕВОГО ПРОПУСКА (с принудительным чтением)
 async function showBattlepass(ctx) {
   const userId = ctx.from.id;
   
-  // ПРИНУДИТЕЛЬНО ЧИТАЕМ ДАННЫЕ ИЗ ФАЙЛА (без кэша)
+  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ ДАННЫЕ ИЗ ФАЙЛА (без кэша)
   const users = getUsersDirect();
   const data = users[userId];
   
@@ -288,18 +288,18 @@ async function showBattlepass(ctx) {
     return;
   }
   
-  // БЕРЁМ АКТУАЛЬНЫЙ XP
+  // ✅ БЕРЁМ АКТУАЛЬНЫЙ XP
   const xp = data.battlepass_xp || 0;
   const { level } = getLevelByXP(xp);
   const progress = getProgress(level);
   const isPremium = data.battlepass_premium || 0;
   const maxLevel = 30;
   
-  // СЛЕДУЮЩИЙ УРОВЕНЬ
+  // ✅ СЛЕДУЮЩИЙ УРОВЕНЬ
   const nextLevelXP = (level + 1) * 20;
   const xpToNext = Math.min(nextLevelXP - xp, 20);
   
-  // ПРОГРЕСС-БАР
+  // ✅ ПРОГРЕСС-БАР
   const progressBarLength = 10;
   const currentLevelProgress = xp % 20;
   const filledBars = Math.floor((currentLevelProgress / 20) * progressBarLength);
@@ -312,7 +312,7 @@ async function showBattlepass(ctx) {
   text += "🔋 XP: " + xp + " / " + nextLevelXP + "\n";
   text += "📈 Прогресс: " + progress + "%\n";
   text += "📊 " + progressBar + "\n";
-  text += "⚡ Победа = 1 XP\n";
+  text += "⚡ Победа = 1-3 XP (зависит от сложности)\n";
   text += "🎯 До следующего уровня: " + xpToNext + " XP\n\n";
   
   if (isPremium) {
@@ -321,7 +321,6 @@ async function showBattlepass(ctx) {
     text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
   }
   
-  // ПОКАЗЫВАЕМ ВСЕ УРОВНИ
   text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
   
   for (let i = 1; i <= maxLevel; i++) {
@@ -434,16 +433,13 @@ async function buyPremium(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
-// ФУНКЦИЯ ДОБАВЛЕНИЯ XP С РАСШИРЕННЫМ ЛОГИРОВАНИЕМ
+// ✅ ФУНКЦИЯ ДОБАВЛЕНИЯ XP (уже есть в xp.js, но дублируем для совместимости)
 async function addXP(userId, amount, ctx = null) {
   console.log('📈 [addXP] ===== НАЧАЛО =====');
   console.log('📈 [addXP] Добавляем XP:', userId, '+', amount);
   
   try {
-    // ЧИТАЕМ СВЕЖИЕ ДАННЫЕ
     const users = getUsersDirect();
-    console.log('📈 [addXP] БД прочитана, пользователей:', Object.keys(users).length);
-    
     const data = users[userId];
     
     if (!data) {
@@ -452,8 +448,6 @@ async function addXP(userId, amount, ctx = null) {
     }
     
     const currentXP = data.battlepass_xp || 0;
-    console.log('📈 [addXP] Текущий XP до добавления:', currentXP);
-    
     data.battlepass_xp = currentXP + amount;
     
     console.log('📊 [addXP] Было:', currentXP, 'Стало:', data.battlepass_xp);
@@ -466,12 +460,9 @@ async function addXP(userId, amount, ctx = null) {
     if (newLevel > oldLevel) {
       console.log('🎉 Новый уровень! Выдаём награды...');
       const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0, ctx);
-      if (result.newRewards > 0) {
-        console.log('🎉 Выдано наград:', result.newRewards);
-      }
+      console.log('🎉 Выдано наград:', result.newRewards);
     }
     
-    // СОХРАНЯЕМ
     saveUsers(users);
     console.log('✅ [addXP] XP сохранён!');
     console.log('✅ [addXP] Итоговый XP в БД:', data.battlepass_xp);
@@ -483,7 +474,7 @@ async function addXP(userId, amount, ctx = null) {
   }
 }
 
-// ЭКСПОРТ
+// ✅ ЭКСПОРТ
 module.exports = {
   addXP,
   XP_PER_MATCH: 20,

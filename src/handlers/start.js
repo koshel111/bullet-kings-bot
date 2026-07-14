@@ -9,12 +9,19 @@ const path = require('path');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-function getUsers() {
-  if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify({}));
+// ✅ ФУНКЦИЯ ДЛЯ ПРЯМОГО ЧТЕНИЯ ИЗ ФАЙЛА (без кэша)
+function getUsersDirect() {
+  try {
+    if (!fs.existsSync(DB_PATH)) {
+      fs.writeFileSync(DB_PATH, JSON.stringify({}));
+      return {};
+    }
+    const data = fs.readFileSync(DB_PATH, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('❌ Ошибка чтения БД:', error);
     return {};
   }
-  return JSON.parse(fs.readFileSync(DB_PATH));
 }
 
 function saveUsers(users) {
@@ -23,7 +30,9 @@ function saveUsers(users) {
 
 async function showMainMenu(ctx, bot) {
   const user = ctx.from;
-  const users = getUsers();
+  
+  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ СВЕЖИЕ ДАННЫЕ ИЗ ФАЙЛА
+  const users = getUsersDirect();
   
   if (!users[user.id]) {
     users[user.id] = {
@@ -50,13 +59,21 @@ async function showMainMenu(ctx, bot) {
     saveUsers(users);
   }
   
-  // ✅ ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ДАННЫЕ ИЗ БД
-  const freshUsers = getUsers();
-  const data = freshUsers[user.id] || users[user.id];
+  // ✅ БЕРЁМ АКТУАЛЬНЫЕ ДАННЫЕ
+  const data = users[user.id];
   
   // ✅ ПОЛУЧАЕМ АКТУАЛЬНЫЙ XP
   const xp = data.battlepass_xp || 0;
   const bpLevel = Math.floor(xp / 20);
+  const nextLevelXP = (bpLevel + 1) * 20;
+  const xpToNext = Math.min(nextLevelXP - xp, 20);
+  
+  // ✅ ПРОГРЕСС-БАР XP
+  const progressBarLength = 10;
+  const currentLevelProgress = xp % 20;
+  const filledBars = Math.floor((currentLevelProgress / 20) * progressBarLength);
+  const emptyBars = progressBarLength - filledBars;
+  const progressBar = '▓'.repeat(filledBars) + '░'.repeat(emptyBars);
   
   const text = 
     "🏒 *Добро пожаловать в Bullet Kings!*\n\n" +
@@ -68,8 +85,10 @@ async function showMainMenu(ctx, bot) {
     "💎 Кристаллов: " + data.crystals + "\n" +
     "✅ Побед: " + data.wins + "\n" +
     "📊 Матчей: " + data.matches + "\n" +
-    "🎖️ БП уровень: " + bpLevel + "\n" +
-    "🎖️ XP: " + xp + "\n" +
+    "🎖️ БП уровень: " + bpLevel + "/30\n" +
+    "🎖️ XP: " + xp + " / " + nextLevelXP + "\n" +
+    "📊 " + progressBar + "\n" +
+    "🎯 До следующего уровня: " + xpToNext + " XP\n" +
     "👥 В команде: " + data.team.length + " игроков\n" +
     "📚 Карт: " + data.cards.length + "\n\n" +
     "📋 *Главное меню:*\n\n" +
@@ -108,11 +127,8 @@ module.exports = (bot) => {
   // ЭКСПОРТИРУЕМ showMainMenu ДЛЯ ИСПОЛЬЗОВАНИЯ В ДРУГИХ МОДУЛЯХ
   module.exports.showMainMenu = showMainMenu;
 
-  // ОБРАБОТЧИК play (дублируется в game.js, но оставляем для совместимости)
   bot.action("play", async (ctx) => {
     await ctx.answerCbQuery();
-    // Этот обработчик переопределён в game.js
-    // Но если его нет - показываем выбор режима
     await ctx.editMessageText(
       "🎮 *Выбери режим:*",
       {
