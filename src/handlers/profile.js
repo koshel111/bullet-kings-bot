@@ -321,6 +321,7 @@ async function saveTeam(ctx) {
   );
 }
 
+// ✅ ИСПРАВЛЕННАЯ ФУНКЦИЯ — ПОКАЗЫВАЕМ ТОЛЬКО СВОБОДНЫХ ИГРОКОВ
 async function showPlayersForSlot(ctx, slotType) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -328,25 +329,29 @@ async function showPlayersForSlot(ctx, slotType) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
-  let available = [];
+  let allAvailable = [];
   let slotName = '';
   
   if (slotType === 'goalie') {
-    available = allCards.filter(c => c.position === 'G');
+    allAvailable = allCards.filter(c => c.position === 'G');
     slotName = 'вратаря';
   } else {
-    available = allCards.filter(c => c.position !== 'G');
+    allAvailable = allCards.filter(c => c.position !== 'G');
     slotName = `слот ${parseInt(slotType) + 1}`;
   }
   
-  // ✅ СОЗДАЁМ МАССИВ ID ИГРОКОВ В СОСТАВЕ
+  // ✅ ФИЛЬТРУЕМ — ПОКАЗЫВАЕМ ТОЛЬКО ИГРОКОВ, КОТОРЫХ НЕТ В СОСТАВЕ
   const teamIds = currentTeam.map(p => p.id);
+  const available = allAvailable.filter(player => !teamIds.includes(player.id));
   
   let text = `📋 *Выбери игрока для ${slotName}:*\n\n`;
   
   if (available.length === 0) {
     text += '❌ Нет доступных игроков!\n';
-    text += 'Открой паки в магазине 🛒';
+    text += '💡 Все твои карты уже в составе или у тебя нет подходящих игроков.\n\n';
+    text += '📌 *Что делать?*\n';
+    text += '1. Убери кого-то из состава (кнопка "Убрать игрока")\n';
+    text += '2. Открой новые паки в магазине 🛒';
     
     await ctx.editMessageText(text, {
       parse_mode: 'Markdown',
@@ -360,32 +365,20 @@ async function showPlayersForSlot(ctx, slotType) {
   
   const buttons = [];
   
-  // ✅ СОРТИРУЕМ: сначала те, кто НЕ в составе (➕), потом те, кто в составе (✅)
-  const sortedAvailable = [...available].sort((a, b) => {
-    const aInTeam = teamIds.includes(a.id);
-    const bInTeam = teamIds.includes(b.id);
-    if (aInTeam && !bInTeam) return 1;
-    if (!aInTeam && bInTeam) return -1;
-    return 0;
-  });
-  
-  sortedAvailable.forEach((player, index) => {
+  available.forEach((player, index) => {
     const emoji = getRarityEmoji(player.rarity);
     const posEmoji = getPositionEmoji(player.position);
     const posName = getPositionName(player.position);
-    const inTeam = teamIds.includes(player.id);
-    const mark = inTeam ? '✅' : '➕';
-    const status = inTeam ? ' (в составе)' : '';
     
-    text += `${index + 1}. ${mark} ${posEmoji} ${emoji} ${player.name} - ${posName} (${player.overall} OVR)${status}\n`;
+    text += `${index + 1}. ➕ ${posEmoji} ${emoji} ${player.name} - ${posName} (${player.overall} OVR)\n`;
     buttons.push([Markup.button.callback(
-      `${inTeam ? '✅' : '➕'} ${player.name}`, 
+      `➕ ${player.name}`, 
       `pick_player_${slotType}_${index}`
     )]);
   });
   
-  text += '\n✅ — уже в составе, ➕ — можно добавить';
-  text += '\n\n💡 *Важно:* Если игрок уже в составе, он будет заменён на нового.';
+  text += '\n➕ — свободный игрок, можно добавить в состав';
+  text += `\n📊 Всего свободных игроков: ${available.length}`;
   buttons.push([Markup.button.callback('🔙 Назад', 'edit_team')]);
   
   await ctx.editMessageText(text, {
@@ -416,12 +409,9 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
     return;
   }
   
-  // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ ИГРОК УЖЕ В СОСТАВЕ (по полному совпадению id)
+  // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ ИГРОК УЖЕ В СОСТАВЕ
   const teamIds = currentTeam.map(p => p.id);
-  const isInTeam = teamIds.includes(player.id);
-  
-  // ✅ ЕСЛИ ИГРОК УЖЕ В СОСТАВЕ — ПРЕДУПРЕЖДАЕМ И НЕ ДОБАВЛЯЕМ
-  if (isInTeam) {
+  if (teamIds.includes(player.id)) {
     await ctx.answerCbQuery(`❌ ${player.name} уже в составе!`);
     await ctx.editMessageText(
       `❌ *Игрок уже в составе!*\n\n${getRarityEmoji(player.rarity)} ${player.name} (${player.overall} OVR) уже есть в твоей команде.\n\n💡 Используй "Убрать игрока", чтобы удалить его из состава.`,
