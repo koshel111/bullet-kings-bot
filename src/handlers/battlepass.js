@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ГАРАНТИРОВАННАЯ ВЕРСИЯ
+// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ ЭКСПОРТ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -137,24 +137,18 @@ function giveReward(data, reward, isPremium = false) {
     rewardText.push("💎 " + rewards.crystals + " кристаллов");
   }
   
-  // ГАРАНТИРОВАННАЯ ВЫДАЧА ПАКОВ
   if (rewards.pack) {
-    console.log("📦 ВЫДАЁМ ПАК: " + rewards.pack);
-    
     if (!data.packs) {
       data.packs = {};
     }
     if (!data.packs[rewards.pack]) {
       data.packs[rewards.pack] = [];
     }
-    
     data.packs[rewards.pack].push({
       id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
       obtained: Date.now()
     });
-    
     rewardText.push("📦 " + rewards.pack + " пак");
-    console.log("  ✅ Пак добавлен в инвентарь! Всего: " + data.packs[rewards.pack].length);
   }
   
   if (rewards.jersey) {
@@ -225,7 +219,6 @@ async function sendPackNotification(ctx, userId, packType) {
         [Markup.button.callback("📦 Открыть пак", "open_bp_pack_" + packType + "_" + userId)]
       ])
     });
-    console.log("  ✅ Уведомление о паке отправлено");
   } catch (e) {
     console.log("❌ Не удалось отправить уведомление о паке:", e.message);
   }
@@ -244,7 +237,6 @@ function autoClaimRewards(data, currentLevel, isPremium = false, ctx = null) {
     const reward = BATTLEPASS.REWARDS[level];
     if (!reward) continue;
     
-    console.log("🎯 Уровень " + level + " (премиум: " + isPremium + ")");
     const rewardText = giveReward(data, reward, isPremium);
     claimed.push(key);
     newRewards++;
@@ -259,7 +251,6 @@ function autoClaimRewards(data, currentLevel, isPremium = false, ctx = null) {
   data.claimed_rewards = claimed;
   
   if (ctx && packNotifications.length > 0) {
-    console.log("📦 Отправляем уведомления о " + packNotifications.length + " паках");
     setTimeout(async () => {
       for (const notif of packNotifications) {
         await sendPackNotification(ctx, ctx.from.id, notif.packType);
@@ -411,14 +402,21 @@ async function buyPremium(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
+// ✅ ГЛАВНАЯ ФУНКЦИЯ — ЭКСПОРТИРУЕМ
 async function addXP(userId, amount, ctx = null) {
+  console.log('📈 [addXP] Добавляем XP:', userId, amount);
   const users = getUsers();
   const data = users[userId];
-  if (!data) return;
+  if (!data) {
+    console.log('❌ [addXP] Пользователь не найден!');
+    return;
+  }
   
   const oldLevel = getLevelByXP(data.battlepass_xp || 0).level;
   data.battlepass_xp = (data.battlepass_xp || 0) + amount;
   const newLevel = getLevelByXP(data.battlepass_xp).level;
+  
+  console.log('📊 [addXP] Уровни:', oldLevel, '->', newLevel);
   
   if (newLevel > oldLevel) {
     const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0, ctx);
@@ -428,8 +426,10 @@ async function addXP(userId, amount, ctx = null) {
   }
   
   saveUsers(users);
+  console.log('✅ [addXP] XP добавлен!');
 }
 
+// ✅ ЭКСПОРТИРУЕМ ВСЁ
 module.exports = {
   addXP,
   XP_PER_MATCH: 20,
@@ -439,6 +439,7 @@ module.exports = {
   buyPremium
 };
 
+// Регистрация обработчиков бота
 module.exports = (bot) => {
   bot.action("battlepass", async (ctx) => {
     await ctx.answerCbQuery();
