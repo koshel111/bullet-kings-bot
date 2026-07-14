@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - С ПРИНУДИТЕЛЬНЫМ ОБНОВЛЕНИЕМ
+// src/handlers/battlepass.js - ПОЛНЫЙ ФАЙЛ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -10,7 +10,7 @@ const { ALL_JERSEYS, ALL_ARENAS } = require('../data/cosmetics');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-// ✅ ФУНКЦИЯ ДЛЯ ПРЯМОГО ЧТЕНИЯ ИЗ ФАЙЛА (без кэша)
+// ФУНКЦИЯ ДЛЯ ПРЯМОГО ЧТЕНИЯ ИЗ ФАЙЛА (без кэша)
 function getUsersDirect() {
   try {
     if (!fs.existsSync(DB_PATH)) return {};
@@ -275,11 +275,11 @@ function getLevelStatus(data, level, isPremium = false) {
   return claimed.includes(key);
 }
 
-// ✅ ОСНОВНАЯ ФУНКЦИЯ ПОКАЗА БОЕВОГО ПРОПУСКА
+// ОСНОВНАЯ ФУНКЦИЯ ПОКАЗА БОЕВОГО ПРОПУСКА
 async function showBattlepass(ctx) {
   const userId = ctx.from.id;
   
-  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ ДАННЫЕ ИЗ ФАЙЛА (без кэша)
+  // ПРИНУДИТЕЛЬНО ЧИТАЕМ ДАННЫЕ ИЗ ФАЙЛА (без кэша)
   const users = getUsersDirect();
   const data = users[userId];
   
@@ -288,18 +288,18 @@ async function showBattlepass(ctx) {
     return;
   }
   
-  // ✅ БЕРЁМ АКТУАЛЬНЫЙ XP
+  // БЕРЁМ АКТУАЛЬНЫЙ XP
   const xp = data.battlepass_xp || 0;
   const { level } = getLevelByXP(xp);
   const progress = getProgress(level);
   const isPremium = data.battlepass_premium || 0;
   const maxLevel = 30;
   
-  // ✅ СЛЕДУЮЩИЙ УРОВЕНЬ
+  // СЛЕДУЮЩИЙ УРОВЕНЬ
   const nextLevelXP = (level + 1) * 20;
   const xpToNext = Math.min(nextLevelXP - xp, 20);
   
-  // ✅ ПРОГРЕСС-БАР
+  // ПРОГРЕСС-БАР
   const progressBarLength = 10;
   const currentLevelProgress = xp % 20;
   const filledBars = Math.floor((currentLevelProgress / 20) * progressBarLength);
@@ -321,7 +321,7 @@ async function showBattlepass(ctx) {
     text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
   }
   
-  // ✅ ПОКАЗЫВАЕМ ВСЕ УРОВНИ
+  // ПОКАЗЫВАЕМ ВСЕ УРОВНИ
   text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
   
   for (let i = 1; i <= maxLevel; i++) {
@@ -333,7 +333,6 @@ async function showBattlepass(ctx) {
     const premiumClaimed = getLevelStatus(data, i, true);
     
     const statusIcon = isUnlocked ? (freeClaimed ? "✅" : "🔓") : "🔒";
-    const premiumIcon = isUnlocked && isPremium ? (premiumClaimed ? "✅" : "🔓") : "🔒";
     
     text += statusIcon + " *Уровень " + i + "*";
     if (i === level + 1) text += " ⬅️ СЛЕДУЮЩИЙ";
@@ -435,44 +434,56 @@ async function buyPremium(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
-// ✅ ФУНКЦИЯ ДОБАВЛЕНИЯ XP
+// ФУНКЦИЯ ДОБАВЛЕНИЯ XP С РАСШИРЕННЫМ ЛОГИРОВАНИЕМ
 async function addXP(userId, amount, ctx = null) {
+  console.log('📈 [addXP] ===== НАЧАЛО =====');
   console.log('📈 [addXP] Добавляем XP:', userId, '+', amount);
   
-  // ✅ ЧИТАЕМ СВЕЖИЕ ДАННЫЕ
-  const users = getUsersDirect();
-  const data = users[userId];
-  
-  if (!data) {
-    console.log('❌ [addXP] Пользователь не найден!');
+  try {
+    // ЧИТАЕМ СВЕЖИЕ ДАННЫЕ
+    const users = getUsersDirect();
+    console.log('📈 [addXP] БД прочитана, пользователей:', Object.keys(users).length);
+    
+    const data = users[userId];
+    
+    if (!data) {
+      console.log('❌ [addXP] Пользователь не найден!');
+      return false;
+    }
+    
+    const currentXP = data.battlepass_xp || 0;
+    console.log('📈 [addXP] Текущий XP до добавления:', currentXP);
+    
+    data.battlepass_xp = currentXP + amount;
+    
+    console.log('📊 [addXP] Было:', currentXP, 'Стало:', data.battlepass_xp);
+    
+    const oldLevel = getLevelByXP(currentXP).level;
+    const newLevel = getLevelByXP(data.battlepass_xp).level;
+    
+    console.log('📊 [addXP] Уровни:', oldLevel, '->', newLevel);
+    
+    if (newLevel > oldLevel) {
+      console.log('🎉 Новый уровень! Выдаём награды...');
+      const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0, ctx);
+      if (result.newRewards > 0) {
+        console.log('🎉 Выдано наград:', result.newRewards);
+      }
+    }
+    
+    // СОХРАНЯЕМ
+    saveUsers(users);
+    console.log('✅ [addXP] XP сохранён!');
+    console.log('✅ [addXP] Итоговый XP в БД:', data.battlepass_xp);
+    console.log('📈 [addXP] ===== КОНЕЦ =====');
+    return true;
+  } catch (error) {
+    console.error('❌ [addXP] Ошибка:', error);
     return false;
   }
-  
-  const currentXP = data.battlepass_xp || 0;
-  data.battlepass_xp = currentXP + amount;
-  
-  console.log('📊 [addXP] Было:', currentXP, 'Стало:', data.battlepass_xp);
-  
-  const oldLevel = getLevelByXP(currentXP).level;
-  const newLevel = getLevelByXP(data.battlepass_xp).level;
-  
-  console.log('📊 [addXP] Уровни:', oldLevel, '->', newLevel);
-  
-  if (newLevel > oldLevel) {
-    console.log('🎉 Новый уровень! Выдаём награды...');
-    const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0, ctx);
-    if (result.newRewards > 0) {
-      console.log('🎉 Выдано наград:', result.newRewards);
-    }
-  }
-  
-  // ✅ СОХРАНЯЕМ
-  saveUsers(users);
-  console.log('✅ [addXP] XP сохранён! Текущий XP:', data.battlepass_xp);
-  return true;
 }
 
-// ✅ ЭКСПОРТ
+// ЭКСПОРТ
 module.exports = {
   addXP,
   XP_PER_MATCH: 20,

@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННЫЙ
+// src/handlers/profile.js - ПОЛНЫЙ ФАЙЛ (ЧАСТЬ 1)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -320,8 +320,11 @@ async function saveTeam(ctx) {
     }
   );
 }
+// ============================================
+// src/handlers/profile.js - ПОЛНЫЙ ФАЙЛ (ЧАСТЬ 2)
+// ============================================
 
-// ✅ ИСПРАВЛЕННАЯ ФУНКЦИЯ — ПОКАЗЫВАЕМ ТОЛЬКО СВОБОДНЫХ ИГРОКОВ
+// ПОКАЗЫВАЕМ ТОЛЬКО СВОБОДНЫХ ИГРОКОВ
 async function showPlayersForSlot(ctx, slotType) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -340,7 +343,7 @@ async function showPlayersForSlot(ctx, slotType) {
     slotName = `слот ${parseInt(slotType) + 1}`;
   }
   
-  // ✅ ФИЛЬТРУЕМ — ПОКАЗЫВАЕМ ТОЛЬКО ИГРОКОВ, КОТОРЫХ НЕТ В СОСТАВЕ
+  // ФИЛЬТРУЕМ — ПОКАЗЫВАЕМ ТОЛЬКО ИГРОКОВ, КОТОРЫХ НЕТ В СОСТАВЕ
   const teamIds = currentTeam.map(p => p.id);
   const available = allAvailable.filter(player => !teamIds.includes(player.id));
   
@@ -394,7 +397,7 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
-  // ✅ ПОЛУЧАЕМ ИГРОКА
+  // ПОЛУЧАЕМ ИГРОКА
   let player;
   if (slotType === 'goalie') {
     const goalies = allCards.filter(c => c.position === 'G');
@@ -409,7 +412,7 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
     return;
   }
   
-  // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ ИГРОК УЖЕ В СОСТАВЕ
+  // ПРОВЕРЯЕМ, ЕСТЬ ЛИ ИГРОК УЖЕ В СОСТАВЕ
   const teamIds = currentTeam.map(p => p.id);
   if (teamIds.includes(player.id)) {
     await ctx.answerCbQuery(`❌ ${player.name} уже в составе!`);
@@ -426,9 +429,20 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
   }
   
   if (slotType === 'goalie') {
-    // Для вратаря — проверяем, есть ли уже вратарь
-    if (currentTeam.some(p => p.position === 'G')) {
-      await ctx.editMessageText('❌ Вратарь уже выбран! Сначала убери текущего вратаря.');
+    // ДЛЯ ВРАТАРЯ — ПРОВЕРЯЕМ, ЕСТЬ ЛИ УЖЕ ВРАТАРЬ
+    const existingGoalie = currentTeam.find(p => p.position === 'G');
+    if (existingGoalie) {
+      // ЕСЛИ ВРАТАРЬ ЕСТЬ — ПРЕДЛАГАЕМ ЗАМЕНИТЬ
+      await ctx.editMessageText(
+        `❌ *Вратарь уже выбран!*\n\n🧤 Текущий вратарь: ${getRarityEmoji(existingGoalie.rarity)} ${existingGoalie.name} (${existingGoalie.overall} OVR)\n\n💡 Сначала убери текущего вратаря через "Убрать игрока", затем добавь нового.`,
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Убрать вратаря', 'remove_goalie')],
+            [Markup.button.callback('🔙 Назад', 'edit_team')]
+          ])
+        }
+      );
       return;
     }
     
