@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ ЭКСПОРТ
+// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -268,8 +268,11 @@ function getLevelStatus(data, level, isPremium = false) {
   return claimed.includes(key);
 }
 
+// ✅ ОСНОВНАЯ ФУНКЦИЯ ПОКАЗА БОЕВОГО ПРОПУСКА
 async function showBattlepass(ctx) {
   const userId = ctx.from.id;
+  
+  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ СВЕЖИЕ ДАННЫЕ ИЗ БД
   const users = getUsers();
   const data = users[userId];
   
@@ -278,18 +281,24 @@ async function showBattlepass(ctx) {
     return;
   }
   
+  // ✅ БЕРЁМ АКТУАЛЬНЫЙ XP
   const xp = data.battlepass_xp || 0;
   const { level } = getLevelByXP(xp);
   const progress = getProgress(level);
   const isPremium = data.battlepass_premium || 0;
   const maxLevel = 30;
   
+  // ✅ СЛЕДУЮЩИЙ УРОВЕНЬ
+  const nextLevelXP = (level + 1) * 20;
+  const xpToNext = Math.min(nextLevelXP - xp, 20);
+  
   let text = "🎖️ *БОЕВОЙ ПРОПУСК*\n\n";
   text += "🏆 " + BATTLEPASS.SEASON_NAME + "\n\n";
   text += "📊 Уровень: " + level + "/" + maxLevel + "\n";
-  text += "🔋 XP: " + xp + " / " + ((level + 1) * 20) + "\n";
+  text += "🔋 XP: " + xp + " / " + nextLevelXP + "\n";
   text += "📈 Прогресс: " + progress + "%\n";
-  text += "⚡ Победа = 1 XP\n\n";
+  text += "⚡ Победа = 1 XP\n";
+  text += "🎯 До следующего уровня: " + xpToNext + " XP\n\n";
   
   if (isPremium) {
     text += "💎 *Премиум активирован!*\n\n";
@@ -297,19 +306,25 @@ async function showBattlepass(ctx) {
     text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
   }
   
-  text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
+  // ✅ ПОКАЗЫВАЕМ ПОСЛЕДНИЕ 5 УРОВНЕЙ
+  text += "📋 *БЛИЖАЙШИЕ НАГРАДЫ:*\n\n";
+  const startLevel = Math.max(1, level);
+  const endLevel = Math.min(level + 5, maxLevel);
   
-  for (let i = 1; i <= maxLevel; i++) {
+  for (let i = startLevel; i <= endLevel; i++) {
     const reward = BATTLEPASS.REWARDS[i];
     if (!reward) continue;
     
     const freeClaimed = getLevelStatus(data, i, false);
     const premiumClaimed = getLevelStatus(data, i, true);
     
-    const freeCheck = freeClaimed ? "✅" : "⬜";
-    const premiumCheck = premiumClaimed ? "✅" : "⬜";
+    const freeCheck = freeClaimed ? "✅" : (i <= level ? "🔒" : "⬜");
+    const premiumCheck = premiumClaimed ? "✅" : (i <= level && isPremium ? "🔒" : "⬜");
     
-    text += "📍 *Уровень " + i + "*\n";
+    text += "📍 *Уровень " + i + "*";
+    if (i <= level) text += " ✅ ДОСТУПЕН";
+    else text += " 🔒 ЗАБЛОКИРОВАН";
+    text += "\n";
     
     if (reward.free) {
       text += freeCheck + " 🆓 Бесплатный: ";
@@ -318,8 +333,8 @@ async function showBattlepass(ctx) {
       if (free.coins) parts.push("⭐ " + free.coins);
       if (free.crystals) parts.push("💎 " + free.crystals);
       if (free.pack) parts.push("📦 " + free.pack + " пак");
-      if (free.jersey) parts.push("🎽 Форма (навсегда)");
-      if (free.arena) parts.push("🏟️ Арена (навсегда)");
+      if (free.jersey) parts.push("🎽 Форма");
+      if (free.arena) parts.push("🏟️ Арена");
       if (free.card) parts.push("🃏 " + free.card + " (" + (free.overall || 93) + " OVR)");
       text += parts.join(", ") + "\n";
     }
@@ -331,13 +346,19 @@ async function showBattlepass(ctx) {
       if (premium.coins) parts.push("⭐ " + premium.coins);
       if (premium.crystals) parts.push("💎 " + premium.crystals);
       if (premium.pack) parts.push("📦 " + premium.pack + " пак");
-      if (premium.jersey) parts.push("🎽 Форма (навсегда)");
-      if (premium.arena) parts.push("🏟️ Арена (навсегда)");
+      if (premium.jersey) parts.push("🎽 Форма");
+      if (premium.arena) parts.push("🏟️ Арена");
       if (premium.card) parts.push("🃏 " + premium.card + " (" + (premium.overall || 96) + " OVR)");
       text += parts.join(", ") + "\n";
     }
     
     text += "\n";
+  }
+  
+  if (level < maxLevel) {
+    text += "💡 *Совет:* Играй матчи на Легенде, чтобы получать +3 XP за победу!\n";
+  } else {
+    text += "🎉 *МАКСИМАЛЬНЫЙ УРОВЕНЬ ДОСТИГНУТ!*\n";
   }
   
   const buttons = [];
@@ -347,7 +368,7 @@ async function showBattlepass(ctx) {
   buttons.push([Markup.button.callback("🔄 Обновить", "bp_refresh")]);
   buttons.push([Markup.button.callback("🔙 Назад", "back")]);
   
-  await ctx.reply(text, {
+  await ctx.editMessageText(text, {
     parse_mode: "Markdown",
     ...Markup.inlineKeyboard(buttons)
   });
@@ -402,7 +423,7 @@ async function buyPremium(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
-// ✅ ГЛАВНАЯ ФУНКЦИЯ addXP
+// ✅ ФУНКЦИЯ ДОБАВЛЕНИЯ XP
 async function addXP(userId, amount, ctx = null) {
   console.log('📈 [addXP] Добавляем XP:', userId, '+', amount);
   
@@ -437,22 +458,17 @@ async function addXP(userId, amount, ctx = null) {
   return true;
 }
 
-// ✅ ЭКСПОРТИРУЕМ ВСЁ
+// ✅ ЭКСПОРТ
 module.exports = {
   addXP,
   XP_PER_MATCH: 20,
   getLevelByXP,
-  getUsers,
-  saveUsers,
   autoClaimRewards,
   showBattlepass,
-  buyPremium,
-  BATTLEPASS
+  buyPremium
 };
 
-// ============================================
-// РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ БОТА
-// ============================================
+// Регистрация обработчиков
 module.exports = (bot) => {
   bot.action("battlepass", async (ctx) => {
     await ctx.answerCbQuery();
