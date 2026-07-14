@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - С ИСПРАВЛЕННЫМ ИМПОРТОМ XP
+// src/handlers/game.js - С НАГРАДАМИ ЗА СЛОЖНОСТЬ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -19,12 +19,46 @@ function saveUsers(users) {
 
 const matches = {};
 
-// ✅ ИМПОРТИРУЕМ XP ИЗ ОТДЕЛЬНОГО ФАЙЛА
+// ✅ ИМПОРТ XP
 const { addXP, XP_WIN, XP_LOSS } = require('./xp');
 
 console.log('✅ [game.js] addXP загружен, тип:', typeof addXP);
-console.log('✅ [game.js] XP_WIN:', XP_WIN);
-console.log('✅ [game.js] XP_LOSS:', XP_LOSS);
+
+// ✅ НАГРАДЫ ЗА СЛОЖНОСТЬ
+const DIFFICULTY_REWARDS = {
+  novice: {
+    name: '🟢 Новичок',
+    winCoins: 10,
+    winRating: 10,
+    lossRating: -5,
+    xp: 1,
+    tip: '💡 *Подсказка:* ИИ часто выбирает простые действия. Попробуй предугадать его ход!'
+  },
+  amateur: {
+    name: '🟡 Любитель',
+    winCoins: 15,
+    winRating: 15,
+    lossRating: -7,
+    xp: 1,
+    tip: null
+  },
+  pro: {
+    name: '🟠 Профессионал',
+    winCoins: 25,
+    winRating: 25,
+    lossRating: -10,
+    xp: 2,
+    tip: null
+  },
+  legend: {
+    name: '🔴 Легенда',
+    winCoins: 50,
+    winRating: 40,
+    lossRating: -15,
+    xp: 3,
+    tip: null
+  }
+};
 
 function getAIShot(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
@@ -51,10 +85,10 @@ function getAIShot(playerId, difficulty = 1) {
     if (slapCount >= 2) { weights.low += 2; }
   }
   
-  // РЕАЛЬНЫЕ СЛОЖНОСТИ ИИ
+  // ✅ РЕАЛЬНЫЕ СЛОЖНОСТИ ИИ
   const difficultyMultipliers = {
-    novice: { factor: 0.4, defense: 1.4, offense: 0.3 },
-    amateur: { factor: 0.6, defense: 1.1, offense: 0.5 },
+    novice: { factor: 0.3, defense: 1.4, offense: 0.3 },
+    amateur: { factor: 0.5, defense: 1.1, offense: 0.5 },
     pro: { factor: 0.85, defense: 0.85, offense: 0.8 },
     legend: { factor: 1.2, defense: 0.6, offense: 1.2 }
   };
@@ -131,6 +165,8 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
   const data = users[user.id];
   
   const isWin = !isForfeit && match.playerScore > match.aiScore;
+  const difficulty = match.difficulty || 'pro';
+  const rewards = DIFFICULTY_REWARDS[difficulty] || DIFFICULTY_REWARDS.pro;
   
   if (!data) {
     console.log('❌ [finishMatch] Пользователь не найден!');
@@ -139,18 +175,24 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
   }
   
   let xpEarned = 0;
+  let coinsEarned = 0;
+  let ratingEarned = 0;
   
   if (isWin) {
     data.wins = (data.wins || 0) + 1;
-    data.coins = (data.coins || 0) + 20;
-    data.rating = (data.rating || 0) + 25;
-    xpEarned = XP_WIN;
-    console.log('🏆 ПОБЕДА! +' + xpEarned + ' XP');
+    coinsEarned = rewards.winCoins;
+    ratingEarned = rewards.winRating;
+    xpEarned = rewards.xp;
+    data.coins = (data.coins || 0) + coinsEarned;
+    data.rating = (data.rating || 0) + ratingEarned;
+    console.log('🏆 ПОБЕДА! +' + xpEarned + ' XP, +' + coinsEarned + '⭐, +' + ratingEarned + ' рейтинга');
   } else {
     data.losses = (data.losses || 0) + 1;
-    data.rating = Math.max(0, (data.rating || 0) - 10);
-    xpEarned = XP_LOSS;
-    console.log('😔 ПОРАЖЕНИЕ. +' + xpEarned + ' XP');
+    ratingEarned = rewards.lossRating;
+    data.rating = Math.max(0, (data.rating || 0) + ratingEarned);
+    xpEarned = 0;
+    coinsEarned = 0;
+    console.log('😔 ПОРАЖЕНИЕ. ' + ratingEarned + ' рейтинга');
   }
   
   data.matches = (data.matches || 0) + 1;
@@ -161,22 +203,14 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
                 data.rating >= 1200 ? 'Золото' :
                 data.rating >= 1000 ? 'Серебро' : 'Бронза';
   
-  console.log('📈 [finishMatch] Попытка начислить XP:', xpEarned);
-  console.log('📈 [finishMatch] Тип addXP:', typeof addXP);
-  
   // ✅ НАЧИСЛЯЕМ XP
   if (typeof addXP === 'function' && xpEarned > 0) {
     try {
-      console.log('📈 [finishMatch] Вызываем addXP для:', user.id);
-      const result = await addXP(user.id, xpEarned, ctx);
-      console.log('📈 [finishMatch] Результат addXP:', result);
+      await addXP(user.id, xpEarned, ctx);
+      console.log('✅ Добавлено ' + xpEarned + ' XP');
     } catch (error) {
-      console.log('❌ [finishMatch] Ошибка addXP:', error.message);
+      console.log('❌ Ошибка addXP:', error.message);
     }
-  } else if (xpEarned === 0) {
-    console.log('ℹ️ За поражение XP не начисляется');
-  } else {
-    console.log('⚠️ addXP не функция или не найдена!');
   }
   
   saveUsers(users);
@@ -198,10 +232,20 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
   if (match.lastShot) resultText += '⚡ *Последний бросок:*\n  ' + match.lastShot + '\n\n';
   resultText += '📊 *Итоговый счёт:*\n🔥 Ты: ' + matchResult.playerScore + '\n🤖 ИИ: ' + matchResult.aiScore + '\n🔢 Раундов: ' + matchResult.rounds + '\n\n';
   
+  // ✅ ПОКАЗЫВАЕМ ВСЕ НАГРАДЫ
   if (isWin) {
-    resultText += '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + xpEarned + ' XP\n';
+    resultText += '🎉 *ПОБЕДА!*\n';
+    resultText += '  ⭐ +' + coinsEarned + ' монет\n';
+    resultText += '  🏆 +' + ratingEarned + ' рейтинга\n';
+    resultText += '  🎖️ +' + xpEarned + ' XP\n';
   } else {
-    resultText += '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + xpEarned + ' XP\n';
+    resultText += '😔 *ПОРАЖЕНИЕ...*\n';
+    if (ratingEarned < 0) {
+      resultText += '  🏆 ' + ratingEarned + ' рейтинга\n';
+    } else {
+      resultText += '  🏆 +' + ratingEarned + ' рейтинга\n';
+    }
+    resultText += '  🎖️ +0 XP\n';
   }
   
   resultText += '\n📊 *Твоя статистика:*\n🏆 Рейтинг: ' + data.rating + '\n🥇 Лига: ' + data.league + '\n⭐ Монет: ' + data.coins + '\n✅ Побед: ' + data.wins + '\n❌ Поражений: ' + data.losses + '\n\n';
@@ -274,6 +318,21 @@ async function showPlayerSelection(ctx, user, match) {
   buttons.push([Markup.button.callback('🏳️ Сдаться', 'forfeit')]);
   
   let text = '🤖 *Матч против ИИ (' + match.difficultyName + ')*\n\n';
+  
+  // ✅ ПОДСКАЗКА ДЛЯ НОВИЧКА
+  const difficulty = match.difficulty;
+  const rewards = DIFFICULTY_REWARDS[difficulty];
+  if (rewards && rewards.tip) {
+    text += rewards.tip + '\n\n';
+  }
+  
+  // ✅ ПОКАЗЫВАЕМ НАГРАДЫ ЗА СЛОЖНОСТЬ
+  if (rewards) {
+    text += '📋 *Награды за ' + rewards.name + ':*\n';
+    text += '  🏆 Победа: +' + rewards.winCoins + '⭐, +' + rewards.winRating + ' рейтинга, +' + rewards.xp + ' XP\n';
+    text += '  😔 Поражение: ' + rewards.lossRating + ' рейтинга\n\n';
+  }
+  
   if (match.lastShot) {
     text += '⚡ *Последний бросок:*\n';
     text += '  ' + match.lastShot + '\n\n';
@@ -320,7 +379,12 @@ module.exports = (bot) => {
     console.log('🤖 [play_ai] Нажата кнопка play_ai');
     await ctx.answerCbQuery();
     await ctx.editMessageText(
-      '🤖 *Выбери сложность ИИ:*',
+      '🤖 *Выбери сложность ИИ:*\n\n' +
+      '📋 *Награды:*\n' +
+      '🟢 Новичок: победа +10⭐, +10 рейтинга, +1 XP\n' +
+      '🟡 Любитель: победа +15⭐, +15 рейтинга, +1 XP\n' +
+      '🟠 Профессионал: победа +25⭐, +25 рейтинга, +2 XP\n' +
+      '🔴 Легенда: победа +50⭐, +40 рейтинга, +3 XP',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
@@ -339,10 +403,10 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
     const difficultyNames = { 
-      novice: 'Новичок', 
-      amateur: 'Любитель', 
-      pro: 'Профессионал', 
-      legend: 'Легенда' 
+      novice: '🟢 Новичок', 
+      amateur: '🟡 Любитель', 
+      pro: '🟠 Профессионал', 
+      legend: '🔴 Легенда' 
     };
     const user = ctx.from;
     
@@ -385,7 +449,7 @@ module.exports = (bot) => {
     
     matches[user.id] = {
       difficulty: difficulty,
-      difficultyName: difficultyNames[difficulty] || 'Профессионал',
+      difficultyName: difficultyNames[difficulty] || '🟠 Профессионал',
       playerScore: 0,
       aiScore: 0,
       round: 0,
