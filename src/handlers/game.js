@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ПОЛНАЯ ПЕРЕРАБОТКА
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -192,11 +192,12 @@ module.exports = (bot) => {
       history: [],
       isSuddenDeath: false,
       isPlayerTurn: true,
-      currentShooter: -1,
+      currentShooter: 0,
       team: team,
       waitingForGoalie: false,
       lastShot: null,
-      usedPlayers: []
+      usedPlayers: [],
+      isProcessing: false
     };
     
     await showPlayerSelection(ctx, user, matches[user.id]);
@@ -221,20 +222,11 @@ module.exports = (bot) => {
       return;
     }
     
-    // Показываем только неиспользованных игроков
     const availablePlayers = team.filter((p, i) => !match.usedPlayers.includes(i));
     
     if (availablePlayers.length === 0) {
-      await ctx.editMessageText(
-        '❌ *Все полевые игроки уже использованы!*\n\n' +
-        'Матч завершён.',
-        {
-          parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('🔙 Назад', 'play')],
-          ])
-        }
-      );
+      match.isFinished = true;
+      await finishMatch(ctx, user, match);
       return;
     }
     
@@ -273,42 +265,36 @@ module.exports = (bot) => {
     const user = ctx.from;
     const match = matches[user.id];
     
-    if (!match) {
-      await ctx.editMessageText('❌ Матч не найден! Начни новый матч.');
+    if (!match || match.isFinished) {
+      await ctx.editMessageText('❌ Матч завершён!');
       return;
     }
     
-    if (match.isFinished) {
-      await ctx.editMessageText('❌ Матч завершён! Начни новый.');
-      return;
-    }
-    
-    // Проверяем, не использован ли уже этот игрок
-    if (match.usedPlayers.includes(playerIndex)) {
-      await ctx.editMessageText('❌ Этот игрок уже бил буллит! Выбери другого.');
-      return;
-    }
+    if (match.isProcessing) return;
     
     const forwards = match.team.filter(p => p.position !== 'G');
-    
     if (playerIndex >= forwards.length) {
       await ctx.editMessageText('❌ Игрок не найден!');
       return;
     }
     
     const player = forwards[playerIndex];
-    
     if (!player) {
       await ctx.editMessageText('❌ Игрок не найден!');
       return;
     }
     
     if (player.position === 'G') {
-      await ctx.editMessageText('❌ Вратарь не может бить буллит! Выбери полевого игрока.');
+      await ctx.editMessageText('❌ Вратарь не может бить буллит!');
       return;
     }
     
-    // Отмечаем игрока как использованного
+    if (match.usedPlayers.includes(playerIndex)) {
+      await ctx.editMessageText('❌ Этот игрок уже бил буллит!');
+      return;
+    }
+    
+    match.isProcessing = true;
     match.usedPlayers.push(playerIndex);
     match.currentShooter = playerIndex;
     
@@ -328,6 +314,8 @@ module.exports = (bot) => {
         ])
       }
     );
+    
+    match.isProcessing = false;
   });
 
   bot.action(/shot_(.+)/, async (ctx) => {
@@ -346,6 +334,9 @@ module.exports = (bot) => {
       return;
     }
     
+    if (match.isProcessing) return;
+    match.isProcessing = true;
+    
     const difficulty = match.difficulty;
     const forwards = match.team.filter(p => p.position !== 'G');
     const player = forwards[match.currentShooter];
@@ -353,6 +344,7 @@ module.exports = (bot) => {
     
     if (!player) {
       await ctx.editMessageText('❌ Ошибка: игрок не найден!');
+      match.isProcessing = false;
       return;
     }
     
@@ -362,9 +354,7 @@ module.exports = (bot) => {
     match.history.push(playerAction);
     match.round++;
     
-    if (result.isGoal) {
-      match.playerScore++;
-    }
+    if (result.isGoal) match.playerScore++;
     
     match.isPlayerTurn = false;
     match.waitingForGoalie = true;
@@ -373,13 +363,7 @@ module.exports = (bot) => {
     
     let resultText = '🎯 *' + player.name + ' бросает!*\n';
     resultText += '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
-    
-    if (goalie) {
-      resultText += '🧤 *' + goalie.name + ':* ' + goalieNames[goalieAction] + '\n';
-    } else {
-      resultText += '🧤 *Вратарь:* ' + goalieNames[goalieAction] + '\n';
-    }
-    
+    resultText += '🧤 *' + (goalie ? goalie.name : 'Вратарь') + ':* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
@@ -399,6 +383,8 @@ module.exports = (bot) => {
         ])
       }
     );
+    
+    match.isProcessing = false;
   });
 
   bot.action(/goalie_(.+)/, async (ctx) => {
@@ -417,63 +403,48 @@ module.exports = (bot) => {
       return;
     }
     
+    if (match.isProcessing) return;
+    match.isProcessing = true;
+    
     const difficulty = match.difficulty;
     const goalie = match.team.find(p => p.position === 'G');
     
     const aiAction = getAIShot(user.id, difficulty);
     const result = calculateShot(aiAction, goalieAction, difficulty);
     
-    if (result.isGoal) {
-      match.aiScore++;
-    }
+    if (result.isGoal) match.aiScore++;
     
     match.waitingForGoalie = false;
     match.isPlayerTurn = true;
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
-    // 🔥 ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
-    if (isSuddenDeath) {
-      match.isSuddenDeath = true;
-    }
-    
-    // В овертайме матч заканчивается после любого гола
-    if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) {
-      match.isFinished = true;
-    }
-    
-    if (isFinishedAfterRounds) {
-      match.isFinished = true;
-    }
+    if (isSuddenDeath) match.isSuddenDeath = true;
+    if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) match.isFinished = true;
+    if (isFinishedAfterRounds) match.isFinished = true;
     
     let resultText = '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
-    
-    if (goalie) {
-      resultText += '🧤 *' + goalie.name + ':* ' + goalieNames[goalieAction] + '\n';
-    } else {
-      resultText += '🧤 *Вратарь:* ' + goalieNames[goalieAction] + '\n';
-    }
-    
+    resultText += '🧤 *' + (goalie ? goalie.name : 'Вратарь') + ':* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
     resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+    
+    match.isProcessing = false;
     
     if (match.isFinished) {
       await finishMatch(ctx, user, match);
       return;
     }
     
-    // Показываем выбор следующего игрока
     await showPlayerSelection(ctx, user, match);
   });
 
   async function finishMatch(ctx, user, match) {
     const users = getUsers();
     const data = users[user.id];
-    
     const isWin = match.playerScore > match.aiScore;
     
     if (isWin) {
@@ -495,40 +466,14 @@ module.exports = (bot) => {
                   data.rating >= 1000 ? 'Серебро' : 'Бронза';
     saveUsers(users);
     
-    const matchResult = {
-      playerScore: match.playerScore,
-      aiScore: match.aiScore,
-      isWin: isWin,
-      rounds: match.round
-    };
-    
+    const matchResult = { playerScore: match.playerScore, aiScore: match.aiScore, isWin: isWin, rounds: match.round };
     delete matches[user.id];
     
     let resultText = '🏁 *МАТЧ ЗАВЕРШЁН!*\n\n';
-    
-    if (match.lastShot) {
-      resultText += '⚡ *Последний бросок:*\n';
-      resultText += '  ' + match.lastShot + '\n\n';
-    }
-    
-    resultText += '📊 *Итоговый счёт:*\n';
-    resultText += '🔥 Ты: ' + matchResult.playerScore + '\n';
-    resultText += '🤖 ИИ: ' + matchResult.aiScore + '\n';
-    resultText += '🔢 Раундов: ' + matchResult.rounds + '\n\n';
-    
-    if (isWin) {
-      resultText += '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + XP_PER_MATCH + ' XP\n';
-    } else {
-      resultText += '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + Math.floor(XP_PER_MATCH / 2) + ' XP\n';
-    }
-    
-    resultText += '\n📊 *Твоя статистика:*\n';
-    resultText += '🏆 Рейтинг: ' + data.rating + '\n';
-    resultText += '🥇 Лига: ' + data.league + '\n';
-    resultText += '⭐ Монет: ' + data.coins + '\n';
-    resultText += '✅ Побед: ' + data.wins + '\n';
-    resultText += '❌ Поражений: ' + data.losses + '\n';
-    resultText += '⚖️ Ничьих: ' + data.draws + '\n\n';
+    if (match.lastShot) resultText += '⚡ *Последний бросок:*\n  ' + match.lastShot + '\n\n';
+    resultText += '📊 *Итоговый счёт:*\n🔥 Ты: ' + matchResult.playerScore + '\n🤖 ИИ: ' + matchResult.aiScore + '\n🔢 Раундов: ' + matchResult.rounds + '\n\n';
+    resultText += isWin ? '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + XP_PER_MATCH + ' XP\n' : '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + Math.floor(XP_PER_MATCH / 2) + ' XP\n';
+    resultText += '\n📊 *Твоя статистика:*\n🏆 Рейтинг: ' + data.rating + '\n🥇 Лига: ' + data.league + '\n⭐ Монет: ' + data.coins + '\n✅ Побед: ' + data.wins + '\n❌ Поражений: ' + data.losses + '\n⚖️ Ничьих: ' + data.draws + '\n\n';
     resultText += 'Выбери действие:';
     
     await ctx.editMessageText(
@@ -551,15 +496,10 @@ module.exports = (bot) => {
       match.isFinished = true;
       delete matches[user.id];
     }
-    await ctx.editMessageText(
-      '🏳️ *Матч завершён досрочно!*\n\nТы сдался 😔',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔙 Назад', 'back')],
-        ])
-      }
-    );
+    await ctx.editMessageText('🏳️ *Матч завершён досрочно!*\n\nТы сдался 😔', {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+    });
   });
 
   bot.action('play_pvp', async (ctx) => {
