@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ ОВЕРТАЙМ
+// src/handlers/game.js - С ИСПРАВЛЕННЫМ ИМПОРТОМ XP
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -19,17 +19,12 @@ function saveUsers(users) {
 
 const matches = {};
 
-// ✅ ПРАВИЛЬНЫЙ ИМПОРТ ИЗ battlepass.js
-const battlepassModule = require('./battlepass');
-const addXP = battlepassModule.addXP;
-const XP_PER_MATCH = battlepassModule.XP_PER_MATCH || 20;
+// ✅ ИМПОРТИРУЕМ XP ИЗ ОТДЕЛЬНОГО ФАЙЛА
+const { addXP, XP_WIN, XP_LOSS } = require('./xp');
 
 console.log('✅ [game.js] addXP загружен, тип:', typeof addXP);
-console.log('✅ [game.js] XP_PER_MATCH:', XP_PER_MATCH);
-
-// Настройки XP
-const XP_WIN = 1;
-const XP_LOSS = 0;
+console.log('✅ [game.js] XP_WIN:', XP_WIN);
+console.log('✅ [game.js] XP_LOSS:', XP_LOSS);
 
 function getAIShot(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
@@ -169,6 +164,7 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
   console.log('📈 [finishMatch] Попытка начислить XP:', xpEarned);
   console.log('📈 [finishMatch] Тип addXP:', typeof addXP);
   
+  // ✅ НАЧИСЛЯЕМ XP
   if (typeof addXP === 'function' && xpEarned > 0) {
     try {
       console.log('📈 [finishMatch] Вызываем addXP для:', user.id);
@@ -251,14 +247,11 @@ async function showPlayerSelection(ctx, user, match) {
     return;
   }
   
-  // ✅ В ОВЕРТАЙМЕ ИГРОКИ НЕ ПОВТОРЯЮТСЯ
   const availablePlayers = team.filter((p, i) => !match.usedPlayers.includes(i));
   
-  // ✅ ЕСЛИ ВСЕ ИГРОКИ ИСПОЛЬЗОВАНЫ, НО МАТЧ НЕ ЗАВЕРШЁН (ОВЕРТАЙМ) — СБРАСЫВАЕМ
   if (availablePlayers.length === 0 && match.isSuddenDeath) {
     console.log('🔄 Все игроки использованы в овертайме, сбрасываем список');
     match.usedPlayers = [];
-    // Показываем выбор снова
     await showPlayerSelection(ctx, user, match);
     return;
   }
@@ -620,8 +613,7 @@ module.exports = (bot) => {
     if (isAfterMaxRounds && isScoreEqual) {
       console.log('⚡ СЧЁТ РАВНЫЙ! НАЧИНАЕМ ОВЕРТАЙМ!');
       match.isSuddenDeath = true;
-      match.maxRounds = Infinity; // Бесконечные раунды до гола
-      // Сбрасываем использованных игроков для овертайма
+      match.maxRounds = Infinity;
       match.usedPlayers = [];
     }
     
