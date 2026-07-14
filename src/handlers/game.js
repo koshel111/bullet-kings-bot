@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ПОЛНАЯ ВЕРСИЯ С ИСПРАВЛЕННЫМ ИМПОРТОМ
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ ОВЕРТАЙМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -166,7 +166,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
                 data.rating >= 1200 ? 'Золото' :
                 data.rating >= 1000 ? 'Серебро' : 'Бронза';
   
-  // ✅ НАЧИСЛЯЕМ XP С ЛОГИРОВАНИЕМ
   console.log('📈 [finishMatch] Попытка начислить XP:', xpEarned);
   console.log('📈 [finishMatch] Тип addXP:', typeof addXP);
   
@@ -252,7 +251,17 @@ async function showPlayerSelection(ctx, user, match) {
     return;
   }
   
+  // ✅ В ОВЕРТАЙМЕ ИГРОКИ НЕ ПОВТОРЯЮТСЯ
   const availablePlayers = team.filter((p, i) => !match.usedPlayers.includes(i));
+  
+  // ✅ ЕСЛИ ВСЕ ИГРОКИ ИСПОЛЬЗОВАНЫ, НО МАТЧ НЕ ЗАВЕРШЁН (ОВЕРТАЙМ) — СБРАСЫВАЕМ
+  if (availablePlayers.length === 0 && match.isSuddenDeath) {
+    console.log('🔄 Все игроки использованы в овертайме, сбрасываем список');
+    match.usedPlayers = [];
+    // Показываем выбор снова
+    await showPlayerSelection(ctx, user, match);
+    return;
+  }
   
   if (availablePlayers.length === 0) {
     match.isFinished = true;
@@ -277,7 +286,14 @@ async function showPlayerSelection(ctx, user, match) {
     text += '  ' + match.lastShot + '\n\n';
   }
   text += '📊 Счёт: Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
-  text += '🔢 Раунд ' + (match.round + 1) + (match.isSuddenDeath ? ' (ДО ГОЛА! ⚡)' : ' из ' + match.maxRounds) + '\n\n';
+  
+  if (match.isSuddenDeath) {
+    text += '⚡ *ОВЕРТАЙМ! БУЛЛИТЫ ДО ГОЛА!*\n';
+    text += '🔢 Раунд ' + (match.round + 1) + '\n\n';
+  } else {
+    text += '🔢 Раунд ' + (match.round + 1) + ' из ' + match.maxRounds + '\n\n';
+  }
+  
   text += '*Выбери полевого игрока, который будет бить буллит:*';
   
   await ctx.editMessageText(
@@ -507,7 +523,14 @@ module.exports = (bot) => {
     resultText += '🧤 *' + (goalie ? goalie.name : 'Вратарь') + ':* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
-    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА! ⚡)' : ' из ' + match.maxRounds) + '\n\n';
+    
+    if (match.isSuddenDeath) {
+      resultText += '⚡ *ОВЕРТАЙМ! БУЛЛИТЫ ДО ГОЛА!*\n';
+      resultText += '🔢 Раунд ' + match.round + '\n\n';
+    } else {
+      resultText += '🔢 Раунд ' + match.round + ' из ' + match.maxRounds + '\n\n';
+    }
+    
     resultText += '🤖 *Ход ИИ! Выбери действие вратаря:*';
     
     await ctx.editMessageText(
@@ -577,36 +600,58 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
-    const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
-    const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
+    // ✅ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА
+    const isAfterMaxRounds = match.round >= match.maxRounds;
+    const isScoreDifferent = match.playerScore !== match.aiScore;
+    const isScoreEqual = match.playerScore === match.aiScore;
     
     console.log('📊 Проверка завершения:', {
       round: match.round,
       maxRounds: match.maxRounds,
       playerScore: match.playerScore,
       aiScore: match.aiScore,
-      isFinishedAfterRounds,
-      isSuddenDeath
+      isAfterMaxRounds,
+      isScoreDifferent,
+      isScoreEqual,
+      isSuddenDeath: match.isSuddenDeath
     });
     
-    if (isSuddenDeath) {
+    // ✅ ЕСЛИ СЧЁТ РАВНЫЙ ПОСЛЕ 5 РАУНДОВ — ОВЕРТАЙМ
+    if (isAfterMaxRounds && isScoreEqual) {
+      console.log('⚡ СЧЁТ РАВНЫЙ! НАЧИНАЕМ ОВЕРТАЙМ!');
       match.isSuddenDeath = true;
-      console.log('⚡ ОВЕРТАЙМ! Буллиты до гола!');
+      match.maxRounds = Infinity; // Бесконечные раунды до гола
+      // Сбрасываем использованных игроков для овертайма
+      match.usedPlayers = [];
     }
     
-    if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) {
-      match.isFinished = true;
-    }
-    
-    if (isFinishedAfterRounds) {
-      match.isFinished = true;
+    // ✅ В ОВЕРТАЙМЕ — МАТЧ ЗАВЕРШАЕТСЯ ТОЛЬКО КОГДА ЕСТЬ РАЗНИЦА
+    if (match.isSuddenDeath) {
+      if (match.playerScore !== match.aiScore) {
+        console.log('⚡ ОВЕРТАЙМ ЗАВЕРШЁН! РАЗНИЦА В СЧЁТЕ!');
+        match.isFinished = true;
+      } else {
+        console.log('⚡ ОВЕРТАЙМ ПРОДОЛЖАЕТСЯ... СЧЁТ РАВНЫЙ');
+      }
+    } else {
+      // ✅ ОБЫЧНЫЙ РЕЖИМ — ЗАВЕРШАЕМ ПОСЛЕ 5 РАУНДОВ
+      if (isAfterMaxRounds && isScoreDifferent) {
+        console.log('🏁 5 РАУНДОВ ЗАВЕРШЕНО, РАЗНИЦА В СЧЁТЕ');
+        match.isFinished = true;
+      }
     }
     
     let resultText = '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
     resultText += '🧤 *' + (goalie ? goalie.name : 'Вратарь') + ':* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
-    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА! ⚡)' : ' из ' + match.maxRounds) + '\n\n';
+    
+    if (match.isSuddenDeath) {
+      resultText += '⚡ *ОВЕРТАЙМ! БУЛЛИТЫ ДО ГОЛА!*\n';
+      resultText += '🔢 Раунд ' + match.round + '\n\n';
+    } else {
+      resultText += '🔢 Раунд ' + match.round + ' из ' + match.maxRounds + '\n\n';
+    }
     
     match.isProcessing = false;
     
