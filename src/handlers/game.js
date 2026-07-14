@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ (ФИКС КНОПОК)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -197,7 +197,8 @@ module.exports = (bot) => {
       waitingForGoalie: false,
       lastShot: null,
       usedPlayers: [],
-      isProcessing: false
+      isProcessing: false,
+      messageId: ctx.message?.message_id || ctx.callbackQuery?.message?.message_id
     };
     
     await showPlayerSelection(ctx, user, matches[user.id]);
@@ -239,7 +240,7 @@ module.exports = (bot) => {
       )]);
     });
     
-    buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
+    buttons.push([Markup.button.callback('🏳️ Сдаться', 'forfeit')]);
     
     let text = '🤖 *Матч против ИИ (' + match.difficultyName + ')*\n\n';
     if (match.lastShot) {
@@ -311,6 +312,7 @@ module.exports = (bot) => {
           [Markup.button.callback('🔄 Финт', 'shot_deke')],
           [Markup.button.callback('✋ Кистевой', 'shot_wrist')],
           [Markup.button.callback('💥 Щелчок', 'shot_slap')],
+          [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
         ])
       }
     );
@@ -380,6 +382,7 @@ module.exports = (bot) => {
           [Markup.button.callback('🛡️ Опустить щитки', 'goalie_low')],
           [Markup.button.callback('🧤 Ловушка', 'goalie_glove')],
           [Markup.button.callback('💪 Агрессивный выход', 'goalie_aggressive')],
+          [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
         ])
       }
     );
@@ -393,17 +396,30 @@ module.exports = (bot) => {
     const user = ctx.from;
     const match = matches[user.id];
     
-    if (!match || match.isFinished) {
-      await ctx.editMessageText('❌ Матч завершён!');
+    // ✅ ФИКС: проверяем, существует ли матч
+    if (!match) {
+      await ctx.editMessageText('❌ Матч не найден! Начни новый матч.');
       return;
     }
     
+    // ✅ ФИКС: проверяем, не завершён ли матч
+    if (match.isFinished) {
+      await ctx.editMessageText('❌ Матч уже завершён!');
+      return;
+    }
+    
+    // ✅ ФИКС: проверяем, ждём ли мы вратаря
     if (!match.waitingForGoalie) {
       await ctx.editMessageText('⏳ Сейчас твой ход!');
       return;
     }
     
-    if (match.isProcessing) return;
+    // ✅ ФИКС: проверяем, не обрабатывается ли уже
+    if (match.isProcessing) {
+      await ctx.answerCbQuery('⏳ Обработка...');
+      return;
+    }
+    
     match.isProcessing = true;
     
     const difficulty = match.difficulty;
@@ -434,11 +450,13 @@ module.exports = (bot) => {
     
     match.isProcessing = false;
     
+    // ✅ ФИКС: проверяем завершение матча
     if (match.isFinished) {
       await finishMatch(ctx, user, match);
       return;
     }
     
+    // ✅ ФИКС: показываем выбор игрока
     await showPlayerSelection(ctx, user, match);
   });
 
@@ -448,16 +466,16 @@ module.exports = (bot) => {
     const isWin = match.playerScore > match.aiScore;
     
     if (isWin) {
-      data.wins++;
-      data.coins += 20;
-      data.rating += 25;
-      await addXP(user.id, XP_PER_MATCH);
+      data.wins = (data.wins || 0) + 1;
+      data.coins = (data.coins || 0) + 20;
+      data.rating = (data.rating || 0) + 25;
+      await addXP(user.id, XP_PER_MATCH, ctx);
     } else {
-      data.losses++;
-      data.rating = Math.max(0, data.rating - 10);
-      await addXP(user.id, Math.floor(XP_PER_MATCH / 2));
+      data.losses = (data.losses || 0) + 1;
+      data.rating = Math.max(0, (data.rating || 0) - 10);
+      await addXP(user.id, Math.floor(XP_PER_MATCH / 2), ctx);
     }
-    data.matches++;
+    data.matches = (data.matches || 0) + 1;
     data.league = data.rating >= 2000 ? 'Легенда' :
                   data.rating >= 1800 ? 'Мастер' :
                   data.rating >= 1600 ? 'Алмаз' :
@@ -473,7 +491,7 @@ module.exports = (bot) => {
     if (match.lastShot) resultText += '⚡ *Последний бросок:*\n  ' + match.lastShot + '\n\n';
     resultText += '📊 *Итоговый счёт:*\n🔥 Ты: ' + matchResult.playerScore + '\n🤖 ИИ: ' + matchResult.aiScore + '\n🔢 Раундов: ' + matchResult.rounds + '\n\n';
     resultText += isWin ? '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + XP_PER_MATCH + ' XP\n' : '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + Math.floor(XP_PER_MATCH / 2) + ' XP\n';
-    resultText += '\n📊 *Твоя статистика:*\n🏆 Рейтинг: ' + data.rating + '\n🥇 Лига: ' + data.league + '\n⭐ Монет: ' + data.coins + '\n✅ Побед: ' + data.wins + '\n❌ Поражений: ' + data.losses + '\n⚖️ Ничьих: ' + data.draws + '\n\n';
+    resultText += '\n📊 *Твоя статистика:*\n🏆 Рейтинг: ' + data.rating + '\n🥇 Лига: ' + data.league + '\n⭐ Монет: ' + data.coins + '\n✅ Побед: ' + data.wins + '\n❌ Поражений: ' + data.losses + '\n\n';
     resultText += 'Выбери действие:';
     
     await ctx.editMessageText(
