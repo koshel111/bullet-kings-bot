@@ -416,18 +416,27 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
     return;
   }
   
-  // ✅ ПРОВЕРЯЕМ, ЕСЛИ ИГРОК УЖЕ В СОСТАВЕ
+  // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ ИГРОК УЖЕ В СОСТАВЕ (по полному совпадению id)
   const teamIds = currentTeam.map(p => p.id);
   const isInTeam = teamIds.includes(player.id);
   
+  // ✅ ЕСЛИ ИГРОК УЖЕ В СОСТАВЕ — ПРЕДУПРЕЖДАЕМ И НЕ ДОБАВЛЯЕМ
+  if (isInTeam) {
+    await ctx.answerCbQuery(`❌ ${player.name} уже в составе!`);
+    await ctx.editMessageText(
+      `❌ *Игрок уже в составе!*\n\n${getRarityEmoji(player.rarity)} ${player.name} (${player.overall} OVR) уже есть в твоей команде.\n\n💡 Используй "Убрать игрока", чтобы удалить его из состава.`,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад', 'edit_team')]
+        ])
+      }
+    );
+    return;
+  }
+  
   if (slotType === 'goalie') {
-    // Для вратаря
-    if (isInTeam) {
-      await ctx.editMessageText('❌ Этот вратарь уже в составе!');
-      return;
-    }
-    
-    // Проверяем, есть ли уже вратарь
+    // Для вратаря — проверяем, есть ли уже вратарь
     if (currentTeam.some(p => p.position === 'G')) {
       await ctx.editMessageText('❌ Вратарь уже выбран! Сначала убери текущего вратаря.');
       return;
@@ -441,11 +450,6 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
     const slotIndex = parseInt(slotType);
     const forwards = currentTeam.filter(p => p.position !== 'G');
     const goalies = currentTeam.filter(p => p.position === 'G');
-    
-    if (isInTeam) {
-      await ctx.editMessageText('❌ Этот игрок уже в составе!');
-      return;
-    }
     
     // Проверяем лимит
     if (forwards.length >= 5) {
