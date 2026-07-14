@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ОКОНЧАТЕЛЬНО ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - С XP ПОБЕДА +1, ПОРАЖЕНИЕ 0
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -19,13 +19,17 @@ function saveUsers(users) {
 
 const matches = {};
 
-// ✅ ПРАВИЛЬНЫЙ ИМПОРТ addXP
+// ✅ ИМПОРТИРУЕМ addXP
 const battlepass = require('./battlepass');
 const addXP = battlepass.addXP || battlepass.default?.addXP;
-const XP_PER_MATCH = battlepass.XP_PER_MATCH || 20;
+
+// ✅ НОВЫЕ НАСТРОЙКИ XP
+const XP_WIN = 1;      // +1 XP за победу
+const XP_LOSS = 0;     // 0 XP за поражение
 
 console.log('✅ addXP загружен:', typeof addXP);
-console.log('✅ XP_PER_MATCH:', XP_PER_MATCH);
+console.log('✅ XP_WIN:', XP_WIN);
+console.log('✅ XP_LOSS:', XP_LOSS);
 
 function getAIShot(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
@@ -106,7 +110,6 @@ const goalieNames = {
   aggressive: '💪 Агрессивный выход'
 };
 
-// ✅ ФУНКЦИЯ ЗАВЕРШЕНИЯ МАТЧА
 async function finishMatch(ctx, user, match) {
   console.log('🏁 [finishMatch] Завершаем матч');
   const users = getUsers();
@@ -119,23 +122,21 @@ async function finishMatch(ctx, user, match) {
     return;
   }
   
+  let xpEarned = 0;
+  
   if (isWin) {
     data.wins = (data.wins || 0) + 1;
     data.coins = (data.coins || 0) + 20;
     data.rating = (data.rating || 0) + 25;
-    // ✅ ПРОВЕРЯЕМ addXP
-    if (typeof addXP === 'function') {
-      await addXP(user.id, XP_PER_MATCH, ctx);
-    } else {
-      console.log('⚠️ addXP не функция, пропускаем');
-    }
+    xpEarned = XP_WIN; // +1 XP за победу
+    console.log('🏆 ПОБЕДА! +' + xpEarned + ' XP');
   } else {
     data.losses = (data.losses || 0) + 1;
     data.rating = Math.max(0, (data.rating || 0) - 10);
-    if (typeof addXP === 'function') {
-      await addXP(user.id, Math.floor(XP_PER_MATCH / 2), ctx);
-    }
+    xpEarned = XP_LOSS; // 0 XP за поражение
+    console.log('😔 ПОРАЖЕНИЕ. +' + xpEarned + ' XP');
   }
+  
   data.matches = (data.matches || 0) + 1;
   data.league = data.rating >= 2000 ? 'Легенда' :
                 data.rating >= 1800 ? 'Мастер' :
@@ -143,6 +144,17 @@ async function finishMatch(ctx, user, match) {
                 data.rating >= 1400 ? 'Платина' :
                 data.rating >= 1200 ? 'Золото' :
                 data.rating >= 1000 ? 'Серебро' : 'Бронза';
+  
+  // ✅ НАЧИСЛЯЕМ XP
+  if (typeof addXP === 'function' && xpEarned > 0) {
+    await addXP(user.id, xpEarned, ctx);
+    console.log('✅ Добавлено ' + xpEarned + ' XP пользователю ' + user.id);
+  } else if (xpEarned === 0) {
+    console.log('ℹ️ За поражение XP не начисляется');
+  } else {
+    console.log('⚠️ addXP не функция, пропускаем');
+  }
+  
   saveUsers(users);
   
   const matchResult = { playerScore: match.playerScore, aiScore: match.aiScore, isWin: isWin, rounds: match.round };
@@ -153,7 +165,7 @@ async function finishMatch(ctx, user, match) {
   let resultText = '🏁 *МАТЧ ЗАВЕРШЁН!*\n\n';
   if (match.lastShot) resultText += '⚡ *Последний бросок:*\n  ' + match.lastShot + '\n\n';
   resultText += '📊 *Итоговый счёт:*\n🔥 Ты: ' + matchResult.playerScore + '\n🤖 ИИ: ' + matchResult.aiScore + '\n🔢 Раундов: ' + matchResult.rounds + '\n\n';
-  resultText += isWin ? '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + XP_PER_MATCH + ' XP\n' : '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + Math.floor(XP_PER_MATCH / 2) + ' XP\n';
+  resultText += isWin ? '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + xpEarned + ' XP\n' : '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + xpEarned + ' XP\n';
   resultText += '\n📊 *Твоя статистика:*\n🏆 Рейтинг: ' + data.rating + '\n🥇 Лига: ' + data.league + '\n⭐ Монет: ' + data.coins + '\n✅ Побед: ' + data.wins + '\n❌ Поражений: ' + data.losses + '\n\n';
   resultText += 'Выбери действие:';
   
@@ -170,11 +182,9 @@ async function finishMatch(ctx, user, match) {
   console.log('✅ Матч завершён, данные сохранены');
 }
 
-// ✅ ПОКАЗ ВЫБОРА ИГРОКА
 async function showPlayerSelection(ctx, user, match) {
   console.log('👥 [showPlayerSelection] Показываем выбор игрока');
   
-  // ✅ ПРОВЕРЯЕМ МАТЧ
   if (!match || match.isFinished) {
     console.log('❌ [showPlayerSelection] Матч не существует или завершён');
     await ctx.editMessageText('❌ Матч завершён! Начни новый.');
@@ -483,7 +493,6 @@ module.exports = (bot) => {
     const user = ctx.from;
     const match = matches[user.id];
     
-    // ✅ ПРОВЕРЯЕМ СУЩЕСТВОВАНИЕ МАТЧА
     if (!match) {
       console.log('❌ Матч не найден!');
       await ctx.editMessageText('❌ Матч не найден! Начни новый матч.');
@@ -525,7 +534,6 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
-    // ✅ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ МАТЧА
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -550,14 +558,12 @@ module.exports = (bot) => {
     
     match.isProcessing = false;
     
-    // ✅ ЕСЛИ МАТЧ ЗАВЕРШЁН
     if (match.isFinished) {
       console.log('🏁 Матч завершён!');
       await finishMatch(ctx, user, match);
       return;
     }
     
-    // ✅ ИНАЧЕ ПРОДОЛЖАЕМ
     console.log('👥 Продолжаем матч, показываем выбор игрока');
     await showPlayerSelection(ctx, user, match);
   });
