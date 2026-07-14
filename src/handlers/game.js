@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ (ФИКС КНОПОК)
+// src/handlers/game.js - ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -197,8 +197,7 @@ module.exports = (bot) => {
       waitingForGoalie: false,
       lastShot: null,
       usedPlayers: [],
-      isProcessing: false,
-      messageId: ctx.message?.message_id || ctx.callbackQuery?.message?.message_id
+      isProcessing: false
     };
     
     await showPlayerSelection(ctx, user, matches[user.id]);
@@ -396,25 +395,22 @@ module.exports = (bot) => {
     const user = ctx.from;
     const match = matches[user.id];
     
-    // ✅ ФИКС: проверяем, существует ли матч
+    // ✅ Проверяем матч
     if (!match) {
       await ctx.editMessageText('❌ Матч не найден! Начни новый матч.');
       return;
     }
     
-    // ✅ ФИКС: проверяем, не завершён ли матч
     if (match.isFinished) {
       await ctx.editMessageText('❌ Матч уже завершён!');
       return;
     }
     
-    // ✅ ФИКС: проверяем, ждём ли мы вратаря
     if (!match.waitingForGoalie) {
       await ctx.editMessageText('⏳ Сейчас твой ход!');
       return;
     }
     
-    // ✅ ФИКС: проверяем, не обрабатывается ли уже
     if (match.isProcessing) {
       await ctx.answerCbQuery('⏳ Обработка...');
       return;
@@ -435,6 +431,7 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
+    // ✅ Проверяем завершение матча
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -450,13 +447,13 @@ module.exports = (bot) => {
     
     match.isProcessing = false;
     
-    // ✅ ФИКС: проверяем завершение матча
+    // ✅ Если матч завершён — показываем результат
     if (match.isFinished) {
       await finishMatch(ctx, user, match);
       return;
     }
     
-    // ✅ ФИКС: показываем выбор игрока
+    // ✅ Иначе показываем выбор следующего игрока
     await showPlayerSelection(ctx, user, match);
   });
 
