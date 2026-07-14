@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ПОЛНЫЙ ФАЙЛ (ЧАСТЬ 1)
+// src/handlers/profile.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -265,6 +265,8 @@ async function removeForward(ctx, index) {
   
   saveUsers(users);
   await ctx.answerCbQuery(`❌ ${removed.name} убран из состава!`);
+  
+  // ✅ ПОКАЗЫВАЕМ ОБНОВЛЁННЫЙ СПИСОК СВОБОДНЫХ ИГРОКОВ
   await showEditTeam(ctx);
 }
 
@@ -287,6 +289,8 @@ async function removeGoalie(ctx) {
   
   saveUsers(users);
   await ctx.answerCbQuery(`❌ ${removed.name} убран из состава!`);
+  
+  // ✅ ПОКАЗЫВАЕМ ОБНОВЛЁННЫЙ СПИСОК СВОБОДНЫХ ИГРОКОВ
   await showEditTeam(ctx);
 }
 
@@ -320,17 +324,8 @@ async function saveTeam(ctx) {
     }
   );
 }
-// ============================================
-// src/handlers/profile.js - ПОЛНЫЙ ФАЙЛ (ЧАСТЬ 2)
-// ============================================
 
-// ПОКАЗЫВАЕМ ТОЛЬКО СВОБОДНЫХ ИГРОКОВ
-// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННЫЙ (ЧАСТЬ showPlayersForSlot)
-// ============================================
-
-// ... (весь остальной код такой же, меняем только функцию showPlayersForSlot)
-
+// ✅ ПОКАЗЫВАЕМ ТОЛЬКО СВОБОДНЫХ ИГРОКОВ (обновлённая версия)
 async function showPlayersForSlot(ctx, slotType) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -357,7 +352,7 @@ async function showPlayersForSlot(ctx, slotType) {
   
   if (available.length === 0) {
     text += '❌ Нет доступных игроков!\n';
-    text += '💡 Все твои карты уже в составе или у тебя нет подходящих игроков.\n\n';
+    text += '💡 Все твои карты уже в составе.\n\n';
     text += '📌 *Что делать?*\n';
     text += '1. Убери кого-то из состава (кнопка "Убрать игрока")\n';
     text += '2. Открой новые паки в магазине 🛒';
@@ -396,7 +391,7 @@ async function showPlayersForSlot(ctx, slotType) {
   });
 }
 
-// ... (остальной код такой же)
+// ✅ ИСПРАВЛЕННАЯ ФУНКЦИЯ ДОБАВЛЕНИЯ ИГРОКА
 async function addPlayerToTeam(ctx, slotType, playerIndex) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -419,7 +414,7 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
     return;
   }
   
-  // ПРОВЕРЯЕМ, ЕСТЬ ЛИ ИГРОК УЖЕ В СОСТАВЕ
+  // ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ ИГРОК УЖЕ В СОСТАВЕ (по id)
   const teamIds = currentTeam.map(p => p.id);
   if (teamIds.includes(player.id)) {
     await ctx.answerCbQuery(`❌ ${player.name} уже в составе!`);
@@ -439,7 +434,6 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
     // ДЛЯ ВРАТАРЯ — ПРОВЕРЯЕМ, ЕСТЬ ЛИ УЖЕ ВРАТАРЬ
     const existingGoalie = currentTeam.find(p => p.position === 'G');
     if (existingGoalie) {
-      // ЕСЛИ ВРАТАРЬ ЕСТЬ — ПРЕДЛАГАЕМ ЗАМЕНИТЬ
       await ctx.editMessageText(
         `❌ *Вратарь уже выбран!*\n\n🧤 Текущий вратарь: ${getRarityEmoji(existingGoalie.rarity)} ${existingGoalie.name} (${existingGoalie.overall} OVR)\n\n💡 Сначала убери текущего вратаря через "Убрать игрока", затем добавь нового.`,
         {
@@ -481,6 +475,8 @@ async function addPlayerToTeam(ctx, slotType, playerIndex) {
   
   saveUsers(users);
   await ctx.answerCbQuery(`✅ ${player.name} добавлен в состав!`);
+  
+  // ✅ ПОКАЗЫВАЕМ ОБНОВЛЁННЫЙ СОСТАВ
   await showEditTeam(ctx);
 }
 

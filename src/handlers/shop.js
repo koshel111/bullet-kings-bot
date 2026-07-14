@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shop.js - ИСПРАВЛЕННЫЙ (открытие пака)
+// src/handlers/shop.js - С ЗАДЕРЖКОЙ ПРИ ОТКРЫТИИ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -16,6 +16,11 @@ function getUsers() {
 
 function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
+}
+
+// ✅ ФУНКЦИЯ ДЛЯ ЗАДЕРЖКИ
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 const PACKS = {
@@ -181,26 +186,34 @@ module.exports = (bot) => {
     const positionEmoji = card.position === 'G' ? '🧤' : '🏒';
     const posName = card.position === 'G' ? 'Вратарь' : 'Полевой';
     
-    // ✅ ОТПРАВЛЯЕМ 4 СООБЩЕНИЯ ПОСЛЕДОВАТЕЛЬНО
+    // ✅ ОТПРАВЛЯЕМ 4 СООБЩЕНИЯ С ЗАДЕРЖКОЙ 3 СЕКУНДЫ
     await ctx.editMessageText(
       '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*',
       { parse_mode: 'Markdown' }
     );
+    
+    await sleep(3000);
     
     await ctx.reply(
       '📋 *Позиция:* ' + posName,
       { parse_mode: 'Markdown' }
     );
     
+    await sleep(3000);
+    
     await ctx.reply(
       '🏆 *Редкость:* ' + card.rarity + ' ' + emoji,
       { parse_mode: 'Markdown' }
     );
     
+    await sleep(3000);
+    
     await ctx.reply(
       '📊 *Рейтинг:* ' + card.overall + ' OVR',
       { parse_mode: 'Markdown' }
     );
+    
+    await sleep(3000);
     
     // Финальное сообщение с полной информацией
     let finalText = 
