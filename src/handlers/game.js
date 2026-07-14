@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - С ЛОГИРОВАНИЕМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -102,6 +102,7 @@ const goalieNames = {
 module.exports = (bot) => {
   
   bot.action('play', async (ctx) => {
+    console.log('🎮 [play] Нажата кнопка play');
     await ctx.answerCbQuery();
     await ctx.editMessageText(
       '🎮 *Выбери режим:*',
@@ -117,6 +118,7 @@ module.exports = (bot) => {
   });
 
   bot.action('play_ai', async (ctx) => {
+    console.log('🤖 [play_ai] Нажата кнопка play_ai');
     await ctx.answerCbQuery();
     await ctx.editMessageText(
       '🤖 *Выбери сложность ИИ:*',
@@ -134,6 +136,7 @@ module.exports = (bot) => {
   });
 
   bot.action(/difficulty_(.+)/, async (ctx) => {
+    console.log('🎯 [difficulty] Нажата сложность:', ctx.match[1]);
     await ctx.answerCbQuery();
     const difficulty = ctx.match[1];
     const difficultyNames = { 
@@ -200,10 +203,12 @@ module.exports = (bot) => {
       isProcessing: false
     };
     
+    console.log('✅ Матч создан для пользователя:', user.id);
     await showPlayerSelection(ctx, user, matches[user.id]);
   });
 
   async function showPlayerSelection(ctx, user, match) {
+    console.log('👥 [showPlayerSelection] Показываем выбор игрока');
     const team = match.team.filter(p => p.position !== 'G');
     const buttons = [];
     
@@ -260,10 +265,18 @@ module.exports = (bot) => {
   }
 
   bot.action(/match_player_(.+)/, async (ctx) => {
+    console.log('🏒 [match_player] Выбран игрок:', ctx.match[1]);
     await ctx.answerCbQuery();
     const playerIndex = parseInt(ctx.match[1]);
     const user = ctx.from;
     const match = matches[user.id];
+    
+    console.log('📊 Состояние матча:', {
+      exists: !!match,
+      isFinished: match?.isFinished,
+      isProcessing: match?.isProcessing,
+      usedPlayers: match?.usedPlayers
+    });
     
     if (!match || match.isFinished) {
       await ctx.editMessageText('❌ Матч завершён!');
@@ -320,10 +333,18 @@ module.exports = (bot) => {
   });
 
   bot.action(/shot_(.+)/, async (ctx) => {
+    console.log('💥 [shot] Выбран бросок:', ctx.match[1]);
     await ctx.answerCbQuery();
     const playerAction = ctx.match[1];
     const user = ctx.from;
     const match = matches[user.id];
+    
+    console.log('📊 Состояние матча (shot):', {
+      exists: !!match,
+      isFinished: match?.isFinished,
+      isPlayerTurn: match?.isPlayerTurn,
+      waitingForGoalie: match?.waitingForGoalie
+    });
     
     if (!match || match.isFinished) {
       await ctx.editMessageText('❌ Матч завершён!');
@@ -390,28 +411,40 @@ module.exports = (bot) => {
   });
 
   bot.action(/goalie_(.+)/, async (ctx) => {
+    console.log('🧤 [goalie] Выбрано действие вратаря:', ctx.match[1]);
     await ctx.answerCbQuery();
     const goalieAction = ctx.match[1];
     const user = ctx.from;
     const match = matches[user.id];
     
+    console.log('📊 Состояние матча (goalie):', {
+      exists: !!match,
+      isFinished: match?.isFinished,
+      waitingForGoalie: match?.waitingForGoalie,
+      isProcessing: match?.isProcessing
+    });
+    
     // ✅ Проверяем матч
     if (!match) {
+      console.log('❌ Матч не найден!');
       await ctx.editMessageText('❌ Матч не найден! Начни новый матч.');
       return;
     }
     
     if (match.isFinished) {
+      console.log('❌ Матч уже завершён!');
       await ctx.editMessageText('❌ Матч уже завершён!');
       return;
     }
     
     if (!match.waitingForGoalie) {
+      console.log('❌ Не ожидаем вратаря!');
       await ctx.editMessageText('⏳ Сейчас твой ход!');
       return;
     }
     
     if (match.isProcessing) {
+      console.log('⏳ Уже обрабатывается...');
       await ctx.answerCbQuery('⏳ Обработка...');
       return;
     }
@@ -424,6 +457,8 @@ module.exports = (bot) => {
     const aiAction = getAIShot(user.id, difficulty);
     const result = calculateShot(aiAction, goalieAction, difficulty);
     
+    console.log('🤖 ИИ выбрал:', aiAction, 'Результат:', result.isGoal);
+    
     if (result.isGoal) match.aiScore++;
     
     match.waitingForGoalie = false;
@@ -434,6 +469,15 @@ module.exports = (bot) => {
     // ✅ Проверяем завершение матча
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
+    
+    console.log('📊 Проверка завершения:', {
+      round: match.round,
+      maxRounds: match.maxRounds,
+      playerScore: match.playerScore,
+      aiScore: match.aiScore,
+      isFinishedAfterRounds,
+      isSuddenDeath
+    });
     
     if (isSuddenDeath) match.isSuddenDeath = true;
     if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) match.isFinished = true;
@@ -449,15 +493,18 @@ module.exports = (bot) => {
     
     // ✅ Если матч завершён — показываем результат
     if (match.isFinished) {
+      console.log('🏁 Матч завершён!');
       await finishMatch(ctx, user, match);
       return;
     }
     
     // ✅ Иначе показываем выбор следующего игрока
+    console.log('👥 Продолжаем матч, показываем выбор игрока');
     await showPlayerSelection(ctx, user, match);
   });
 
   async function finishMatch(ctx, user, match) {
+    console.log('🏁 [finishMatch] Завершаем матч');
     const users = getUsers();
     const data = users[user.id];
     const isWin = match.playerScore > match.aiScore;
@@ -501,9 +548,11 @@ module.exports = (bot) => {
         ])
       }
     );
+    console.log('✅ Матч завершён, данные сохранены');
   }
 
   bot.action('forfeit', async (ctx) => {
+    console.log('🏳️ [forfeit] Сдача');
     await ctx.answerCbQuery();
     const user = ctx.from;
     const match = matches[user.id];
@@ -518,6 +567,7 @@ module.exports = (bot) => {
   });
 
   bot.action('play_pvp', async (ctx) => {
+    console.log('⚔️ [play_pvp] Нажата кнопка PvP');
     await ctx.answerCbQuery();
     await ctx.editMessageText(
       '⚔️ *PvP режим*\n\n' +
