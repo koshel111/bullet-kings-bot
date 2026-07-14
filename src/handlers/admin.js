@@ -413,6 +413,10 @@ async function showCosmeticsManagement(ctx) {
   });
 }
 
+// ============================================
+// src/handlers/admin.js - ИСПРАВЛЕННЫЙ (showJerseysManagement)
+// ============================================
+
 async function showJerseysManagement(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) return;
@@ -420,13 +424,35 @@ async function showJerseysManagement(ctx) {
   const activeJerseys = getActiveJerseys();
   let text = "🎽 *Управление формами*\n\n✅ *В магазине:*\n";
   if (activeJerseys.length === 0) text += "  Нет активных форм\n";
-  else activeJerseys.forEach(j => { text += `  • ${j.id} — ${j.name} (${j.rarity})\n`; });
+  else activeJerseys.forEach(j => { 
+    text += `  • \`${j.id}\` — ${j.name} (${j.rarity})\n`; 
+  });
   text += "\n📋 *Все формы:*\n";
   allJerseys.forEach(j => {
-    text += (j.active !== false ? "✅" : "❌") + " " + j.id + " — " + j.name + " (" + j.rarity + ")\n";
+    text += (j.active !== false ? "✅" : "❌") + " `" + j.id + "` — " + j.name + " (" + j.rarity + ")\n";
   });
-  text += "\n📋 *Команды:*\n`shop_add_form ID` — добавить\n`shop_remove_form ID` — убрать\n📌 *Пример:* `shop_add_form csk`";
+  text += "\n📋 *Команды:*\n`shop_add_form ID` — добавить\n`shop_remove_form ID` — убрать\n📌 *Пример:* `shop_add_form csk`\n";
+  text += "⚠️ *Важно:* Используйте ID формы (например `ussr`, а не название `СССР`)";
   await ctx.reply(text, { parse_mode: "Markdown" });
+}
+
+// Также исправляем обработку команды shop_add_form
+// В обработчике текстовых команд:
+
+if (text.startsWith("shop_add_form ")) {
+  const id = text.replace("shop_add_form ", "").trim().toLowerCase();
+  const item = getJerseyById(id);
+  if (!item) { 
+    await ctx.reply("❌ Форма с ID `" + id + "` не найдена!\n\n📋 Доступные ID: `ussr`, `canada`, `csk`, `ska` и т.д.", { parse_mode: "Markdown" }); 
+    return; 
+  }
+  if (item.active !== false) { 
+    await ctx.reply("❌ Форма `" + item.name + "` уже активна!"); 
+    return; 
+  }
+  toggleJerseyActive(id);
+  await ctx.reply("✅ Форма `" + item.name + "` добавлена в магазин!");
+  return;
 }
 
 async function showArenasManagement(ctx) {

@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shop.js - МАГАЗИН (БЕЗ КОСМЕТИКИ)
+// src/handlers/shop.js - ИСПРАВЛЕННЫЙ (открытие пака)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -179,25 +179,45 @@ module.exports = (bot) => {
     
     const emoji = getRarityEmoji(card.rarity);
     const positionEmoji = card.position === 'G' ? '🧤' : '🏒';
+    const posName = card.position === 'G' ? 'Вратарь' : 'Полевой';
     
+    // ✅ ОТПРАВЛЯЕМ 4 СООБЩЕНИЯ ПОСЛЕДОВАТЕЛЬНО
     await ctx.editMessageText(
-      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n' +
-      '📋 *Твоя карта:*\n' +
-      emoji + ' ' + positionEmoji + ' ' + card.name + '\n' +
-      'Редкость: ' + card.rarity + '\n' +
-      'Рейтинг: ' + card.overall + ' OVR\n' +
-      'Позиция: ' + (card.position === 'G' ? 'Вратарь' : 'Полевой') + '\n\n' +
-      '📊 Всего карт: ' + data.cards.length + '\n\n' +
-      '💡 *Карта добавлена в коллекцию!*\n' +
-      'Чтобы добавить её в состав — зайди в 👥 Команда и собери состав.',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Открыть ещё', 'buy_' + packType)],
-          [Markup.button.callback('🔙 В магазин', 'shop')],
-          [Markup.button.callback('👥 Перейти в команду', 'team')],
-        ])
-      }
+      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*',
+      { parse_mode: 'Markdown' }
     );
+    
+    await ctx.reply(
+      '📋 *Позиция:* ' + posName,
+      { parse_mode: 'Markdown' }
+    );
+    
+    await ctx.reply(
+      '🏆 *Редкость:* ' + card.rarity + ' ' + emoji,
+      { parse_mode: 'Markdown' }
+    );
+    
+    await ctx.reply(
+      '📊 *Рейтинг:* ' + card.overall + ' OVR',
+      { parse_mode: 'Markdown' }
+    );
+    
+    // Финальное сообщение с полной информацией
+    let finalText = 
+      '🃏 *' + card.name + '*\n\n' +
+      positionEmoji + ' ' + posName + '\n' +
+      emoji + ' ' + card.rarity + '\n' +
+      '📊 ' + card.overall + ' OVR\n\n' +
+      '💡 Карта добавлена в коллекцию!\n' +
+      '📊 Всего карт: ' + data.cards.length;
+    
+    await ctx.reply(finalText, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Открыть ещё', 'buy_' + packType)],
+        [Markup.button.callback('🔙 В магазин', 'shop')],
+        [Markup.button.callback('👥 Перейти в команду', 'team')],
+      ])
+    });
   });
 };

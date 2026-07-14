@@ -325,6 +325,12 @@ async function saveTeam(ctx) {
 // ============================================
 
 // ПОКАЗЫВАЕМ ТОЛЬКО СВОБОДНЫХ ИГРОКОВ
+// ============================================
+// src/handlers/profile.js - ИСПРАВЛЕННЫЙ (ЧАСТЬ showPlayersForSlot)
+// ============================================
+
+// ... (весь остальной код такой же, меняем только функцию showPlayersForSlot)
+
 async function showPlayersForSlot(ctx, slotType) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -343,7 +349,7 @@ async function showPlayersForSlot(ctx, slotType) {
     slotName = `слот ${parseInt(slotType) + 1}`;
   }
   
-  // ФИЛЬТРУЕМ — ПОКАЗЫВАЕМ ТОЛЬКО ИГРОКОВ, КОТОРЫХ НЕТ В СОСТАВЕ
+  // ✅ ФИЛЬТРУЕМ — ПОКАЗЫВАЕМ ТОЛЬКО ИГРОКОВ, КОТОРЫХ НЕТ В СОСТАВЕ
   const teamIds = currentTeam.map(p => p.id);
   const available = allAvailable.filter(player => !teamIds.includes(player.id));
   
@@ -390,6 +396,7 @@ async function showPlayersForSlot(ctx, slotType) {
   });
 }
 
+// ... (остальной код такой же)
 async function addPlayerToTeam(ctx, slotType, playerIndex) {
   const userId = ctx.from.id;
   const users = getUsers();
