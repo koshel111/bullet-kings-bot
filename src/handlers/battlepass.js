@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/battlepass.js - ИСПРАВЛЕННЫЙ
+// src/handlers/battlepass.js - С ПРИНУДИТЕЛЬНЫМ ОБНОВЛЕНИЕМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -10,9 +10,16 @@ const { ALL_JERSEYS, ALL_ARENAS } = require('../data/cosmetics');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-function getUsers() {
-  if (!fs.existsSync(DB_PATH)) return {};
-  return JSON.parse(fs.readFileSync(DB_PATH));
+// ✅ ФУНКЦИЯ ДЛЯ ПРЯМОГО ЧТЕНИЯ ИЗ ФАЙЛА (без кэша)
+function getUsersDirect() {
+  try {
+    if (!fs.existsSync(DB_PATH)) return {};
+    const data = fs.readFileSync(DB_PATH, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('❌ Ошибка чтения БД:', error);
+    return {};
+  }
 }
 
 function saveUsers(users) {
@@ -272,8 +279,8 @@ function getLevelStatus(data, level, isPremium = false) {
 async function showBattlepass(ctx) {
   const userId = ctx.from.id;
   
-  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ СВЕЖИЕ ДАННЫЕ ИЗ БД
-  const users = getUsers();
+  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ ДАННЫЕ ИЗ ФАЙЛА (без кэша)
+  const users = getUsersDirect();
   const data = users[userId];
   
   if (!data) {
@@ -294,7 +301,8 @@ async function showBattlepass(ctx) {
   
   // ✅ ПРОГРЕСС-БАР
   const progressBarLength = 10;
-  const filledBars = Math.floor((xp % 20) / 20 * progressBarLength);
+  const currentLevelProgress = xp % 20;
+  const filledBars = Math.floor((currentLevelProgress / 20) * progressBarLength);
   const emptyBars = progressBarLength - filledBars;
   const progressBar = '▓'.repeat(filledBars) + '░'.repeat(emptyBars);
   
@@ -313,7 +321,7 @@ async function showBattlepass(ctx) {
     text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
   }
   
-  // ✅ ПОКАЗЫВАЕМ ВСЕ УРОВНИ КОРОТКО
+  // ✅ ПОКАЗЫВАЕМ ВСЕ УРОВНИ
   text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
   
   for (let i = 1; i <= maxLevel; i++) {
@@ -332,7 +340,6 @@ async function showBattlepass(ctx) {
     if (i <= level) text += " ✅ ДОСТУПЕН";
     text += "\n";
     
-    // Показываем только первую награду для краткости
     if (reward.free) {
       const free = reward.free;
       const parts = [];
@@ -381,7 +388,7 @@ async function showBattlepass(ctx) {
 
 async function buyPremium(ctx) {
   const userId = ctx.from.id;
-  const users = getUsers();
+  const users = getUsersDirect();
   const data = users[userId];
   
   if (!data) {
@@ -432,7 +439,8 @@ async function buyPremium(ctx) {
 async function addXP(userId, amount, ctx = null) {
   console.log('📈 [addXP] Добавляем XP:', userId, '+', amount);
   
-  const users = getUsers();
+  // ✅ ЧИТАЕМ СВЕЖИЕ ДАННЫЕ
+  const users = getUsersDirect();
   const data = users[userId];
   
   if (!data) {
@@ -458,8 +466,9 @@ async function addXP(userId, amount, ctx = null) {
     }
   }
   
+  // ✅ СОХРАНЯЕМ
   saveUsers(users);
-  console.log('✅ [addXP] XP сохранён!');
+  console.log('✅ [addXP] XP сохранён! Текущий XP:', data.battlepass_xp);
   return true;
 }
 
@@ -470,14 +479,14 @@ module.exports = {
   getLevelByXP,
   autoClaimRewards,
   showBattlepass,
-  buyPremium
+  buyPremium,
+  getUsersDirect
 };
 
 // Регистрация обработчиков
 module.exports = (bot) => {
   bot.action("battlepass", async (ctx) => {
     await ctx.answerCbQuery();
-    // ✅ ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ДАННЫЕ
     await showBattlepass(ctx);
   });
 
@@ -488,7 +497,6 @@ module.exports = (bot) => {
 
   bot.action("bp_refresh", async (ctx) => {
     await ctx.answerCbQuery();
-    // ✅ ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ДАННЫЕ
     await showBattlepass(ctx);
   });
 
@@ -496,7 +504,7 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     const packType = ctx.match[1];
     const userId = ctx.from.id;
-    const users = getUsers();
+    const users = getUsersDirect();
     const data = users[userId];
     
     if (!data) {
