@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - С ЗАМЕНОЙ СОСТАВА
+// src/handlers/profile.js - ИСПРАВЛЕННАЯ ЗАМЕНА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -102,7 +102,6 @@ async function showTeam(ctx) {
   if (!hasTeam) {
     buttons.push([Markup.button.callback('🔄 Собрать состав', 'edit_team')]);
   } else {
-    // ✅ ТЕПЕРЬ МОЖНО МЕНЯТЬ СОСТАВ
     buttons.push([Markup.button.callback('🔄 Заменить состав', 'edit_team')]);
   }
   
@@ -195,6 +194,11 @@ async function showEditTeam(ctx) {
     [Markup.button.callback('4️⃣', 'slot_3'), Markup.button.callback('5️⃣', 'slot_4'), Markup.button.callback('6️⃣ Вратарь', 'slot_goalie')],
   ];
   
+  // ✅ КНОПКА ДЛЯ УДАЛЕНИЯ ИГРОКА
+  if (teamForwardsCount > 0 || teamGoalie) {
+    buttons.push([Markup.button.callback('❌ Убрать игрока', 'remove_player')]);
+  }
+  
   if (isComplete) {
     buttons.push([Markup.button.callback('✅ Сохранить состав', 'save_team')]);
   }
@@ -206,6 +210,88 @@ async function showEditTeam(ctx) {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard(buttons)
   });
+}
+
+// ✅ НОВАЯ ФУНКЦИЯ — УДАЛЕНИЕ ИГРОКА
+async function showRemovePlayer(ctx) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  const currentTeam = data.team || [];
+  
+  const teamForwards = currentTeam.filter(p => p.position !== 'G');
+  const teamGoalie = currentTeam.find(p => p.position === 'G');
+  
+  let text = '❌ *Убрать игрока из состава*\n\n';
+  text += 'Выбери игрока, которого хочешь убрать:\n\n';
+  
+  const buttons = [];
+  
+  teamForwards.forEach((p, i) => {
+    const emoji = getRarityEmoji(p.rarity);
+    text += `${i+1}. ${emoji} ${p.name} (${p.overall} OVR) - полевой\n`;
+    buttons.push([Markup.button.callback(`❌ ${p.name}`, `remove_forward_${i}`)]);
+  });
+  
+  if (teamGoalie) {
+    const emoji = getRarityEmoji(teamGoalie.rarity);
+    text += `\n6. ${emoji} ${teamGoalie.name} (${teamGoalie.overall} OVR) - вратарь\n`;
+    buttons.push([Markup.button.callback(`❌ ${teamGoalie.name}`, 'remove_goalie')]);
+  }
+  
+  buttons.push([Markup.button.callback('🔙 Назад', 'edit_team')]);
+  
+  await ctx.editMessageText(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard(buttons)
+  });
+}
+
+// ✅ УДАЛЕНИЕ ПОЛЕВОГО ИГРОКА
+async function removeForward(ctx, index) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  const currentTeam = data.team || [];
+  
+  const forwards = currentTeam.filter(p => p.position !== 'G');
+  const goalies = currentTeam.filter(p => p.position === 'G');
+  
+  if (index >= forwards.length) {
+    await ctx.editMessageText('❌ Игрок не найден!');
+    return;
+  }
+  
+  const removed = forwards[index];
+  const newForwards = forwards.filter((_, i) => i !== index);
+  data.team = [...goalies, ...newForwards];
+  
+  saveUsers(users);
+  await ctx.answerCbQuery(`❌ ${removed.name} убран из состава!`);
+  await showEditTeam(ctx);
+}
+
+// ✅ УДАЛЕНИЕ ВРАТАРЯ
+async function removeGoalie(ctx) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  const currentTeam = data.team || [];
+  
+  const forwards = currentTeam.filter(p => p.position !== 'G');
+  const goalies = currentTeam.filter(p => p.position === 'G');
+  
+  if (goalies.length === 0) {
+    await ctx.editMessageText('❌ Вратарь не найден!');
+    return;
+  }
+  
+  const removed = goalies[0];
+  data.team = forwards;
+  
+  saveUsers(users);
+  await ctx.answerCbQuery(`❌ ${removed.name} убран из состава!`);
+  await showEditTeam(ctx);
 }
 
 async function saveTeam(ctx) {
@@ -424,6 +510,21 @@ module.exports = (bot) => {
     await showEditTeam(ctx);
   });
 
+  bot.action('remove_player', async (ctx) => {
+    await ctx.answerCbQuery();
+    await showRemovePlayer(ctx);
+  });
+
+  bot.action(/remove_forward_(\d+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await removeForward(ctx, parseInt(ctx.match[1]));
+  });
+
+  bot.action('remove_goalie', async (ctx) => {
+    await ctx.answerCbQuery();
+    await removeGoalie(ctx);
+  });
+
   bot.action('save_team', async (ctx) => {
     await ctx.answerCbQuery();
     await saveTeam(ctx);
@@ -502,7 +603,6 @@ module.exports = (bot) => {
       bonusText = getTimeUntilNextBonus(data.lastBonus);
     }
     
-    // ✅ ПОКАЗЫВАЕМ XP
     const xp = data.battlepass_xp || 0;
     const bpLevel = Math.floor(xp / 20);
     

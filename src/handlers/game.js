@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - С XP ПОБЕДА +1, ПОРАЖЕНИЕ 0
+// src/handlers/game.js - ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -19,12 +19,12 @@ function saveUsers(users) {
 
 const matches = {};
 
-// ✅ ИМПОРТИРУЕМ addXP
+// ✅ ПРАВИЛЬНЫЙ ИМПОРТ addXP
 const { addXP } = require('./battlepass');
 
-// ✅ НОВЫЕ НАСТРОЙКИ XP
-const XP_WIN = 1;      // +1 XP за победу
-const XP_LOSS = 0;     // 0 XP за поражение
+// Настройки XP
+const XP_WIN = 1;
+const XP_LOSS = 0;
 
 console.log('✅ addXP загружен:', typeof addXP);
 console.log('✅ XP_WIN:', XP_WIN);
@@ -55,9 +55,25 @@ function getAIShot(playerId, difficulty = 1) {
     if (slapCount >= 2) { weights.low += 2; }
   }
   
-  const difficultyBonus = { novice: 0.5, amateur: 0.7, pro: 1.0, legend: 1.3 };
-  const factor = difficultyBonus[difficulty] || 1;
-  Object.keys(weights).forEach(key => { weights[key] = weights[key] * factor; });
+  // ✅ РЕАЛЬНЫЕ СЛОЖНОСТИ ИИ
+  const difficultyMultipliers = {
+    novice: { factor: 0.4, defense: 1.4, offense: 0.3 },
+    amateur: { factor: 0.6, defense: 1.1, offense: 0.5 },
+    pro: { factor: 0.85, defense: 0.85, offense: 0.8 },
+    legend: { factor: 1.2, defense: 0.6, offense: 1.2 }
+  };
+  
+  const config = difficultyMultipliers[difficulty] || difficultyMultipliers.pro;
+  
+  // Умножаем веса на сложность
+  Object.keys(weights).forEach(key => {
+    weights[key] = weights[key] * config.factor;
+  });
+  
+  // Добавляем вариативность
+  Object.keys(weights).forEach(key => {
+    weights[key] = weights[key] * (0.8 + Math.random() * 0.4);
+  });
   
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
   let random = Math.random() * total;
@@ -81,7 +97,14 @@ function calculateShot(playerAction, goalieAction, difficulty = 1) {
 
   const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
   const randomFactor = 0.7 + Math.random() * 0.6;
-  const difficultyBonus = { novice: 1.4, amateur: 1.1, pro: 0.85, legend: 0.6 };
+  
+  // ✅ РЕАЛЬНЫЕ СЛОЖНОСТИ ДЛЯ ЗАЩИТЫ
+  const difficultyBonus = {
+    novice: 1.4,
+    amateur: 1.1,
+    pro: 0.85,
+    legend: 0.6
+  };
   const defenseFactor = difficultyBonus[difficulty] || 1;
   
   let probability = multiplier * randomFactor * defenseFactor;
@@ -109,11 +132,13 @@ const goalieNames = {
   aggressive: '💪 Агрессивный выход'
 };
 
-async function finishMatch(ctx, user, match) {
-  console.log('🏁 [finishMatch] Завершаем матч');
+async function finishMatch(ctx, user, match, isForfeit = false) {
+  console.log('🏁 [finishMatch] Завершаем матч. Forfeit:', isForfeit);
   const users = getUsers();
   const data = users[user.id];
-  const isWin = match.playerScore > match.aiScore;
+  
+  // Если сдался — считаем как поражение
+  const isWin = !isForfeit && match.playerScore > match.aiScore;
   
   if (!data) {
     console.log('❌ [finishMatch] Пользователь не найден!');
@@ -127,12 +152,12 @@ async function finishMatch(ctx, user, match) {
     data.wins = (data.wins || 0) + 1;
     data.coins = (data.coins || 0) + 20;
     data.rating = (data.rating || 0) + 25;
-    xpEarned = XP_WIN; // +1 XP за победу
+    xpEarned = XP_WIN;
     console.log('🏆 ПОБЕДА! +' + xpEarned + ' XP');
   } else {
     data.losses = (data.losses || 0) + 1;
     data.rating = Math.max(0, (data.rating || 0) - 10);
-    xpEarned = XP_LOSS; // 0 XP за поражение
+    xpEarned = XP_LOSS;
     console.log('😔 ПОРАЖЕНИЕ. +' + xpEarned + ' XP');
   }
   
@@ -144,27 +169,50 @@ async function finishMatch(ctx, user, match) {
                 data.rating >= 1200 ? 'Золото' :
                 data.rating >= 1000 ? 'Серебро' : 'Бронза';
   
-  // ✅ НАЧИСЛЯЕМ XP
+  // ✅ НАЧИСЛЯЕМ XP С ЛОГИРОВАНИЕМ
+  console.log('📈 [finishMatch] Попытка начислить XP:', xpEarned);
+  console.log('📈 [finishMatch] Тип addXP:', typeof addXP);
+  
   if (typeof addXP === 'function' && xpEarned > 0) {
-    await addXP(user.id, xpEarned, ctx);
-    console.log('✅ Добавлено ' + xpEarned + ' XP пользователю ' + user.id);
+    try {
+      console.log('📈 [finishMatch] Вызываем addXP для:', user.id);
+      const result = await addXP(user.id, xpEarned, ctx);
+      console.log('📈 [finishMatch] Результат addXP:', result);
+    } catch (error) {
+      console.log('❌ [finishMatch] Ошибка addXP:', error.message);
+    }
   } else if (xpEarned === 0) {
     console.log('ℹ️ За поражение XP не начисляется');
   } else {
-    console.log('⚠️ addXP не функция, пропускаем');
+    console.log('⚠️ addXP не функция или не найдена!');
   }
   
   saveUsers(users);
   
-  const matchResult = { playerScore: match.playerScore, aiScore: match.aiScore, isWin: isWin, rounds: match.round };
+  const matchResult = { 
+    playerScore: match.playerScore, 
+    aiScore: match.aiScore, 
+    isWin: isWin, 
+    rounds: match.round,
+    isForfeit: isForfeit
+  };
   
   // ✅ УДАЛЯЕМ МАТЧ
   delete matches[user.id];
   
   let resultText = '🏁 *МАТЧ ЗАВЕРШЁН!*\n\n';
+  if (isForfeit) {
+    resultText += '🏳️ *Ты сдался!*\n\n';
+  }
   if (match.lastShot) resultText += '⚡ *Последний бросок:*\n  ' + match.lastShot + '\n\n';
   resultText += '📊 *Итоговый счёт:*\n🔥 Ты: ' + matchResult.playerScore + '\n🤖 ИИ: ' + matchResult.aiScore + '\n🔢 Раундов: ' + matchResult.rounds + '\n\n';
-  resultText += isWin ? '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + xpEarned + ' XP\n' : '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + xpEarned + ' XP\n';
+  
+  if (isWin) {
+    resultText += '🎉 *ПОБЕДА!* +20⭐ +25 рейтинга +' + xpEarned + ' XP\n';
+  } else {
+    resultText += '😔 *ПОРАЖЕНИЕ...* -10 рейтинга +' + xpEarned + ' XP\n';
+  }
+  
   resultText += '\n📊 *Твоя статистика:*\n🏆 Рейтинг: ' + data.rating + '\n🥇 Лига: ' + data.league + '\n⭐ Монет: ' + data.coins + '\n✅ Побед: ' + data.wins + '\n❌ Поражений: ' + data.losses + '\n\n';
   resultText += 'Выбери действие:';
   
@@ -233,7 +281,7 @@ async function showPlayerSelection(ctx, user, match) {
     text += '  ' + match.lastShot + '\n\n';
   }
   text += '📊 Счёт: Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
-  text += '🔢 Раунд ' + (match.round + 1) + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+  text += '🔢 Раунд ' + (match.round + 1) + (match.isSuddenDeath ? ' (ДО ГОЛА! ⚡)' : ' из ' + match.maxRounds) + '\n\n';
   text += '*Выбери полевого игрока, который будет бить буллит:*';
   
   await ctx.editMessageText(
@@ -463,7 +511,7 @@ module.exports = (bot) => {
     resultText += '🧤 *' + (goalie ? goalie.name : 'Вратарь') + ':* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
-    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА! ⚡)' : ' из ' + match.maxRounds) + '\n\n';
     resultText += '🤖 *Ход ИИ! Выбери действие вратаря:*';
     
     await ctx.editMessageText(
@@ -533,6 +581,7 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
+    // ✅ ПРОВЕРКА ЗАВЕРШЕНИЯ
     const isFinishedAfterRounds = match.round >= match.maxRounds && match.playerScore !== match.aiScore;
     const isSuddenDeath = match.round >= match.maxRounds && match.playerScore === match.aiScore;
     
@@ -545,15 +594,25 @@ module.exports = (bot) => {
       isSuddenDeath
     });
     
-    if (isSuddenDeath) match.isSuddenDeath = true;
-    if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) match.isFinished = true;
-    if (isFinishedAfterRounds) match.isFinished = true;
+    if (isSuddenDeath) {
+      match.isSuddenDeath = true;
+      console.log('⚡ ОВЕРТАЙМ! Буллиты до гола!');
+    }
+    
+    // ✅ БУЛЛИТЫ ДО ГОЛА
+    if (match.isSuddenDeath && (result.isGoal || match.playerScore !== match.aiScore)) {
+      match.isFinished = true;
+    }
+    
+    if (isFinishedAfterRounds) {
+      match.isFinished = true;
+    }
     
     let resultText = '🤖 *Ход ИИ:* ' + actionNames[aiAction] + '\n';
     resultText += '🧤 *' + (goalie ? goalie.name : 'Вратарь') + ':* ' + goalieNames[goalieAction] + '\n';
     resultText += (result.isGoal ? '⚡ *ГОЛ!* 😱' : '😤 *СЭЙВ!*') + '\n\n';
     resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
-    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА!)' : ' из ' + match.maxRounds) + '\n\n';
+    resultText += '🔢 Раунд ' + match.round + (match.isSuddenDeath ? ' (ДО ГОЛА! ⚡)' : ' из ' + match.maxRounds) + '\n\n';
     
     match.isProcessing = false;
     
@@ -567,19 +626,23 @@ module.exports = (bot) => {
     await showPlayerSelection(ctx, user, match);
   });
 
+  // ✅ СДАЧА — СЧИТАЕТСЯ КАК ПОРАЖЕНИЕ
   bot.action('forfeit', async (ctx) => {
     console.log('🏳️ [forfeit] Сдача');
     await ctx.answerCbQuery();
     const user = ctx.from;
     const match = matches[user.id];
+    
     if (match) {
       match.isFinished = true;
-      delete matches[user.id];
+      // ✅ Завершаем матч как поражение
+      await finishMatch(ctx, user, match, true);
+    } else {
+      await ctx.editMessageText('❌ Матч не найден!', {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+      });
     }
-    await ctx.editMessageText('🏳️ *Матч завершён досрочно!*\n\nТы сдался 😔', {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
-    });
   });
 
   bot.action('play_pvp', async (ctx) => {
