@@ -292,11 +292,18 @@ async function showBattlepass(ctx) {
   const nextLevelXP = (level + 1) * 20;
   const xpToNext = Math.min(nextLevelXP - xp, 20);
   
+  // ✅ ПРОГРЕСС-БАР
+  const progressBarLength = 10;
+  const filledBars = Math.floor((xp % 20) / 20 * progressBarLength);
+  const emptyBars = progressBarLength - filledBars;
+  const progressBar = '▓'.repeat(filledBars) + '░'.repeat(emptyBars);
+  
   let text = "🎖️ *БОЕВОЙ ПРОПУСК*\n\n";
   text += "🏆 " + BATTLEPASS.SEASON_NAME + "\n\n";
   text += "📊 Уровень: " + level + "/" + maxLevel + "\n";
   text += "🔋 XP: " + xp + " / " + nextLevelXP + "\n";
   text += "📈 Прогресс: " + progress + "%\n";
+  text += "📊 " + progressBar + "\n";
   text += "⚡ Победа = 1 XP\n";
   text += "🎯 До следующего уровня: " + xpToNext + " XP\n\n";
   
@@ -306,50 +313,48 @@ async function showBattlepass(ctx) {
     text += "💎 Купить премиум за " + BATTLEPASS.PRICE + " кристаллов\n\n";
   }
   
-  // ✅ ПОКАЗЫВАЕМ ПОСЛЕДНИЕ 5 УРОВНЕЙ
-  text += "📋 *БЛИЖАЙШИЕ НАГРАДЫ:*\n\n";
-  const startLevel = Math.max(1, level);
-  const endLevel = Math.min(level + 5, maxLevel);
+  // ✅ ПОКАЗЫВАЕМ ВСЕ УРОВНИ КОРОТКО
+  text += "📋 *ВСЕ НАГРАДЫ:*\n\n";
   
-  for (let i = startLevel; i <= endLevel; i++) {
+  for (let i = 1; i <= maxLevel; i++) {
     const reward = BATTLEPASS.REWARDS[i];
     if (!reward) continue;
     
+    const isUnlocked = i <= level;
     const freeClaimed = getLevelStatus(data, i, false);
     const premiumClaimed = getLevelStatus(data, i, true);
     
-    const freeCheck = freeClaimed ? "✅" : (i <= level ? "🔒" : "⬜");
-    const premiumCheck = premiumClaimed ? "✅" : (i <= level && isPremium ? "🔒" : "⬜");
+    const statusIcon = isUnlocked ? (freeClaimed ? "✅" : "🔓") : "🔒";
+    const premiumIcon = isUnlocked && isPremium ? (premiumClaimed ? "✅" : "🔓") : "🔒";
     
-    text += "📍 *Уровень " + i + "*";
+    text += statusIcon + " *Уровень " + i + "*";
+    if (i === level + 1) text += " ⬅️ СЛЕДУЮЩИЙ";
     if (i <= level) text += " ✅ ДОСТУПЕН";
-    else text += " 🔒 ЗАБЛОКИРОВАН";
     text += "\n";
     
+    // Показываем только первую награду для краткости
     if (reward.free) {
-      text += freeCheck + " 🆓 Бесплатный: ";
       const free = reward.free;
       const parts = [];
-      if (free.coins) parts.push("⭐ " + free.coins);
-      if (free.crystals) parts.push("💎 " + free.crystals);
-      if (free.pack) parts.push("📦 " + free.pack + " пак");
-      if (free.jersey) parts.push("🎽 Форма");
-      if (free.arena) parts.push("🏟️ Арена");
-      if (free.card) parts.push("🃏 " + free.card + " (" + (free.overall || 93) + " OVR)");
-      text += parts.join(", ") + "\n";
+      if (free.coins) parts.push("⭐" + free.coins);
+      if (free.crystals) parts.push("💎" + free.crystals);
+      if (free.pack) parts.push("📦" + free.pack);
+      if (free.jersey) parts.push("🎽Форма");
+      if (free.arena) parts.push("🏟️Арена");
+      if (free.card) parts.push("🃏" + free.card);
+      text += "  🆓 " + parts.join(" ") + "\n";
     }
     
     if (isPremium && reward.premium) {
-      text += premiumCheck + " 💎 Премиум: ";
       const premium = reward.premium;
       const parts = [];
-      if (premium.coins) parts.push("⭐ " + premium.coins);
-      if (premium.crystals) parts.push("💎 " + premium.crystals);
-      if (premium.pack) parts.push("📦 " + premium.pack + " пак");
-      if (premium.jersey) parts.push("🎽 Форма");
-      if (premium.arena) parts.push("🏟️ Арена");
-      if (premium.card) parts.push("🃏 " + premium.card + " (" + (premium.overall || 96) + " OVR)");
-      text += parts.join(", ") + "\n";
+      if (premium.coins) parts.push("⭐" + premium.coins);
+      if (premium.crystals) parts.push("💎" + premium.crystals);
+      if (premium.pack) parts.push("📦" + premium.pack);
+      if (premium.jersey) parts.push("🎽Форма");
+      if (premium.arena) parts.push("🏟️Арена");
+      if (premium.card) parts.push("🃏" + premium.card);
+      text += "  💎 " + parts.join(" ") + "\n";
     }
     
     text += "\n";
@@ -472,6 +477,7 @@ module.exports = {
 module.exports = (bot) => {
   bot.action("battlepass", async (ctx) => {
     await ctx.answerCbQuery();
+    // ✅ ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ДАННЫЕ
     await showBattlepass(ctx);
   });
 
@@ -482,6 +488,7 @@ module.exports = (bot) => {
 
   bot.action("bp_refresh", async (ctx) => {
     await ctx.answerCbQuery();
+    // ✅ ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ДАННЫЕ
     await showBattlepass(ctx);
   });
 
