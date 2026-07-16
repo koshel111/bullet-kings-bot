@@ -99,7 +99,8 @@ require('./src/handlers/profile')(bot);
 require('./src/handlers/shopCosmetics')(bot);
 require('./src/handlers/admin')(bot);
 require('./src/handlers/battlepass')(bot);
-
+// В bot.js, после других require:
+require('./src/handlers/pvp')(bot);
 // ============================================
 // ГЛАВНОЕ МЕНЮ ДЛЯ КНОПКИ НАЗАД
 // ============================================

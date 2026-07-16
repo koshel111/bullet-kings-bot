@@ -135,7 +135,9 @@ module.exports = (bot) => {
         parse_mode: "Markdown",
         ...Markup.inlineKeyboard([
           [Markup.button.callback("🤖 Против ИИ", "play_ai")],
-          [Markup.button.callback("⚔️ PvP", "play_pvp")],
+          // В функции showMainMenu, в inline клавиатуру добавьте:
+
+          [Markup.button.callback("⚔️ PvP", "pvp_find")],
           [Markup.button.callback("🔙 Назад", "back")],
         ])
       }
