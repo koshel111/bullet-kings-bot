@@ -234,14 +234,12 @@ async function pvpReady(ctx, matchId) {
   const readyCount = (match.player1Ready ? 1 : 0) + (match.player2Ready ? 1 : 0);
   console.log('📊 [PvP] Готовность:', readyCount + '/2');
   
-  // Отправляем статус обоим игрокам (НОВЫМИ СООБЩЕНИЯМИ)
   const statusText = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
     `👤 ${match.player1Name} ${match.player1Ready ? '✅' : '⏳'}\n` +
     `👤 ${match.player2Name} ${match.player2Ready ? '✅' : '⏳'}\n` +
     `📊 Готовность: ${readyCount}/2\n\n` +
     `${readyCount === 2 ? '🎯 Все готовы! Начинаем матч!' : 'Ожидаем подтверждения от соперника...'}`;
   
-  // Отправляем новые сообщения вместо редактирования старых
   await ctx.telegram.sendMessage(
     match.player1,
     statusText,
@@ -254,17 +252,14 @@ async function pvpReady(ctx, matchId) {
     { parse_mode: 'Markdown' }
   );
   
-  // Если оба готовы — запускаем матч
   if (readyCount === 2) {
     match.started = true;
     match.currentTurn = match.player1;
     
     console.log('✅ [PvP] Оба готовы! Запускаем матч');
     
-    // ✅ ОТПРАВЛЯЕМ ВЫБОР ИГРОКА ИГРОКУ 1 (он ходит первым)
     await showPvPPlayerSelectionToPlayer(match.player1, matchId);
     
-    // ✅ ОТПРАВЛЯЕМ СООБЩЕНИЕ ОЖИДАНИЯ ИГРОКУ 2
     await ctx.telegram.sendMessage(
       match.player2,
       `⏳ *Ожидание хода соперника...*\n\n` +
@@ -336,7 +331,7 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
   }
 }
 
-// ПОКАЗ ВЫБОРА ИГРОКА (для совместимости с существующим кодом)
+// ПОКАЗ ВЫБОРА ИГРОКА (для совместимости)
 async function showPvPPlayerSelection(ctx, matchId) {
   const match = pvpMatches[matchId];
   if (!match || match.isFinished) return;
@@ -569,17 +564,14 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown', ...resultKeyboard });
   
   if (match.isFinished) {
-    await finishPvPMatch(matchId);
+    await finishPvPMatch(ctx, matchId);
     return;
   }
   
-  // Меняем ход
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
   
-  // Отправляем выбор игрока следующему игроку
   await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
   
-  // Уведомляем предыдущего игрока
   const waitingPlayer = match.currentTurn === match.player1 ? match.player2 : match.player1;
   await ctx.telegram.sendMessage(
     waitingPlayer,
@@ -628,7 +620,7 @@ async function finishPvPRound(matchId) {
   
   if (isAfterMaxRounds && isScoreDifferent) {
     match.isFinished = true;
-    await finishPvPMatch(matchId);
+    await finishPvPMatch(null, matchId);
     return;
   }
   
@@ -637,7 +629,7 @@ async function finishPvPRound(matchId) {
 }
 
 // ЗАВЕРШЕНИЕ PvP МАТЧА
-async function finishPvPMatch(matchId) {
+async function finishPvPMatch(ctx, matchId) {
   const match = pvpMatches[matchId];
   if (!match) return;
   
