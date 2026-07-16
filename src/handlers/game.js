@@ -1,5 +1,17 @@
 ﻿// ============================================
-// src/handlers/game.js - С НАГРАДАМИ ЗА СЛОЖНОСТЬ
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ (изменены кнопки вратаря)
+// ============================================
+
+// ... (весь остальной код такой же, меняем только названия кнопок)
+
+// В функции shot_(.+) меняем callback_data для кнопок вратаря:
+// Было: goalie_left, goalie_right и т.д.
+// Стало: game_goalie_left, game_goalie_right и т.д.
+
+// И в обработчике bot.action(/goalie_(.+)/) меняем на bot.action(/game_goalie_(.+)/)
+
+// ============================================
+// ПОЛНЫЙ ФАЙЛ game.js С ИСПРАВЛЕННЫМИ КНОПКАМИ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -19,12 +31,12 @@ function saveUsers(users) {
 
 const matches = {};
 
-// ✅ ИМПОРТ XP
-const { addXP, XP_WIN, XP_LOSS } = require('./xp');
+// ИМПОРТ XP
+const { addXP } = require('./xp');
 
 console.log('✅ [game.js] addXP загружен, тип:', typeof addXP);
 
-// ✅ НАГРАДЫ ЗА СЛОЖНОСТЬ
+// НАГРАДЫ ЗА СЛОЖНОСТЬ
 const DIFFICULTY_REWARDS = {
   novice: {
     name: '🟢 Новичок',
@@ -85,7 +97,6 @@ function getAIShot(playerId, difficulty = 1) {
     if (slapCount >= 2) { weights.low += 2; }
   }
   
-  // ✅ РЕАЛЬНЫЕ СЛОЖНОСТИ ИИ
   const difficultyMultipliers = {
     novice: { factor: 0.3, defense: 1.4, offense: 0.3 },
     amateur: { factor: 0.5, defense: 1.1, offense: 0.5 },
@@ -203,7 +214,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
                 data.rating >= 1200 ? 'Золото' :
                 data.rating >= 1000 ? 'Серебро' : 'Бронза';
   
-  // ✅ НАЧИСЛЯЕМ XP
   if (typeof addXP === 'function' && xpEarned > 0) {
     try {
       await addXP(user.id, xpEarned, ctx);
@@ -232,7 +242,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
   if (match.lastShot) resultText += '⚡ *Последний бросок:*\n  ' + match.lastShot + '\n\n';
   resultText += '📊 *Итоговый счёт:*\n🔥 Ты: ' + matchResult.playerScore + '\n🤖 ИИ: ' + matchResult.aiScore + '\n🔢 Раундов: ' + matchResult.rounds + '\n\n';
   
-  // ✅ ПОКАЗЫВАЕМ ВСЕ НАГРАДЫ
   if (isWin) {
     resultText += '🎉 *ПОБЕДА!*\n';
     resultText += '  ⭐ +' + coinsEarned + ' монет\n';
@@ -319,14 +328,12 @@ async function showPlayerSelection(ctx, user, match) {
   
   let text = '🤖 *Матч против ИИ (' + match.difficultyName + ')*\n\n';
   
-  // ✅ ПОДСКАЗКА ДЛЯ НОВИЧКА
   const difficulty = match.difficulty;
   const rewards = DIFFICULTY_REWARDS[difficulty];
   if (rewards && rewards.tip) {
     text += rewards.tip + '\n\n';
   }
   
-  // ✅ ПОКАЗЫВАЕМ НАГРАДЫ ЗА СЛОЖНОСТЬ
   if (rewards) {
     text += '📋 *Награды за ' + rewards.name + ':*\n';
     text += '  🏆 Победа: +' + rewards.winCoins + '⭐, +' + rewards.winRating + ' рейтинга, +' + rewards.xp + ' XP\n';
@@ -588,6 +595,7 @@ module.exports = (bot) => {
       resultText += '🔢 Раунд ' + match.round + ' из ' + match.maxRounds + '\n\n';
     }
     
+    // ✅ ИЗМЕНЁННЫЕ КНОПКИ — С ПРЕФИКСОМ game_
     resultText += '🤖 *Ход ИИ! Выбери действие вратаря:*';
     
     await ctx.editMessageText(
@@ -595,12 +603,12 @@ module.exports = (bot) => {
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('🧤 Закрыть левый угол', 'goalie_left')],
-          [Markup.button.callback('🧤 Закрыть правый угол', 'goalie_right')],
-          [Markup.button.callback('🧍 Стоять', 'goalie_stand')],
-          [Markup.button.callback('🛡️ Опустить щитки', 'goalie_low')],
-          [Markup.button.callback('🧤 Ловушка', 'goalie_glove')],
-          [Markup.button.callback('💪 Агрессивный выход', 'goalie_aggressive')],
+          [Markup.button.callback('🧤 Закрыть левый угол', 'game_goalie_left')],
+          [Markup.button.callback('🧤 Закрыть правый угол', 'game_goalie_right')],
+          [Markup.button.callback('🧍 Стоять', 'game_goalie_stand')],
+          [Markup.button.callback('🛡️ Опустить щитки', 'game_goalie_low')],
+          [Markup.button.callback('🧤 Ловушка', 'game_goalie_glove')],
+          [Markup.button.callback('💪 Агрессивный выход', 'game_goalie_aggressive')],
           [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
         ])
       }
@@ -609,8 +617,9 @@ module.exports = (bot) => {
     match.isProcessing = false;
   });
 
-  bot.action(/goalie_(.+)/, async (ctx) => {
-    console.log('🧤 [goalie] Выбрано действие вратаря:', ctx.match[1]);
+  // ✅ ИЗМЕНЁННЫЙ ОБРАБОТЧИК — game_goalie_ вместо goalie_
+  bot.action(/game_goalie_(.+)/, async (ctx) => {
+    console.log('🧤 [game_goalie] Выбрано действие вратаря:', ctx.match[1]);
     await ctx.answerCbQuery();
     const goalieAction = ctx.match[1];
     const user = ctx.from;
@@ -618,13 +627,34 @@ module.exports = (bot) => {
     
     if (!match) {
       console.log('❌ Матч не найден!');
-      await ctx.editMessageText('❌ Матч не найден! Начни новый матч.');
+      await ctx.editMessageText(
+        '❌ *Матч не найден!*\n\n' +
+        'Возможно матч уже завершён.\n' +
+        'Начни новый матч через 🎮 Играть.',
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🎮 Начать новый матч', 'play')],
+            [Markup.button.callback('🔙 Назад', 'back')],
+          ])
+        }
+      );
       return;
     }
     
     if (match.isFinished) {
       console.log('❌ Матч уже завершён!');
-      await ctx.editMessageText('❌ Матч уже завершён!');
+      await ctx.editMessageText(
+        '❌ *Матч уже завершён!*\n\n' +
+        'Начни новый матч через 🎮 Играть.',
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🎮 Начать новый матч', 'play')],
+            [Markup.button.callback('🔙 Назад', 'back')],
+          ])
+        }
+      );
       return;
     }
     
@@ -657,7 +687,6 @@ module.exports = (bot) => {
     
     match.lastShot = '🤖 ' + actionNames[aiAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ! 😱' : '😤 СЭЙВ!');
     
-    // ✅ ПРОВЕРКА ЗАВЕРШЕНИЯ МАТЧА
     const isAfterMaxRounds = match.round >= match.maxRounds;
     const isScoreDifferent = match.playerScore !== match.aiScore;
     const isScoreEqual = match.playerScore === match.aiScore;
@@ -673,7 +702,6 @@ module.exports = (bot) => {
       isSuddenDeath: match.isSuddenDeath
     });
     
-    // ✅ ЕСЛИ СЧЁТ РАВНЫЙ ПОСЛЕ 5 РАУНДОВ — ОВЕРТАЙМ
     if (isAfterMaxRounds && isScoreEqual) {
       console.log('⚡ СЧЁТ РАВНЫЙ! НАЧИНАЕМ ОВЕРТАЙМ!');
       match.isSuddenDeath = true;
@@ -681,7 +709,6 @@ module.exports = (bot) => {
       match.usedPlayers = [];
     }
     
-    // ✅ В ОВЕРТАЙМЕ — МАТЧ ЗАВЕРШАЕТСЯ ТОЛЬКО КОГДА ЕСТЬ РАЗНИЦА
     if (match.isSuddenDeath) {
       if (match.playerScore !== match.aiScore) {
         console.log('⚡ ОВЕРТАЙМ ЗАВЕРШЁН! РАЗНИЦА В СЧЁТЕ!');
@@ -690,7 +717,6 @@ module.exports = (bot) => {
         console.log('⚡ ОВЕРТАЙМ ПРОДОЛЖАЕТСЯ... СЧЁТ РАВНЫЙ');
       }
     } else {
-      // ✅ ОБЫЧНЫЙ РЕЖИМ — ЗАВЕРШАЕМ ПОСЛЕ 5 РАУНДОВ
       if (isAfterMaxRounds && isScoreDifferent) {
         console.log('🏁 5 РАУНДОВ ЗАВЕРШЕНО, РАЗНИЦА В СЧЁТЕ');
         match.isFinished = true;
