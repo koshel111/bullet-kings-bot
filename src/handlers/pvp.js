@@ -1,11 +1,10 @@
 // ============================================
-// src/handlers/pvp.js - PvP РЕЖИМ (ИСПРАВЛЕННЫЙ)
+// src/handlers/pvp.js - PvP РЕЖИМ (ФИНАЛЬНАЯ ВЕРСИЯ)
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
-const { getRarityEmoji } = require('../data/players');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -13,7 +12,6 @@ const DB_PATH = path.join(__dirname, '../../data/database.json');
 const pvpQueue = [];
 const pvpMatches = {};
 const pvpTimers = {};
-const pvpReady = {}; // Кто нажал "Готов"
 const playerActiveMatches = {};
 
 function getUsers() {
@@ -25,23 +23,14 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-function getPositionName(position) {
-  if (position === 'G') return 'Вратарь';
-  if (position === 'LW' || position === 'RW' || position === 'C') return 'Нападающий';
-  if (position === 'D') return 'Защитник';
-  return 'Полевой';
-}
-
 // ✅ ПРОВЕРКА АКТИВНОГО МАТЧА
 function hasActiveMatch(userId) {
-  // Проверяем через pvpMatches
   for (const matchId in pvpMatches) {
     const match = pvpMatches[matchId];
     if (!match.isFinished && (match.player1 === userId || match.player2 === userId)) {
       return matchId;
     }
   }
-  // Проверяем через playerActiveMatches
   if (playerActiveMatches[userId]) {
     const matchId = playerActiveMatches[userId];
     if (pvpMatches[matchId] && !pvpMatches[matchId].isFinished) {
@@ -56,20 +45,17 @@ async function findOpponent(ctx) {
   const userId = ctx.from.id;
   const user = ctx.from;
   
-  // Проверяем активный матч
   const activeMatch = hasActiveMatch(userId);
   if (activeMatch) {
     await ctx.reply('⚠️ У вас уже есть активный матч! Дождитесь его завершения.');
     return;
   }
   
-  // Проверяем, есть ли уже в очереди
   if (pvpQueue.includes(userId)) {
     await ctx.reply('⏳ Вы уже в очереди на поиск соперника!');
     return;
   }
   
-  // Проверяем состав
   const users = getUsers();
   const data = users[userId];
   if (!data) {
@@ -91,10 +77,8 @@ async function findOpponent(ctx) {
     return;
   }
   
-  // Добавляем в очередь
   pvpQueue.push(userId);
   
-  // Отправляем сообщение о поиске
   const msg = await ctx.reply(
     `🔍 *Поиск соперника...*\n\n` +
     `👤 ${user.first_name}\n` +
@@ -108,7 +92,6 @@ async function findOpponent(ctx) {
     }
   );
   
-  // Сохраняем таймер
   pvpTimers[userId] = {
     messageId: msg.message_id,
     chatId: ctx.chat.id,
@@ -128,12 +111,10 @@ async function findOpponent(ctx) {
     }, 30000)
   };
   
-  // Проверяем, есть ли уже кто-то в очереди
   if (pvpQueue.length >= 2) {
     const player1Id = pvpQueue.shift();
     const player2Id = pvpQueue.shift();
     
-    // Удаляем таймеры
     if (pvpTimers[player1Id]) {
       clearTimeout(pvpTimers[player1Id].timeout);
       delete pvpTimers[player1Id];
@@ -183,15 +164,9 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
     started: false
   };
   
-  // ЗАПОМИНАЕМ АКТИВНЫЙ МАТЧ ДЛЯ ИГРОКОВ
   playerActiveMatches[player1Id] = matchId;
   playerActiveMatches[player2Id] = matchId;
   
-  // Очищаем готовность
-  pvpReady[player1Id] = false;
-  pvpReady[player2Id] = false;
-  
-  // Отправляем приглашение
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
   ]);
@@ -235,13 +210,10 @@ async function pvpReady(ctx, matchId) {
     return;
   }
   
-  // Отмечаем готовность
   if (match.player1 === userId) {
     match.player1Ready = true;
-    pvpReady[userId] = true;
   } else if (match.player2 === userId) {
     match.player2Ready = true;
-    pvpReady[userId] = true;
   } else {
     await ctx.reply('❌ Вы не участвуете в этом матче!');
     return;
@@ -249,7 +221,6 @@ async function pvpReady(ctx, matchId) {
   
   const readyCount = (match.player1Ready ? 1 : 0) + (match.player2Ready ? 1 : 0);
   
-  // Обновляем сообщение для обоих игроков
   const statusText = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
     `👤 ${match.player1Name} ${match.player1Ready ? '✅' : '⏳'}\n` +
     `👤 ${match.player2Name} ${match.player2Ready ? '✅' : '⏳'}\n` +
@@ -279,12 +250,10 @@ async function pvpReady(ctx, matchId) {
     { parse_mode: 'Markdown', ...keyboard }
   );
   
-  // Если оба готовы — запускаем матч
   if (readyCount === 2) {
     match.started = true;
     match.currentTurn = match.player1;
     
-    // Через 2 секунды начинаем
     setTimeout(async () => {
       await showPvPPlayerSelection(null, matchId);
     }, 2000);
@@ -329,7 +298,6 @@ async function showPvPPlayerSelection(ctx, matchId) {
   const forwards = team.filter(p => p.position !== 'G');
   const available = forwards.filter((p, i) => !usedPlayers.includes(i));
   
-  // Если доступных игроков нет
   if (available.length === 0) {
     if (match.isSuddenDeath) {
       if (isPlayer1) {
@@ -341,7 +309,6 @@ async function showPvPPlayerSelection(ctx, matchId) {
       return;
     }
     
-    // Завершаем раунд
     await finishPvPRound(ctx, matchId);
     return;
   }
@@ -377,7 +344,6 @@ async function showPvPPlayerSelection(ctx, matchId) {
         ...Markup.inlineKeyboard(buttons)
       });
     } else {
-      // Отправляем новое сообщение для текущего игрока
       await ctx.telegram.sendMessage(
         currentPlayer,
         text,
@@ -411,7 +377,6 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
     return;
   }
   
-  // Сохраняем выбранного игрока
   match.currentShooter = { playerNum, playerIndex, player };
   match.waitingForAction = true;
   
@@ -453,7 +418,6 @@ async function pvpHandleShot(ctx, matchId, shotType) {
     return;
   }
   
-  // Сохраняем бросок
   const usedPlayers = isPlayer1 ? match.usedPlayers1 : match.usedPlayers2;
   usedPlayers.push(shooter.playerIndex);
   
@@ -489,7 +453,6 @@ async function pvpHandleShot(ctx, matchId, shotType) {
     [Markup.button.callback('💪 Агрессивный выход', `pvp_goalie_${matchId}_aggressive`)],
   ];
   
-  // Отправляем сопернику запрос на выбор вратаря
   await ctx.telegram.sendMessage(
     opponentId,
     `🧤 *Вратарь!*\n\n` +
@@ -503,7 +466,6 @@ async function pvpHandleShot(ctx, matchId, shotType) {
     }
   );
   
-  // Уведомляем текущего игрока
   await ctx.editMessageText(
     `⏳ *Ожидание ответа от соперника...*\n\n` +
     `🧤 ${opponentName} выбирает действие вратаря.`,
@@ -533,7 +495,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   const shotType = pendingShot.shotType;
   const isPlayer1 = pendingShot.isPlayer1;
   
-  // Расчёт результата
   const goalieSuccess = {
     left: { left: 0.9, right: 0.2, stand: 0.5, low: 0.4, glove: 0.4, aggressive: 0.3 },
     right: { left: 0.2, right: 0.9, stand: 0.5, low: 0.4, glove: 0.4, aggressive: 0.3 },
@@ -547,7 +508,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   const successRate = goalieSuccess[goalieAction]?.[shotType] || 0.5;
   const isGoal = Math.random() > successRate;
   
-  // Обновляем счёт
   if (isGoal) {
     if (isPlayer1) {
       match.player1Score++;
@@ -561,7 +521,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   match.currentGoalie = null;
   match.pendingShot = null;
   
-  // Проверяем завершение матча
   const isAfterMaxRounds = match.round >= match.maxRounds;
   const isScoreDifferent = match.player1Score !== match.player2Score;
   const isScoreEqual = match.player1Score === match.player2Score;
@@ -583,7 +542,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     }
   }
   
-  // Отправляем результат
   const shotNames = {
     left: '⬅️ Влево',
     right: '➡️ Вправо',
@@ -610,7 +568,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     `${isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*'}\n\n` +
     `📊 Счёт: ${match.player1Name} ${match.player1Score} - ${match.player2Score} ${match.player2Name}`;
   
-  // Отправляем результат обоим игрокам
   const resultKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback('📊 Продолжить', `pvp_continue_${matchId}`)]
   ]);
@@ -618,13 +575,11 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown', ...resultKeyboard });
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown', ...resultKeyboard });
   
-  // Если матч завершён
   if (match.isFinished) {
     await finishPvPMatch(ctx, matchId);
     return;
   }
   
-  // Меняем ход
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
 }
 
@@ -650,7 +605,6 @@ async function finishPvPRound(ctx, matchId) {
   const match = pvpMatches[matchId];
   if (!match) return;
   
-  // Проверяем завершение матча
   const isAfterMaxRounds = match.round >= match.maxRounds;
   const isScoreDifferent = match.player1Score !== match.player2Score;
   const isScoreEqual = match.player1Score === match.player2Score;
@@ -684,7 +638,6 @@ async function finishPvPMatch(ctx, matchId) {
   const loser = match.player1Score > match.player2Score ? match.player2 : match.player1;
   const winnerName = match.player1Score > match.player2Score ? match.player1Name : match.player2Name;
   
-  // Начисляем награды
   const users = getUsers();
   const winnerData = users[winner];
   const loserData = users[loser];
@@ -713,7 +666,6 @@ async function finishPvPMatch(ctx, matchId) {
   await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown' });
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown' });
   
-  // УДАЛЯЕМ ИЗ АКТИВНЫХ МАТЧЕЙ
   delete playerActiveMatches[match.player1];
   delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
@@ -753,7 +705,6 @@ async function pvpForfeit(ctx, matchId) {
   
   match.isFinished = true;
   
-  // Определяем победителя
   const winner = match.player1 === userId ? match.player2 : match.player1;
   
   const users = getUsers();
@@ -774,7 +725,6 @@ async function pvpForfeit(ctx, matchId) {
   await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown' });
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown' });
   
-  // УДАЛЯЕМ ИЗ АКТИВНЫХ МАТЧЕЙ
   delete playerActiveMatches[match.player1];
   delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
