@@ -629,6 +629,9 @@ async function showCollection(ctx) {
 // ============================================
 // ОБМЕН КАРТЫ
 // ============================================
+// ============================================
+// ОБМЕН КАРТЫ
+// ============================================
 async function tradeCard(ctx, cardId, currency) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -641,7 +644,7 @@ async function tradeCard(ctx, cardId, currency) {
   
   const cardIndex = data.cards.findIndex(c => c.id === cardId);
   if (cardIndex === -1) {
-    await ctx.reply('❌ Карта не найдена!');
+    await ctx.reply('❌ Карта не найдена!\n\n📋 Чтобы найти ID карты, открой 📚 Коллекция');
     return;
   }
   
@@ -653,8 +656,15 @@ async function tradeCard(ctx, cardId, currency) {
     return;
   }
   
-  if (!card.count || card.count < 2) {
-    await ctx.reply(`❌ У тебя только 1 карта "${card.name}". Нельзя обменять последнюю карту!`);
+  // ✅ НЕЛЬЗЯ ОБМЕНЯТЬ ПОСЛЕДНЮЮ КАРТУ
+  if (data.cards.length === 1) {
+    await ctx.reply(
+      `❌ *Нельзя обменять последнюю карту!*\n\n` +
+      `У тебя всего 1 карта в коллекции.\n` +
+      `💡 Чтобы обменять карту, нужно иметь хотя бы 2 карты.\n\n` +
+      `📌 Открой паки в магазине 🛒 или скрафти новую карту 🔨`,
+      { parse_mode: 'Markdown' }
+    );
     return;
   }
   
@@ -674,22 +684,24 @@ async function tradeCard(ctx, cardId, currency) {
     return;
   }
   
-  card.count = (card.count || 1) - 1;
-  if (card.count <= 0) {
-    data.cards.splice(cardIndex, 1);
-  }
+  // ✅ УДАЛЯЕМ КАРТУ
+  data.cards.splice(cardIndex, 1);
   
   saveUsers(users);
   
-  await ctx.reply(
-    `✅ *Обмен выполнен!*\n\n` +
-    `🃏 ${card.name} (${card.rarity})\n` +
-    `➡️ +${reward} ${currencyName}\n\n` +
-    `📊 У тебя осталось ${card.count || 0} карт "${card.name}"`,
-    { parse_mode: 'Markdown' }
-  );
+  let text = `✅ *Обмен выполнен!*\n\n`;
+  text += `🃏 ${card.name} (${card.rarity})\n`;
+  text += `📊 ${card.overall} OVR\n`;
+  text += `➡️ +${reward} ${currencyName}\n\n`;
+  text += `📊 В коллекции осталось: ${data.cards.length} карт`;
+  
+  if (data.cards.length <= 3) {
+    text += `\n\n⚠️ *У тебя осталось всего ${data.cards.length} карт!*\n`;
+    text += `💡 Открой паки в магазине 🛒`;
+  }
+  
+  await ctx.reply(text, { parse_mode: 'Markdown' });
 }
-
 // ============================================
 // ПОКАЗ КАРТ ДЛЯ КРАФТА
 // ============================================
