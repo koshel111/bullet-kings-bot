@@ -1,15 +1,20 @@
-// ============================================
-// src/database/mongoose.js - ПРОСТОЕ ПОДКЛЮЧЕНИЕ
-// ============================================
-
 const mongoose = require('mongoose');
+const path = require('path');
+const dotenv = require('dotenv');
+
+// ✅ ЯВНО УКАЗЫВАЕМ ПУТЬ К .ENV
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
   console.error('❌ MONGODB_URI не найден в .env!');
+  console.log('📁 Текущая папка:', __dirname);
+  console.log('📁 Путь к .env:', path.join(__dirname, '../../.env'));
   process.exit(1);
 }
+
+console.log('✅ MONGODB_URI найден');
 
 let isConnected = false;
 
