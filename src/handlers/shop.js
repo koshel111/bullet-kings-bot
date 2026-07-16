@@ -205,7 +205,7 @@ module.exports = (bot) => {
       { parse_mode: 'Markdown' }
     );
     
-    await sleep(1500);
+    await sleep(1000);
     
     // ✅ ОБНОВЛЯЕМ СООБЩЕНИЕ — ДОБАВЛЯЕМ РЕЙТИНГ
     await ctx.editMessageText(
@@ -217,7 +217,7 @@ module.exports = (bot) => {
       { parse_mode: 'Markdown' }
     );
     
-    await sleep(1500);
+    await sleep(1000);
     
     // ✅ ФИНАЛЬНОЕ СООБЩЕНИЕ С ПОЛНОЙ ИНФОРМАЦИЕЙ
     let finalText = 

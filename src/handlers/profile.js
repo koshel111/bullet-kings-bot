@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - С ЛОГИРОВАНИЕМ
+// src/handlers/profile.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -45,6 +45,19 @@ function getTimeUntilNextBonus(lastBonusDate) {
   return `${hours}ч ${minutes}м ${seconds}с`;
 }
 
+// ✅ ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ ID
+function generateId() {
+  return Date.now().toString() + Math.random().toString(36).substr(2, 6);
+}
+
+// ✅ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ И ДОБАВЛЕНИЯ ID
+function ensureCardId(card) {
+  if (!card.id) {
+    card.id = generateId();
+  }
+  return card;
+}
+
 // ============================================
 // ГЛАВНЫЙ ЭКРАН КОМАНДЫ
 // ============================================
@@ -56,10 +69,18 @@ async function showTeam(ctx) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
+  // ✅ УБЕЖДАЕМСЯ, ЧТО У ВСЕХ КАРТ ЕСТЬ ID
+  allCards.forEach(c => ensureCardId(c));
+  currentTeam.forEach(c => ensureCardId(c));
+  
   const forwards = allCards.filter(c => c.position !== 'G');
   const goalies = allCards.filter(c => c.position === 'G');
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
+  
+  console.log('📊 [showTeam] Всего карт:', allCards.length);
+  console.log('📊 [showTeam] В составе полевых:', teamForwards.length);
+  console.log('📊 [showTeam] В составе вратарь:', teamGoalie ? 'да' : 'нет');
   
   let text = '👥 *ТВОЯ КОМАНДА*\n\n';
   
@@ -117,10 +138,19 @@ async function showEditTeam(ctx) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
+  // ✅ УБЕЖДАЕМСЯ, ЧТО У ВСЕХ КАРТ ЕСТЬ ID
+  allCards.forEach(c => ensureCardId(c));
+  currentTeam.forEach(c => ensureCardId(c));
+  
   const forwards = allCards.filter(c => c.position !== 'G');
   const goalies = allCards.filter(c => c.position === 'G');
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
+  
+  console.log('📊 [showEditTeam] Всего полевых:', forwards.length);
+  console.log('📊 [showEditTeam] В составе полевых:', teamForwards.length);
+  console.log('📊 [showEditTeam] Всего вратарей:', goalies.length);
+  console.log('📊 [showEditTeam] В составе вратарь:', teamGoalie ? teamGoalie.name : 'нет');
   
   let text = '📋 *РЕДАКТИРОВАНИЕ СОСТАВА*\n\n';
   text += 'Нажми на игрока, чтобы добавить или убрать из состава.\n\n';
@@ -131,6 +161,7 @@ async function showEditTeam(ctx) {
     text += '  ❌ Нет полевых игроков! Открой паки в магазине.\n\n';
   } else {
     forwards.forEach((player) => {
+      ensureCardId(player);
       const inTeam = teamForwards.some(p => p.id === player.id);
       const emoji = getRarityEmoji(player.rarity);
       const status = inTeam ? '✅ В СОСТАВЕ' : '➕ ДОБАВИТЬ';
@@ -146,6 +177,7 @@ async function showEditTeam(ctx) {
     text += '  ❌ Нет вратарей! Открой паки в магазине.\n\n';
   } else {
     goalies.forEach((player) => {
+      ensureCardId(player);
       const inTeam = teamGoalie && teamGoalie.id === player.id;
       const emoji = getRarityEmoji(player.rarity);
       const status = inTeam ? '✅ В СОСТАВЕ' : '➕ ДОБАВИТЬ';
@@ -160,20 +192,22 @@ async function showEditTeam(ctx) {
   
   // Кнопки для полевых
   forwards.forEach((player, index) => {
+    ensureCardId(player);
     const inTeam = teamForwards.some(p => p.id === player.id);
     const label = inTeam ? `❌ ${player.name}` : `➕ ${player.name}`;
-    buttons.push([Markup.button.callback(label, `toggle_forward_${index}`)]);
+    buttons.push([Markup.button.callback(label, `team_toggle_forward_${index}`)]);
   });
   
   // Кнопки для вратарей
   goalies.forEach((player, index) => {
+    ensureCardId(player);
     const inTeam = teamGoalie && teamGoalie.id === player.id;
     const label = inTeam ? `❌ ${player.name}` : `➕ ${player.name}`;
-    buttons.push([Markup.button.callback(label, `toggle_goalie_${index}`)]);
+    buttons.push([Markup.button.callback(label, `team_toggle_goalie_${index}`)]);
   });
   
-  buttons.push([Markup.button.callback('✅ Сохранить состав', 'save_team')]);
-  buttons.push([Markup.button.callback('🗑️ Очистить состав', 'clear_team')]);
+  buttons.push([Markup.button.callback('✅ Сохранить состав', 'team_save')]);
+  buttons.push([Markup.button.callback('🗑️ Очистить состав', 'team_clear')]);
   buttons.push([Markup.button.callback('🔙 Назад', 'team')]);
   
   await ctx.editMessageText(text, {
@@ -193,6 +227,10 @@ async function toggleForward(ctx, index) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
+  // ✅ УБЕЖДАЕМСЯ, ЧТО У ВСЕХ КАРТ ЕСТЬ ID
+  allCards.forEach(c => ensureCardId(c));
+  currentTeam.forEach(c => ensureCardId(c));
+  
   const forwards = allCards.filter(c => c.position !== 'G');
   const player = forwards[index];
   
@@ -202,6 +240,7 @@ async function toggleForward(ctx, index) {
     return;
   }
   
+  ensureCardId(player);
   console.log('🔍 [toggleForward] Игрок:', player.name, 'ID:', player.id);
   
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
@@ -218,12 +257,13 @@ async function toggleForward(ctx, index) {
   } else {
     if (teamForwards.length >= 5) {
       console.log('⚠️ [toggleForward] Уже 5 полевых!');
-      const sorted = [...teamForwards].sort((a, b) => a.overall - b.overall);
+      // Находим самого слабого для замены
+      const sorted = [...teamForwards].sort((a, b) => (a.overall || 0) - (b.overall || 0));
       const weakest = sorted[0];
       
-      if (weakest) {
+      if (weakest && weakest.overall < player.overall) {
         const buttons = [
-          [Markup.button.callback(`🔄 Заменить ${weakest.name} (${weakest.overall} OVR)`, `replace_forward_${player.id}_${weakest.id}`)],
+          [Markup.button.callback(`🔄 Заменить ${weakest.name} (${weakest.overall} OVR)`, `team_replace_forward_${player.id}_${weakest.id}`)],
           [Markup.button.callback('❌ Отмена', 'edit_team')]
         ];
         
@@ -262,13 +302,16 @@ async function replaceForward(ctx, newPlayerId, oldPlayerId) {
   const users = getUsers();
   const data = users[userId];
   const currentTeam = data.team || [];
+  const allCards = data.cards || [];
+  
+  allCards.forEach(c => ensureCardId(c));
+  currentTeam.forEach(c => ensureCardId(c));
   
   const goalies = currentTeam.filter(p => p.position === 'G');
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   
   const newForwards = teamForwards.filter(p => p.id !== oldPlayerId);
   
-  const allCards = data.cards || [];
   const newPlayer = allCards.find(p => p.id === newPlayerId);
   
   if (!newPlayer) {
@@ -278,6 +321,7 @@ async function replaceForward(ctx, newPlayerId, oldPlayerId) {
     return;
   }
   
+  ensureCardId(newPlayer);
   newForwards.push({ ...newPlayer, count: 1 });
   data.team = [...goalies, ...newForwards];
   
@@ -288,72 +332,49 @@ async function replaceForward(ctx, newPlayerId, oldPlayerId) {
 }
 
 // ============================================
-// ПЕРЕКЛЮЧЕНИЕ ВРАТАРЯ - С ЛОГАМИ
+// ПЕРЕКЛЮЧЕНИЕ ВРАТАРЯ
 // ============================================
 async function toggleGoalie(ctx, index) {
-  console.log('🧤 [toggleGoalie] ===== НАЧАЛО =====');
   console.log('🧤 [toggleGoalie] Индекс:', index);
-  console.log('🧤 [toggleGoalie] ctx.from.id:', ctx.from.id);
-  console.log('🧤 [toggleGoalie] ctx.match:', ctx.match);
-  
   const userId = ctx.from.id;
   const users = getUsers();
-  console.log('🧤 [toggleGoalie] Пользователей в БД:', Object.keys(users).length);
-  
   const data = users[userId];
-  if (!data) {
-    console.log('❌ [toggleGoalie] Пользователь не найден!');
-    await ctx.answerCbQuery('❌ Пользователь не найден!');
-    return;
-  }
-  
   const allCards = data.cards || [];
-  console.log('🧤 [toggleGoalie] Всего карт:', allCards.length);
-  
   const currentTeam = data.team || [];
-  console.log('🧤 [toggleGoalie] Текущий состав:', currentTeam.length, 'игроков');
+  
+  allCards.forEach(c => ensureCardId(c));
+  currentTeam.forEach(c => ensureCardId(c));
   
   const goalies = allCards.filter(c => c.position === 'G');
-  console.log('🧤 [toggleGoalie] Всего вратарей:', goalies.length);
+  const player = goalies[index];
   
-  if (index >= goalies.length) {
-    console.log('❌ [toggleGoalie] Индекс вне диапазона! Индекс:', index, 'Доступно:', goalies.length);
+  if (!player) {
+    console.log('❌ [toggleGoalie] Игрок не найден!');
     await ctx.answerCbQuery('❌ Игрок не найден!');
     return;
   }
   
-  const player = goalies[index];
-  console.log('🧤 [toggleGoalie] Выбран игрок:', player.name, 'ID:', player.id, 'OVR:', player.overall);
+  ensureCardId(player);
+  console.log('🧤 [toggleGoalie] Игрок:', player.name, 'ID:', player.id);
   
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   
-  console.log('🧤 [toggleGoalie] Текущий вратарь:', teamGoalie ? teamGoalie.name : 'НЕТ');
-  console.log('🧤 [toggleGoalie] Полевых в составе:', teamForwards.length);
-  
-  // Проверяем, есть ли игрок в составе
   const inTeam = teamGoalie && teamGoalie.id === player.id;
-  console.log('🧤 [toggleGoalie] Игрок в составе вратарём:', inTeam);
+  console.log('🧤 [toggleGoalie] В составе:', inTeam);
   
   if (inTeam) {
-    // ✅ УБИРАЕМ ВРАТАРЯ
-    console.log('🧤 [toggleGoalie] Убираем вратаря из состава');
     data.team = [...teamForwards];
     saveUsers(users);
-    console.log('✅ [toggleGoalie] Вратарь убран, сохранено');
+    console.log('✅ [toggleGoalie] Вратарь убран');
     await ctx.answerCbQuery(`❌ ${player.name} убран из состава`);
     await showEditTeam(ctx);
     return;
   }
   
-  // ✅ ДОБАВЛЯЕМ ВРАТАРЯ
-  console.log('🧤 [toggleGoalie] Добавляем вратаря в состав');
-  
   if (teamGoalie) {
-    // Если вратарь уже есть — предлагаем заменить
-    console.log('🧤 [toggleGoalie] Вратарь уже есть, предлагаем замену');
     const buttons = [
-      [Markup.button.callback(`🔄 Заменить ${teamGoalie.name} (${teamGoalie.overall} OVR)`, `replace_goalie_${player.id}_${teamGoalie.id}`)],
+      [Markup.button.callback(`🔄 Заменить ${teamGoalie.name} (${teamGoalie.overall} OVR)`, `team_replace_goalie_${player.id}_${teamGoalie.id}`)],
       [Markup.button.callback('❌ Отмена', 'edit_team')]
     ];
     
@@ -369,11 +390,9 @@ async function toggleGoalie(ctx, index) {
     return;
   }
   
-  // Добавляем нового вратаря
-  console.log('🧤 [toggleGoalie] Добавляем нового вратаря');
   data.team = [...teamForwards, { ...player, count: 1 }];
   saveUsers(users);
-  console.log('✅ [toggleGoalie] Вратарь добавлен, сохранено');
+  console.log('✅ [toggleGoalie] Вратарь добавлен');
   await ctx.answerCbQuery(`✅ ${player.name} добавлен в состав как вратарь`);
   await showEditTeam(ctx);
 }
@@ -387,10 +406,12 @@ async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
   const users = getUsers();
   const data = users[userId];
   const currentTeam = data.team || [];
+  const allCards = data.cards || [];
+  
+  allCards.forEach(c => ensureCardId(c));
+  currentTeam.forEach(c => ensureCardId(c));
   
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
-  
-  const allCards = data.cards || [];
   const newPlayer = allCards.find(p => p.id === newPlayerId);
   
   if (!newPlayer) {
@@ -400,7 +421,7 @@ async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
     return;
   }
   
-  console.log('🔄 [replaceGoalie] Заменяем на:', newPlayer.name);
+  ensureCardId(newPlayer);
   data.team = [...teamForwards, { ...newPlayer, count: 1 }];
   saveUsers(users);
   
@@ -419,8 +440,13 @@ async function saveTeam(ctx) {
   const data = users[userId];
   const currentTeam = data.team || [];
   
+  currentTeam.forEach(c => ensureCardId(c));
+  
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
+  
+  console.log('📊 [saveTeam] Полевых в составе:', teamForwards.length);
+  console.log('📊 [saveTeam] Вратарь:', teamGoalie ? teamGoalie.name : 'нет');
   
   if (teamForwards.length !== 5) {
     console.log('❌ [saveTeam] Не хватает полевых:', teamForwards.length);
@@ -629,40 +655,39 @@ module.exports = (bot) => {
     await showEditTeam(ctx);
   });
 
-  bot.action(/toggle_forward_(\d+)/, async (ctx) => {
-    console.log('🔘 [action] toggle_forward:', ctx.match[1]);
+  // ✅ ИЗМЕНЁННЫЕ ОБРАБОТЧИКИ — С ПРЕФИКСОМ team_
+  bot.action(/team_toggle_forward_(\d+)/, async (ctx) => {
+    console.log('🔘 [action] team_toggle_forward:', ctx.match[1]);
     await ctx.answerCbQuery();
     await toggleForward(ctx, parseInt(ctx.match[1]));
   });
 
-  bot.action(/toggle_goalie_(\d+)/, async (ctx) => {
-    console.log('🔘 [action] toggle_goalie:', ctx.match[1]);
-    console.log('🔘 [action] Полный ctx.match:', ctx.match);
+  bot.action(/team_toggle_goalie_(\d+)/, async (ctx) => {
+    console.log('🔘 [action] team_toggle_goalie:', ctx.match[1]);
     await ctx.answerCbQuery();
-    // ✅ ВЫЗЫВАЕМ ПРАВИЛЬНУЮ ФУНКЦИЮ
     await toggleGoalie(ctx, parseInt(ctx.match[1]));
   });
 
-  bot.action(/replace_forward_(.+)_(.+)/, async (ctx) => {
-    console.log('🔘 [action] replace_forward');
+  bot.action(/team_replace_forward_(.+)_(.+)/, async (ctx) => {
+    console.log('🔘 [action] team_replace_forward');
     await ctx.answerCbQuery();
     await replaceForward(ctx, ctx.match[1], ctx.match[2]);
   });
 
-  bot.action(/replace_goalie_(.+)_(.+)/, async (ctx) => {
-    console.log('🔘 [action] replace_goalie');
+  bot.action(/team_replace_goalie_(.+)_(.+)/, async (ctx) => {
+    console.log('🔘 [action] team_replace_goalie');
     await ctx.answerCbQuery();
     await replaceGoalie(ctx, ctx.match[1], ctx.match[2]);
   });
 
-  bot.action('save_team', async (ctx) => {
-    console.log('🔘 [action] save_team');
+  bot.action('team_save', async (ctx) => {
+    console.log('🔘 [action] team_save');
     await ctx.answerCbQuery();
     await saveTeam(ctx);
   });
 
-  bot.action('clear_team', async (ctx) => {
-    console.log('🔘 [action] clear_team');
+  bot.action('team_clear', async (ctx) => {
+    console.log('🔘 [action] team_clear');
     await ctx.answerCbQuery();
     await clearTeam(ctx);
   });
