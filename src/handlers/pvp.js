@@ -9,11 +9,14 @@ const { getRarityEmoji } = require('../data/players');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-// ХРАНИЛИЩЕ ДЛЯ PvP
+// ✅ ХРАНИЛИЩЕ ДЛЯ PvP
 const pvpQueue = [];
 const pvpMatches = {};
 const pvpTimers = {};
 const pvpReady = {}; // Кто нажал "Готов"
+
+// ✅ ДОБАВЛЯЕМ ОБЪЕКТ ДЛЯ АКТИВНЫХ МАТЧЕЙ ИГРОКОВ
+const playerActiveMatches = {};
 
 function getUsers() {
   if (!fs.existsSync(DB_PATH)) return {};
@@ -33,9 +36,17 @@ function getPositionName(position) {
 
 // ✅ ПРОВЕРКА АКТИВНОГО МАТЧА
 function hasActiveMatch(userId) {
+  // Проверяем через pvpMatches
   for (const matchId in pvpMatches) {
     const match = pvpMatches[matchId];
     if (!match.isFinished && (match.player1 === userId || match.player2 === userId)) {
+      return matchId;
+    }
+  }
+  // Проверяем через playerActiveMatches
+  if (playerActiveMatches[userId]) {
+    const matchId = playerActiveMatches[userId];
+    if (pvpMatches[matchId] && !pvpMatches[matchId].isFinished) {
       return matchId;
     }
   }
@@ -173,6 +184,10 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
     player2Ready: false,
     started: false
   };
+  
+  // ✅ ЗАПОМИНАЕМ АКТИВНЫЙ МАТЧ ДЛЯ ИГРОКОВ
+  playerActiveMatches[player1Id] = matchId;
+  playerActiveMatches[player2Id] = matchId;
   
   // Очищаем готовность
   pvpReady[player1Id] = false;
@@ -364,8 +379,7 @@ async function showPvPPlayerSelection(ctx, matchId) {
         ...Markup.inlineKeyboard(buttons)
       });
     } else {
-      // Отправляем новое сообщение для второго игрока
-      const targetId = match.player2 === currentPlayer ? match.player1 : match.player2;
+      // Отправляем новое сообщение для текущего игрока
       await ctx.telegram.sendMessage(
         currentPlayer,
         text,
@@ -627,7 +641,6 @@ async function continuePvP(ctx, matchId) {
   }
   
   if (match.currentTurn === userId) {
-    // Показываем выбор игрока текущему игроку
     await showPvPPlayerSelection(ctx, matchId);
   } else {
     await ctx.reply('⏳ Сейчас ход соперника. Подождите...');
@@ -649,7 +662,6 @@ async function finishPvPRound(ctx, matchId) {
     match.maxRounds = Infinity;
     match.usedPlayers1 = [];
     match.usedPlayers2 = [];
-    // Продолжаем матч
     match.currentTurn = match.player1;
     await showPvPPlayerSelection(ctx, matchId);
     return;
@@ -661,7 +673,6 @@ async function finishPvPRound(ctx, matchId) {
     return;
   }
   
-  // Продолжаем матч
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
   await showPvPPlayerSelection(ctx, matchId);
 }
@@ -704,7 +715,9 @@ async function finishPvPMatch(ctx, matchId) {
   await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown' });
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown' });
   
-  // Удаляем матч
+  // ✅ УДАЛЯЕМ ИЗ АКТИВНЫХ МАТЧЕЙ
+  delete playerActiveMatches[match.player1];
+  delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
 }
 
@@ -763,6 +776,9 @@ async function pvpForfeit(ctx, matchId) {
   await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown' });
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown' });
   
+  // ✅ УДАЛЯЕМ ИЗ АКТИВНЫХ МАТЧЕЙ
+  delete playerActiveMatches[match.player1];
+  delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
 }
 
