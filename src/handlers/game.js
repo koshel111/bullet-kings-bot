@@ -1,17 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ (изменены кнопки вратаря)
-// ============================================
-
-// ... (весь остальной код такой же, меняем только названия кнопок)
-
-// В функции shot_(.+) меняем callback_data для кнопок вратаря:
-// Было: goalie_left, goalie_right и т.д.
-// Стало: game_goalie_left, game_goalie_right и т.д.
-
-// И в обработчике bot.action(/goalie_(.+)/) меняем на bot.action(/game_goalie_(.+)/)
-
-// ============================================
-// ПОЛНЫЙ ФАЙЛ game.js С ИСПРАВЛЕННЫМИ КНОПКАМИ
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -72,10 +60,45 @@ const DIFFICULTY_REWARDS = {
   }
 };
 
+// ✅ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПОДСКАЗКИ (только для лёгкого уровня)
+function getHint(difficulty) {
+  if (difficulty !== 'novice') return null;
+  
+  const hints = [
+    '💡 *Подсказка:* ИИ сегодня любит бить в левый угол! Попробуй закрыть его.',
+    '💡 *Подсказка:* ИИ часто использует кистевой бросок. Будь готов!',
+    '💡 *Подсказка:* ИИ не любит финты. Используй их в атаке!',
+    '💡 *Подсказка:* ИИ сегодня слабо играет в центре. Бей туда!',
+    '💡 *Подсказка:* ИИ предпочитает щелчок. Закрывай дальний угол!',
+    '💡 *Подсказка:* ИИ боится агрессивного вратаря. Выходи смело!'
+  ];
+  return hints[Math.floor(Math.random() * hints.length)];
+}
+
+// ✅ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ХОДА ИИ (с подсказками для лёгкого)
 function getAIShot(playerId, difficulty = 1) {
   const actions = ['left', 'right', 'top', 'fivehole', 'deke', 'wrist', 'slap'];
   const history = matches[playerId]?.history || [];
   
+  // Для лёгкого уровня — выбираем из 3 вариантов
+  if (difficulty === 'novice') {
+    const shuffled = [...actions].sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, 3);
+    const chosen = selected[Math.floor(Math.random() * selected.length)];
+    
+    console.log('🎯 [ИИ] Возможные действия:', selected.map(a => actionNames[a]).join(', '));
+    console.log('🎯 [ИИ] Выбрано:', actionNames[chosen]);
+    
+    const match = matches[playerId];
+    if (match) {
+      match.aiHint = `🎯 ИИ может выбрать: ${selected.map(a => actionNames[a]).join(', ')}`;
+      match.aiChosen = chosen;
+    }
+    
+    return chosen;
+  }
+  
+  // Для других уровней — обычная логика
   let weights = { left: 1, right: 1, top: 1, fivehole: 1, deke: 1, wrist: 1, slap: 1 };
   
   if (history.length > 2) {
@@ -123,12 +146,7 @@ function getAIShot(playerId, difficulty = 1) {
   return actions[Math.floor(Math.random() * actions.length)];
 }
 
-// ============================================
-// src/handlers/game.js - ШАНС ГОЛА ЗАВИСИТ ОТ РЕЙТИНГА
-// ============================================
-
-// В функции calculateShot добавляем параметр playerOverall:
-
+// ✅ ФУНКЦИЯ РАСЧЁТА ШАНСА ГОЛА (с учётом рейтинга игрока)
 function calculateShot(playerAction, goalieAction, difficulty = 1, playerOverall = 80) {
   const actionBonus = {
     'left': { 'left': 0.05, 'right': 0.75, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
@@ -151,17 +169,9 @@ function calculateShot(playerAction, goalieAction, difficulty = 1, playerOverall
   };
   const defenseFactor = difficultyBonus[difficulty] || 1;
   
-  // ✅ БАЗОВАЯ ВЕРОЯТНОСТЬ
   let probability = multiplier * randomFactor * defenseFactor;
   
-  // ✅ БОНУС ЗА РЕЙТИНГ ИГРОКА (чем выше рейтинг, тем больше шанс)
-  // Рейтинг 60-70: -10% к шансу
-  // Рейтинг 71-80: 0% (базовый)
-  // Рейтинг 81-85: +10% к шансу
-  // Рейтинг 86-90: +20% к шансу
-  // Рейтинг 91-95: +30% к шансу
-  // Рейтинг 96-99: +40% к шансу
-  
+  // ✅ БОНУС ЗА РЕЙТИНГ ИГРОКА
   let ratingBonus = 0;
   if (playerOverall >= 96) ratingBonus = 0.40;
   else if (playerOverall >= 91) ratingBonus = 0.30;
@@ -170,14 +180,12 @@ function calculateShot(playerAction, goalieAction, difficulty = 1, playerOverall
   else if (playerOverall >= 71) ratingBonus = 0;
   else ratingBonus = -0.10;
   
-  // Применяем бонус
   probability = probability * (1 + ratingBonus);
   
-  // ✅ ОГРАНИЧИВАЕМ ВЕРОЯТНОСТЬ (от 5% до 95%)
+  // Ограничиваем вероятность
   probability = Math.max(0.05, Math.min(0.95, probability));
   
-  // ✅ ДОПОЛНИТЕЛЬНЫЙ БОНУС ЗА ВЫСОКИЙ РЕЙТИНГ (гарантированный минимум)
-  // Игроки с рейтингом 90+ имеют минимальный шанс 30%
+  // Дополнительный бонус для высоких рейтингов
   if (playerOverall >= 90) {
     probability = Math.max(probability, 0.30);
   }
@@ -187,19 +195,6 @@ function calculateShot(playerAction, goalieAction, difficulty = 1, playerOverall
   
   return { isGoal: Math.random() < probability, probability: Math.round(probability * 100) };
 }
-
-// В обработчике shot_(.+) получаем рейтинг игрока:
-
-// В bot.action(/shot_(.+)/) после const player = forwards[match.currentShooter]; добавляем:
-const playerOverall = player ? player.overall || 80 : 80;
-
-// И передаём в calculateShot:
-const result = calculateShot(playerAction, goalieAction, difficulty, playerOverall);
-
-// Также добавляем отображение шанса в сообщение:
-
-// После resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n'; добавляем:
-resultText += `📊 *Шанс гола:* ${result.probability}% (рейтинг ${playerOverall})\n\n`;
 
 const actionNames = {
   left: '⬅️ Влево',
@@ -588,96 +583,101 @@ module.exports = (bot) => {
     match.isProcessing = false;
   });
 
+  // ✅ ОСНОВНОЙ ОБРАБОТЧИК БРОСКА (с рейтингом)
   bot.action(/shot_(.+)/, async (ctx) => {
-  console.log('💥 [shot] Выбран бросок:', ctx.match[1]);
-  await ctx.answerCbQuery();
-  const playerAction = ctx.match[1];
-  const user = ctx.from;
-  const match = matches[user.id];
-  
-  if (!match || match.isFinished) {
-    await ctx.editMessageText('❌ Матч завершён!');
-    return;
-  }
-  
-  if (!match.isPlayerTurn) {
-    await ctx.editMessageText('⏳ Сейчас ход ИИ!');
-    return;
-  }
-  
-  if (match.isProcessing) return;
-  match.isProcessing = true;
-  
-  const difficulty = match.difficulty;
-  const forwards = match.team.filter(p => p.position !== 'G');
-  const player = forwards[match.currentShooter];
-  const goalie = match.team.find(p => p.position === 'G');
-  
-  if (!player) {
-    await ctx.editMessageText('❌ Ошибка: игрок не найден!');
-    match.isProcessing = false;
-    return;
-  }
-  
-  // ✅ ПОЛУЧАЕМ РЕЙТИНГ ИГРОКА
-  const playerOverall = player ? player.overall || 80 : 80;
-  
-  const goalieAction = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'][Math.floor(Math.random() * 6)];
-  
-  // ✅ ПЕРЕДАЁМ РЕЙТИНГ В calculateShot
-  const result = calculateShot(playerAction, goalieAction, difficulty, playerOverall);
-  
-  match.history.push(playerAction);
-  match.round++;
-  
-  if (result.isGoal) match.playerScore++;
-  
-  match.isPlayerTurn = false;
-  match.waitingForGoalie = true;
-  
-  match.lastShot = '🎯 ' + player.name + ' — ' + actionNames[playerAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ!' : '😤 СЭЙВ!');
-  
-  let resultText = '🎯 *' + player.name + ' бросает!*\n';
-  resultText += '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
-  resultText += '🧤 *' + (goalie ? goalie.name : 'Вратарь') + ':* ' + goalieNames[goalieAction] + '\n';
-  resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
-  resultText += `📊 *Шанс гола:* ${result.probability}% (рейтинг ${playerOverall})\n\n`;
-  resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
-  
-  if (match.isSuddenDeath) {
-    resultText += '⚡ *ОВЕРТАЙМ! БУЛЛИТЫ ДО ГОЛА!*\n';
-    resultText += '🔢 Раунд ' + match.round + '\n\n';
-  } else {
-    resultText += '🔢 Раунд ' + match.round + ' из ' + match.maxRounds + '\n\n';
-  }
-  
-  // ✅ ПОДСКАЗКА ДЛЯ ЛЁГКОГО УРОВНЯ
-  let hintText = '';
-  if (match.difficulty === 'novice' && match.aiHint) {
-    hintText = match.aiHint + '\n💡 Одно из этих действий ИИ точно выберет!\n\n';
-  }
-  
-  resultText += hintText + '🤖 *Ход ИИ! Выбери действие вратаря:*';
-  
-  await ctx.editMessageText(
-    resultText,
-    {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('🧤 Закрыть левый угол', 'game_goalie_left')],
-        [Markup.button.callback('🧤 Закрыть правый угол', 'game_goalie_right')],
-        [Markup.button.callback('🧍 Стоять', 'game_goalie_stand')],
-        [Markup.button.callback('🛡️ Опустить щитки', 'game_goalie_low')],
-        [Markup.button.callback('🧤 Ловушка', 'game_goalie_glove')],
-        [Markup.button.callback('💪 Агрессивный выход', 'game_goalie_aggressive')],
-        [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
-      ])
+    console.log('💥 [shot] Выбран бросок:', ctx.match[1]);
+    await ctx.answerCbQuery();
+    const playerAction = ctx.match[1];
+    const user = ctx.from;
+    const match = matches[user.id];
+    
+    if (!match || match.isFinished) {
+      await ctx.editMessageText('❌ Матч завершён!');
+      return;
     }
-  );
-  
-  match.isProcessing = false;
-});
-  // ✅ ИЗМЕНЁННЫЙ ОБРАБОТЧИК — game_goalie_ вместо goalie_
+    
+    if (!match.isPlayerTurn) {
+      await ctx.editMessageText('⏳ Сейчас ход ИИ!');
+      return;
+    }
+    
+    if (match.isProcessing) return;
+    match.isProcessing = true;
+    
+    const difficulty = match.difficulty;
+    const forwards = match.team.filter(p => p.position !== 'G');
+    const player = forwards[match.currentShooter];
+    const goalie = match.team.find(p => p.position === 'G');
+    
+    if (!player) {
+      await ctx.editMessageText('❌ Ошибка: игрок не найден!');
+      match.isProcessing = false;
+      return;
+    }
+    
+    // ✅ ПОЛУЧАЕМ РЕЙТИНГ ИГРОКА
+    const playerOverall = player.overall || 80;
+    
+    const goalieAction = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'][Math.floor(Math.random() * 6)];
+    
+    // ✅ ПЕРЕДАЁМ РЕЙТИНГ В calculateShot
+    const result = calculateShot(playerAction, goalieAction, difficulty, playerOverall);
+    
+    match.history.push(playerAction);
+    match.round++;
+    
+    if (result.isGoal) match.playerScore++;
+    
+    match.isPlayerTurn = false;
+    match.waitingForGoalie = true;
+    
+    match.lastShot = '🎯 ' + player.name + ' — ' + actionNames[playerAction] + ' → ' + (result.isGoal ? '⚡ ГОЛ!' : '😤 СЭЙВ!');
+    
+    let resultText = '🎯 *' + player.name + ' бросает!*\n';
+    resultText += '🎯 *Твой бросок:* ' + actionNames[playerAction] + '\n';
+    resultText += '🧤 *' + (goalie ? goalie.name : 'Вратарь') + ':* ' + goalieNames[goalieAction] + '\n';
+    resultText += (result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*') + '\n\n';
+    
+    // ✅ ПОКАЗЫВАЕМ ШАНС ГОЛА
+    resultText += `📊 *Шанс гола:* ${result.probability}% (рейтинг ${playerOverall})\n\n`;
+    
+    resultText += '📊 *Счёт:* Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
+    
+    if (match.isSuddenDeath) {
+      resultText += '⚡ *ОВЕРТАЙМ! БУЛЛИТЫ ДО ГОЛА!*\n';
+      resultText += '🔢 Раунд ' + match.round + '\n\n';
+    } else {
+      resultText += '🔢 Раунд ' + match.round + ' из ' + match.maxRounds + '\n\n';
+    }
+    
+    // ✅ ПОДСКАЗКА ДЛЯ ЛЁГКОГО УРОВНЯ
+    let hintText = '';
+    if (match.difficulty === 'novice' && match.aiHint) {
+      hintText = match.aiHint + '\n💡 Одно из этих действий ИИ точно выберет!\n\n';
+    }
+    
+    resultText += hintText + '🤖 *Ход ИИ! Выбери действие вратаря:*';
+    
+    await ctx.editMessageText(
+      resultText,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('🧤 Закрыть левый угол', 'game_goalie_left')],
+          [Markup.button.callback('🧤 Закрыть правый угол', 'game_goalie_right')],
+          [Markup.button.callback('🧍 Стоять', 'game_goalie_stand')],
+          [Markup.button.callback('🛡️ Опустить щитки', 'game_goalie_low')],
+          [Markup.button.callback('🧤 Ловушка', 'game_goalie_glove')],
+          [Markup.button.callback('💪 Агрессивный выход', 'game_goalie_aggressive')],
+          [Markup.button.callback('🏳️ Сдаться', 'forfeit')],
+        ])
+      }
+    );
+    
+    match.isProcessing = false;
+  });
+
+  // ✅ ОБРАБОТЧИК ВРАТАРЯ (с префиксом game_)
   bot.action(/game_goalie_(.+)/, async (ctx) => {
     console.log('🧤 [game_goalie] Выбрано действие вратаря:', ctx.match[1]);
     await ctx.answerCbQuery();
@@ -736,7 +736,7 @@ module.exports = (bot) => {
     const goalie = match.team.find(p => p.position === 'G');
     
     const aiAction = getAIShot(user.id, difficulty);
-    const result = calculateShot(aiAction, goalieAction, difficulty);
+    const result = calculateShot(aiAction, goalieAction, difficulty, 80); // ИИ без бонуса рейтинга
     
     console.log('🤖 ИИ выбрал:', aiAction, 'Результат:', result.isGoal);
     
