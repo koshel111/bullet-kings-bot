@@ -1,11 +1,16 @@
 ﻿// ============================================
-// BULLET KINGS - ГЛАВНЫЙ БОТ (С ЗАЩИТОЙ)
+// BULLET KINGS - ГЛАВНЫЙ БОТ
 // ============================================
 
-const { Telegraf, session, Markup } = require('telegraf');
+// ============================================
+// BULLET KINGS - ГЛАВНЫЙ БОТ (С MONGODB)
+// ============================================
+
+const { Telegraf } = require('telegraf');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
+const { connectDB } = require('./src/database/mongoose');
 
 dotenv.config();
 
@@ -15,32 +20,73 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
+// ============================================
+// ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ
+// ============================================
+(async () => {
+  try {
+    await connectDB();
+    console.log('✅ База данных подключена');
+  } catch (error) {
+    console.error('❌ Ошибка подключения к БД:', error.message);
+    console.log('⚠️ Бот запущен без MongoDB, используем JSON');
+  }
+})();
+
+// ... остальной код bot.js без изменений
+
+// ============================================
 // ЗАЩИТА ОТ ДУБЛИРОВАНИЯ
+// ============================================
 const lockFile = path.join(__dirname, '.bot.lock');
 if (fs.existsSync(lockFile)) {
   console.log('⚠️ Бот уже запущен! Завершаем дублирующий процесс...');
   process.exit(0);
 }
 
-fs.writeFileSync(lockFile, Date.now().toString());
+try {
+  fs.writeFileSync(lockFile, Date.now().toString());
+  console.log('🔒 Файл блокировки создан');
+} catch (err) {
+  console.error('❌ Не удалось создать файл блокировки:', err.message);
+}
 
-process.on('exit', () => {
+function removeLockFile() {
   try {
     if (fs.existsSync(lockFile)) {
       fs.unlinkSync(lockFile);
       console.log('🔓 Файл блокировки удалён');
     }
-  } catch (e) {}
-});
+  } catch (err) {
+    console.error('❌ Ошибка удаления блокировки:', err.message);
+  }
+}
 
 process.on('SIGINT', () => {
-  process.exit();
+  console.log('📥 Получен SIGINT');
+  removeLockFile();
+  process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  process.exit();
+  console.log('📥 Получен SIGTERM');
+  removeLockFile();
+  process.exit(0);
 });
 
+process.on('exit', () => {
+  removeLockFile();
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('❌ Необработанное исключение:', err.message);
+  removeLockFile();
+  process.exit(1);
+});
+
+// ============================================
+// СОЗДАНИЕ БОТА
+// ============================================
 const bot = new Telegraf(BOT_TOKEN);
 
 // ============================================
@@ -55,77 +101,39 @@ require('./src/handlers/admin')(bot);
 require('./src/handlers/battlepass')(bot);
 
 // ============================================
-// ОБРАБОТКА КНОПКИ НАЗАД
+// ГЛАВНОЕ МЕНЮ ДЛЯ КНОПКИ НАЗАД
 // ============================================
 const { showMainMenu } = require('./src/handlers/start');
 
 bot.action('back', async (ctx) => {
   await ctx.answerCbQuery();
-  
-  // ✅ ОЧИЩАЕМ КЭШ МОДУЛЕЙ
   try {
-    // Очищаем кэш start.js
-    const startPath = path.join(__dirname, 'src/handlers/start.js');
-    delete require.cache[require.resolve(startPath)];
-    
-    // Очищаем кэш battlepass.js
     const battlepassPath = path.join(__dirname, 'src/handlers/battlepass.js');
     delete require.cache[require.resolve(battlepassPath)];
-  } catch (e) {
-    // Игнорируем ошибки
-  }
-  
-  // Перезагружаем модули
-  const freshStart = require('./src/handlers/start');
-  
-  // Показываем главное меню с обновлёнными данными
-  await freshStart.showMainMenu(ctx, bot);
+  } catch (e) {}
+  await showMainMenu(ctx, bot);
 });
 
 // ============================================
-// ЗАПУСК С ОБРАБОТКОЙ ОШИБОК
+// ЗАПУСК БОТА
 // ============================================
-
 async function startBot() {
   try {
     await bot.launch({
-      dropPendingUpdates: true
+      dropPendingUpdates: true,
+      allowedUpdates: ['message', 'callback_query']
     });
     
-    console.log('✅ Бот запущен!');
+    console.log('✅ Бот успешно запущен!');
     console.log('🤖 @' + bot.botInfo.username);
     console.log('📅 ' + new Date().toLocaleString());
     console.log('🆔 PID:', process.pid);
     
   } catch (error) {
     console.error('❌ Ошибка запуска:', error.message);
-    
-    if (error.message.includes('Conflict: terminated by other getUpdates request')) {
-      console.log('⚠️ Обнаружен конфликт! Попробуйте:');
-      console.log('1. Перезапустить сервис в Railway');
-      console.log('2. Подождать 30 секунд и попробовать снова');
-    }
-    
-    try {
-      if (fs.existsSync(lockFile)) {
-        fs.unlinkSync(lockFile);
-      }
-    } catch (e) {}
-    
+    removeLockFile();
     process.exit(1);
   }
 }
 
 startBot();
-
-process.once('SIGINT', () => {
-  console.log('🛑 Остановка бота...');
-  bot.stop('SIGINT');
-  process.exit(0);
-});
-
-process.once('SIGTERM', () => {
-  console.log('🛑 Остановка бота...');
-  bot.stop('SIGTERM');
-  process.exit(0);
-});
