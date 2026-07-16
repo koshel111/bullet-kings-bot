@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - НОВАЯ МЕХАНИКА СОСТАВА
+// src/handlers/profile.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -57,6 +57,8 @@ async function showTeam(ctx) {
   
   const forwards = allCards.filter(c => c.position !== 'G');
   const goalies = allCards.filter(c => c.position === 'G');
+  
+  // ✅ ФИЛЬТРУЕМ ТОЛЬКО ТЕХ, КТО В СОСТАВЕ
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   
@@ -89,8 +91,8 @@ async function showTeam(ctx) {
     }
   }
   
-  text += `\n📊 Свободных полевых: ${forwards.length - teamForwards.length}`;
-  text += `\n📊 Свободных вратарей: ${goalies.length - (teamGoalie ? 1 : 0)}`;
+  text += `\n📊 Всего карт: ${allCards.length}`;
+  text += `\n📊 В составе: ${teamForwards.length}/5 полевых, ${teamGoalie ? '1/1' : '0/1'} вратарь`;
   
   const buttons = [
     [Markup.button.callback('🔄 Редактировать состав', 'edit_team')],
@@ -118,6 +120,8 @@ async function showEditTeam(ctx) {
   
   const forwards = allCards.filter(c => c.position !== 'G');
   const goalies = allCards.filter(c => c.position === 'G');
+  
+  // ✅ ФИЛЬТРУЕМ ТОЛЬКО ТЕХ, КТО В СОСТАВЕ
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   
@@ -199,6 +203,7 @@ async function toggleForward(ctx, index) {
     return;
   }
   
+  // ✅ ФИЛЬТРУЕМ ТОЛЬКО ТЕХ, КТО В СОСТАВЕ
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const goalies = currentTeam.filter(p => p.position === 'G');
   
@@ -213,19 +218,72 @@ async function toggleForward(ctx, index) {
   } else {
     // ✅ ДОБАВЛЯЕМ В СОСТАВ
     if (teamForwards.length >= 5) {
+      // Предлагаем заменить самого слабого
+      const sorted = [...teamForwards].sort((a, b) => a.overall - b.overall);
+      const weakest = sorted[0];
+      
+      if (weakest) {
+        const buttons = [
+          [Markup.button.callback(`🔄 Заменить ${weakest.name} (${weakest.overall} OVR)`, `replace_forward_${player.id}_${weakest.id}`)],
+          [Markup.button.callback('❌ Отмена', 'edit_team')]
+        ];
+        
+        await ctx.editMessageText(
+          `❌ *Уже 5 полевых игроков!*\n\n` +
+          `Хочешь заменить самого слабого игрока?\n` +
+          `🔄 ${weakest.name} (${weakest.overall} OVR) → ${player.name} (${player.overall} OVR)`,
+          {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard(buttons)
+          }
+        );
+        return;
+      }
+      
       await ctx.answerCbQuery('❌ Уже 5 полевых!');
-      await ctx.editMessageText(
-        '❌ *Нельзя добавить больше 5 полевых игроков!*\n\nСначала убери кого-то из состава.',
-        { parse_mode: 'Markdown' }
-      );
       return;
     }
+    
     const newForwards = [...teamForwards, { ...player, count: 1 }];
     data.team = [...goalies, ...newForwards];
     await ctx.answerCbQuery(`✅ ${player.name} добавлен в состав`);
   }
   
   saveUsers(users);
+  await showEditTeam(ctx);
+}
+
+// ============================================
+// ЗАМЕНА ИГРОКА
+// ============================================
+async function replaceForward(ctx, newPlayerId, oldPlayerId) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  const currentTeam = data.team || [];
+  
+  const goalies = currentTeam.filter(p => p.position === 'G');
+  const teamForwards = currentTeam.filter(p => p.position !== 'G');
+  
+  // Убираем старого игрока
+  const newForwards = teamForwards.filter(p => p.id !== oldPlayerId);
+  
+  // Находим нового игрока в коллекции
+  const allCards = data.cards || [];
+  const newPlayer = allCards.find(p => p.id === newPlayerId);
+  
+  if (!newPlayer) {
+    await ctx.answerCbQuery('❌ Игрок не найден!');
+    await showEditTeam(ctx);
+    return;
+  }
+  
+  // Добавляем нового
+  newForwards.push({ ...newPlayer, count: 1 });
+  data.team = [...goalies, ...newForwards];
+  
+  saveUsers(users);
+  await ctx.answerCbQuery(`✅ ${newPlayer.name} заменил игрока`);
   await showEditTeam(ctx);
 }
 
@@ -260,10 +318,20 @@ async function toggleGoalie(ctx, index) {
   } else {
     // ✅ ДОБАВЛЯЕМ ВРАТАРЯ
     if (teamGoalie) {
-      await ctx.answerCbQuery('❌ Вратарь уже есть!');
+      // Предлагаем заменить текущего вратаря
+      const buttons = [
+        [Markup.button.callback(`🔄 Заменить ${teamGoalie.name} (${teamGoalie.overall} OVR)`, `replace_goalie_${player.id}_${teamGoalie.id}`)],
+        [Markup.button.callback('❌ Отмена', 'edit_team')]
+      ];
+      
       await ctx.editMessageText(
-        '❌ *Вратарь уже выбран!*\n\nСначала убери текущего вратаря.',
-        { parse_mode: 'Markdown' }
+        `❌ *Вратарь уже выбран!*\n\n` +
+        `Хочешь заменить вратаря?\n` +
+        `🔄 ${teamGoalie.name} (${teamGoalie.overall} OVR) → ${player.name} (${player.overall} OVR)`,
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard(buttons)
+        }
       );
       return;
     }
@@ -272,6 +340,34 @@ async function toggleGoalie(ctx, index) {
   }
   
   saveUsers(users);
+  await showEditTeam(ctx);
+}
+
+// ============================================
+// ЗАМЕНА ВРАТАРЯ
+// ============================================
+async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  const currentTeam = data.team || [];
+  
+  const teamForwards = currentTeam.filter(p => p.position !== 'G');
+  
+  // Находим нового вратаря в коллекции
+  const allCards = data.cards || [];
+  const newPlayer = allCards.find(p => p.id === newPlayerId);
+  
+  if (!newPlayer) {
+    await ctx.answerCbQuery('❌ Игрок не найден!');
+    await showEditTeam(ctx);
+    return;
+  }
+  
+  data.team = [...teamForwards, { ...newPlayer, count: 1 }];
+  
+  saveUsers(users);
+  await ctx.answerCbQuery(`✅ ${newPlayer.name} стал вратарём`);
   await showEditTeam(ctx);
 }
 
@@ -354,8 +450,8 @@ async function showProfile(ctx) {
     }
   });
   
-  const forwards = data.team.filter(p => p.position !== 'G').length;
-  const goalie = data.team.find(p => p.position === 'G');
+  const teamForwards = data.team.filter(p => p.position !== 'G');
+  const teamGoalie = data.team.find(p => p.position === 'G');
   
   let bonusText = '🎁 Доступен!';
   if (data.lastBonus) {
@@ -379,7 +475,7 @@ async function showProfile(ctx) {
     `💎 Кристаллов: ${data.crystals || 0}\n` +
     `📚 Карт: ${data.cards.length}\n` +
     `📊 Матчей: ${data.matches || 0}\n` +
-    `👥 В команде: ${forwards} полевых, ${goalie ? '1 вратарь' : '0 вратарей'}\n` +
+    `👥 В команде: ${teamForwards.length} полевых, ${teamGoalie ? '1 вратарь' : '0 вратарей'}\n` +
     `🎖️ БП уровень: ${bpLevel}\n` +
     `🎖️ XP: ${xp}\n` +
     `📅 Бонус: ${bonusText}\n\n` +
@@ -492,6 +588,16 @@ module.exports = (bot) => {
   bot.action(/toggle_goalie_(\d+)/, async (ctx) => {
     await ctx.answerCbQuery();
     await toggleGoalie(ctx, parseInt(ctx.match[1]));
+  });
+
+  bot.action(/replace_forward_(.+)_(.+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await replaceForward(ctx, ctx.match[1], ctx.match[2]);
+  });
+
+  bot.action(/replace_goalie_(.+)_(.+)/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await replaceGoalie(ctx, ctx.match[1], ctx.match[2]);
   });
 
   bot.action('save_team', async (ctx) => {
