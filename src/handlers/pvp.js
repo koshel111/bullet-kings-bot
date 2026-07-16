@@ -1,5 +1,5 @@
 // ============================================
-// src/handlers/pvp.js - PvP РЕЖИМ (ФИНАЛЬНАЯ ВЕРСИЯ)
+// src/handlers/pvp.js - PvP РЕЖИМ (ИСПРАВЛЕННЫЙ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -8,7 +8,7 @@ const path = require('path');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-// ✅ ХРАНИЛИЩЕ ДЛЯ PvP
+// ХРАНИЛИЩЕ ДЛЯ PvP
 const pvpQueue = [];
 const pvpMatches = {};
 const pvpTimers = {};
@@ -23,7 +23,7 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// ✅ ПРОВЕРКА АКТИВНОГО МАТЧА
+// ПРОВЕРКА АКТИВНОГО МАТЧА
 function hasActiveMatch(userId) {
   for (const matchId in pvpMatches) {
     const match = pvpMatches[matchId];
@@ -40,7 +40,7 @@ function hasActiveMatch(userId) {
   return null;
 }
 
-// ✅ ПОИСК СОПЕРНИКА
+// ПОИСК СОПЕРНИКА
 async function findOpponent(ctx) {
   const userId = ctx.from.id;
   const user = ctx.from;
@@ -128,13 +128,17 @@ async function findOpponent(ctx) {
   }
 }
 
-// ✅ СОЗДАНИЕ PvP МАТЧА
+// СОЗДАНИЕ PvP МАТЧА
 async function createPvPMatch(ctx, player1Id, player2Id) {
   const users = getUsers();
   const player1Data = users[player1Id];
   const player2Data = users[player2Id];
   
   const matchId = Date.now().toString() + Math.random().toString(36).substr(2, 4);
+  
+  console.log('📊 [PvP] Создаём матч:', matchId);
+  console.log('📊 [PvP] Игрок 1:', player1Id, player1Data?.name);
+  console.log('📊 [PvP] Игрок 2:', player2Id, player2Data?.name);
   
   pvpMatches[matchId] = {
     id: matchId,
@@ -167,6 +171,8 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
   playerActiveMatches[player1Id] = matchId;
   playerActiveMatches[player2Id] = matchId;
   
+  console.log('📊 [PvP] Матч создан, ID:', matchId);
+  
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
   ]);
@@ -190,13 +196,19 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
   );
 }
 
-// ✅ ГОТОВНОСТЬ К МАТЧУ
+// ГОТОВНОСТЬ К МАТЧУ
 async function pvpReady(ctx, matchId) {
   const userId = ctx.from.id;
-  const match = pvpMatches[matchId];
   
+  console.log('📊 [PvP] pvpReady вызван, matchId:', matchId);
+  console.log('📊 [PvP] userId:', userId);
+  console.log('📊 [PvP] Все матчи:', Object.keys(pvpMatches));
+  
+  // ✅ ПРОВЕРЯЕМ СУЩЕСТВОВАНИЕ МАТЧА
+  const match = pvpMatches[matchId];
   if (!match) {
-    await ctx.reply('❌ Матч не найден!');
+    console.log('❌ [PvP] Матч не найден!');
+    await ctx.reply('❌ Матч не найден! Попробуйте найти соперника заново.');
     return;
   }
   
@@ -210,17 +222,22 @@ async function pvpReady(ctx, matchId) {
     return;
   }
   
+  // Отмечаем готовность
   if (match.player1 === userId) {
     match.player1Ready = true;
+    console.log('📊 [PvP] Игрок 1 готов');
   } else if (match.player2 === userId) {
     match.player2Ready = true;
+    console.log('📊 [PvP] Игрок 2 готов');
   } else {
     await ctx.reply('❌ Вы не участвуете в этом матче!');
     return;
   }
   
   const readyCount = (match.player1Ready ? 1 : 0) + (match.player2Ready ? 1 : 0);
+  console.log('📊 [PvP] Готовность:', readyCount + '/2');
   
+  // Обновляем сообщение для обоих игроков
   const statusText = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
     `👤 ${match.player1Name} ${match.player1Ready ? '✅' : '⏳'}\n` +
     `👤 ${match.player2Name} ${match.player2Ready ? '✅' : '⏳'}\n` +
@@ -234,22 +251,34 @@ async function pvpReady(ctx, matchId) {
     )]
   ]);
   
-  await ctx.telegram.editMessageText(
-    match.player1,
-    ctx.callbackQuery.message.message_id,
-    null,
-    statusText,
-    { parse_mode: 'Markdown', ...keyboard }
-  );
+  try {
+    await ctx.telegram.editMessageText(
+      match.player1,
+      ctx.callbackQuery.message.message_id,
+      null,
+      statusText,
+      { parse_mode: 'Markdown', ...keyboard }
+    );
+  } catch (error) {
+    console.log('⚠️ [PvP] Не удалось обновить сообщение для игрока 1:', error.message);
+    // Отправляем новое сообщение
+    await ctx.telegram.sendMessage(match.player1, statusText, { parse_mode: 'Markdown', ...keyboard });
+  }
   
-  await ctx.telegram.editMessageText(
-    match.player2,
-    ctx.callbackQuery.message.message_id,
-    null,
-    statusText,
-    { parse_mode: 'Markdown', ...keyboard }
-  );
+  try {
+    await ctx.telegram.editMessageText(
+      match.player2,
+      ctx.callbackQuery.message.message_id,
+      null,
+      statusText,
+      { parse_mode: 'Markdown', ...keyboard }
+    );
+  } catch (error) {
+    console.log('⚠️ [PvP] Не удалось обновить сообщение для игрока 2:', error.message);
+    await ctx.telegram.sendMessage(match.player2, statusText, { parse_mode: 'Markdown', ...keyboard });
+  }
   
+  // Если оба готовы — запускаем матч
   if (readyCount === 2) {
     match.started = true;
     match.currentTurn = match.player1;
@@ -260,7 +289,7 @@ async function pvpReady(ctx, matchId) {
   }
 }
 
-// ✅ НАЧАЛО PvP МАТЧА
+// НАЧАЛО PvP МАТЧА
 async function startPvPMatch(ctx, matchId) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -286,7 +315,7 @@ async function startPvPMatch(ctx, matchId) {
   await showPvPPlayerSelection(ctx, matchId);
 }
 
-// ✅ ПОКАЗ ВЫБОРА ИГРОКА
+// ПОКАЗ ВЫБОРА ИГРОКА
 async function showPvPPlayerSelection(ctx, matchId) {
   const match = pvpMatches[matchId];
   if (!match || match.isFinished) return;
@@ -355,7 +384,7 @@ async function showPvPPlayerSelection(ctx, matchId) {
   }
 }
 
-// ✅ ВЫБОР БРОСКА
+// ВЫБОР БРОСКА
 async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -399,7 +428,7 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
   );
 }
 
-// ✅ ОБРАБОТКА БРОСКА
+// ОБРАБОТКА БРОСКА
 async function pvpHandleShot(ctx, matchId, shotType) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -473,7 +502,7 @@ async function pvpHandleShot(ctx, matchId, shotType) {
   );
 }
 
-// ✅ ДЕЙСТВИЕ ВРАТАРЯ
+// ДЕЙСТВИЕ ВРАТАРЯ
 async function pvpGoalieAction(ctx, matchId, goalieAction) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -583,7 +612,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
 }
 
-// ✅ ПРОДОЛЖЕНИЕ МАТЧА
+// ПРОДОЛЖЕНИЕ МАТЧА
 async function continuePvP(ctx, matchId) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -600,7 +629,7 @@ async function continuePvP(ctx, matchId) {
   }
 }
 
-// ✅ ЗАВЕРШЕНИЕ РАУНДА
+// ЗАВЕРШЕНИЕ РАУНДА
 async function finishPvPRound(ctx, matchId) {
   const match = pvpMatches[matchId];
   if (!match) return;
@@ -629,7 +658,7 @@ async function finishPvPRound(ctx, matchId) {
   await showPvPPlayerSelection(ctx, matchId);
 }
 
-// ✅ ЗАВЕРШЕНИЕ PvP МАТЧА
+// ЗАВЕРШЕНИЕ PvP МАТЧА
 async function finishPvPMatch(ctx, matchId) {
   const match = pvpMatches[matchId];
   if (!match) return;
@@ -671,7 +700,7 @@ async function finishPvPMatch(ctx, matchId) {
   delete pvpMatches[matchId];
 }
 
-// ✅ ОТМЕНА ПОИСКА
+// ОТМЕНА ПОИСКА
 async function cancelPvpSearch(ctx) {
   const userId = ctx.from.id;
   const index = pvpQueue.indexOf(userId);
@@ -688,7 +717,7 @@ async function cancelPvpSearch(ctx) {
   }
 }
 
-// ✅ СДАЧА В PvP
+// СДАЧА В PvP
 async function pvpForfeit(ctx, matchId) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
