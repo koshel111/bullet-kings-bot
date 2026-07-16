@@ -16,7 +16,7 @@ const CRAFTABLE_CARDS = [
     description: 'Величайший снайпер в истории НХЛ'
   },
   {
-    id: 'semionov_season1',
+    id: 'semyonov_season1',  // ✅ ИСПРАВЛЕНО: semyonov вместо semionov
     name: 'Кирилл Семёнов',
     league: 'КХЛ',
     overall: 94,
