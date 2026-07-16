@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ПОЛНЫЙ ФАЙЛ
+// src/handlers/profile.js - С ПАГИНАЦИЕЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -9,6 +9,9 @@ const { getRarityEmoji } = require('../data/players');
 const { CRAFTABLE_CARDS, getCraftableCardById } = require('../data/craftables');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
+
+// ✅ ХРАНИМ СОСТОЯНИЕ СТРАНИЦ ДЛЯ КАЖДОГО ПОЛЬЗОВАТЕЛЯ
+const userPages = {};
 
 function getUsers() {
   if (!fs.existsSync(DB_PATH)) return {};
@@ -46,12 +49,10 @@ function getTimeUntilNextBonus(lastBonusDate) {
   return `${hours}ч ${minutes}м ${seconds}с`;
 }
 
-// ✅ ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ ID
 function generateId() {
   return Date.now().toString() + Math.random().toString(36).substr(2, 6);
 }
 
-// ✅ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ И ДОБАВЛЕНИЯ ID
 function ensureCardId(card) {
   if (!card.id) {
     card.id = generateId();
@@ -59,12 +60,10 @@ function ensureCardId(card) {
   return card;
 }
 
-// ✅ ФУНКЦИЯ ДЛЯ НОРМАЛИЗАЦИИ КАРТЫ (сравнение по имени + позиции)
 function getCardKey(card) {
   return card.name + '_' + card.position;
 }
 
-// ✅ РЕЙТИНГ СОСТАВА
 function getTeamRating(team) {
   if (!team || team.length === 0) return 0;
   const total = team.reduce((sum, p) => sum + (p.overall || 0), 0);
@@ -169,14 +168,29 @@ async function showEditTeam(ctx) {
   const teamKeys = new Set(teamForwards.map(p => getCardKey(p)));
   const goalieKey = teamGoalie ? getCardKey(teamGoalie) : null;
   
+  // ✅ СОХРАНЯЕМ ТЕКУЩУЮ СТРАНИЦУ ДЛЯ ПОЛЬЗОВАТЕЛЯ
+  if (!userPages[userId]) {
+    userPages[userId] = { forwardPage: 0, goaliePage: 0 };
+  }
+  
+  const forwardPage = userPages[userId].forwardPage || 0;
+  const goaliePage = userPages[userId].goaliePage || 0;
+  const ITEMS_PER_PAGE = 8;
+  
   let text = '📋 *РЕДАКТИРОВАНИЕ СОСТАВА*\n\n';
   text += 'Нажми на игрока, чтобы добавить или убрать из состава.\n\n';
   
+  // ✅ ПОЛЕВЫЕ ИГРОКИ (с пагинацией)
   text += '🏒 *Полевые игроки (нужно 5):*\n';
   if (forwards.length === 0) {
     text += '  ❌ Нет полевых игроков! Открой паки в магазине.\n\n';
   } else {
-    forwards.forEach((player) => {
+    const totalForwardPages = Math.ceil(forwards.length / ITEMS_PER_PAGE);
+    const startIndex = forwardPage * ITEMS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, forwards.length);
+    const pageForwards = forwards.slice(startIndex, endIndex);
+    
+    pageForwards.forEach((player) => {
       ensureCardId(player);
       const key = getCardKey(player);
       const inTeam = teamKeys.has(key);
@@ -185,14 +199,22 @@ async function showEditTeam(ctx) {
       const statusEmoji = inTeam ? '✅' : '➕';
       text += `  ${statusEmoji} ${emoji} ${player.name} (${player.overall} OVR) — ${status}\n`;
     });
-    text += `\n📊 В составе: ${teamForwards.length}/5\n`;
+    text += `\n📊 В составе: ${teamForwards.length}/5`;
+    text += `  |  Страница ${forwardPage + 1}/${totalForwardPages || 1}`;
+    text += `  |  Всего: ${forwards.length} игроков\n`;
   }
   
+  // ✅ ВРАТАРИ (с пагинацией)
   text += '\n🧤 *Вратари (нужно 1):*\n';
   if (goalies.length === 0) {
     text += '  ❌ Нет вратарей! Открой паки в магазине.\n\n';
   } else {
-    goalies.forEach((player) => {
+    const totalGoaliePages = Math.ceil(goalies.length / ITEMS_PER_PAGE);
+    const startIndex = goaliePage * ITEMS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, goalies.length);
+    const pageGoalies = goalies.slice(startIndex, endIndex);
+    
+    pageGoalies.forEach((player) => {
       ensureCardId(player);
       const key = getCardKey(player);
       const inTeam = goalieKey === key;
@@ -201,26 +223,71 @@ async function showEditTeam(ctx) {
       const statusEmoji = inTeam ? '✅' : '➕';
       text += `  ${statusEmoji} ${emoji} ${player.name} (${player.overall} OVR) — ${status}\n`;
     });
-    text += `\n📊 В составе: ${teamGoalie ? 1 : 0}/1\n`;
+    text += `\n📊 В составе: ${teamGoalie ? 1 : 0}/1`;
+    text += `  |  Страница ${goaliePage + 1}/${totalGoaliePages || 1}`;
+    text += `  |  Всего: ${goalies.length} вратарей\n`;
   }
   
+  // ✅ КНОПКИ
   const buttons = [];
   
-  forwards.forEach((player, index) => {
-    ensureCardId(player);
-    const key = getCardKey(player);
-    const inTeam = teamKeys.has(key);
-    const label = inTeam ? `❌ ${player.name}` : `➕ ${player.name}`;
-    buttons.push([Markup.button.callback(label, `team_toggle_forward_${index}`)]);
-  });
+  // Кнопки для полевых (текущая страница)
+  if (forwards.length > 0) {
+    const startIndex = forwardPage * ITEMS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, forwards.length);
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const player = forwards[i];
+      ensureCardId(player);
+      const key = getCardKey(player);
+      const inTeam = teamKeys.has(key);
+      const label = inTeam ? `❌ ${player.name}` : `➕ ${player.name}`;
+      buttons.push([Markup.button.callback(label, `team_toggle_forward_${i}`)]);
+    }
+    
+    // ✅ КНОПКИ НАВИГАЦИИ ДЛЯ ПОЛЕВЫХ
+    const totalForwardPages = Math.ceil(forwards.length / ITEMS_PER_PAGE);
+    const navButtons = [];
+    if (forwardPage > 0) {
+      navButtons.push(Markup.button.callback('⬅️', `team_forward_page_${forwardPage - 1}`));
+    }
+    navButtons.push(Markup.button.callback(`📄 ${forwardPage + 1}/${totalForwardPages}`, `team_forward_page_${forwardPage}`));
+    if (forwardPage < totalForwardPages - 1) {
+      navButtons.push(Markup.button.callback('➡️', `team_forward_page_${forwardPage + 1}`));
+    }
+    if (navButtons.length > 0) {
+      buttons.push(navButtons);
+    }
+  }
   
-  goalies.forEach((player, index) => {
-    ensureCardId(player);
-    const key = getCardKey(player);
-    const inTeam = goalieKey === key;
-    const label = inTeam ? `❌ ${player.name}` : `➕ ${player.name}`;
-    buttons.push([Markup.button.callback(label, `team_toggle_goalie_${index}`)]);
-  });
+  // Кнопки для вратарей (текущая страница)
+  if (goalies.length > 0) {
+    const startIndex = goaliePage * ITEMS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, goalies.length);
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const player = goalies[i];
+      ensureCardId(player);
+      const key = getCardKey(player);
+      const inTeam = goalieKey === key;
+      const label = inTeam ? `❌ ${player.name}` : `➕ ${player.name}`;
+      buttons.push([Markup.button.callback(label, `team_toggle_goalie_${i}`)]);
+    }
+    
+    // ✅ КНОПКИ НАВИГАЦИИ ДЛЯ ВРАТАРЕЙ
+    const totalGoaliePages = Math.ceil(goalies.length / ITEMS_PER_PAGE);
+    const navButtons = [];
+    if (goaliePage > 0) {
+      navButtons.push(Markup.button.callback('⬅️', `team_goalie_page_${goaliePage - 1}`));
+    }
+    navButtons.push(Markup.button.callback(`📄 ${goaliePage + 1}/${totalGoaliePages}`, `team_goalie_page_${goaliePage}`));
+    if (goaliePage < totalGoaliePages - 1) {
+      navButtons.push(Markup.button.callback('➡️', `team_goalie_page_${goaliePage + 1}`));
+    }
+    if (navButtons.length > 0) {
+      buttons.push(navButtons);
+    }
+  }
   
   buttons.push([Markup.button.callback('✅ Сохранить состав', 'team_save')]);
   buttons.push([Markup.button.callback('🗑️ Очистить состав', 'team_clear')]);
@@ -230,6 +297,27 @@ async function showEditTeam(ctx) {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard(buttons)
   });
+}
+
+// ============================================
+// ПЕРЕКЛЮЧЕНИЕ СТРАНИЦ
+// ============================================
+async function changePage(ctx, type, page) {
+  const userId = ctx.from.id;
+  console.log('📄 [changePage] Тип:', type, 'Страница:', page);
+  
+  if (!userPages[userId]) {
+    userPages[userId] = { forwardPage: 0, goaliePage: 0 };
+  }
+  
+  if (type === 'forward') {
+    userPages[userId].forwardPage = page;
+  } else if (type === 'goalie') {
+    userPages[userId].goaliePage = page;
+  }
+  
+  await ctx.answerCbQuery();
+  await showEditTeam(ctx);
 }
 
 // ============================================
@@ -629,9 +717,6 @@ async function showCollection(ctx) {
 // ============================================
 // ОБМЕН КАРТЫ
 // ============================================
-// ============================================
-// ОБМЕН КАРТЫ
-// ============================================
 async function tradeCard(ctx, cardId, currency) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -656,7 +741,6 @@ async function tradeCard(ctx, cardId, currency) {
     return;
   }
   
-  // ✅ НЕЛЬЗЯ ОБМЕНЯТЬ ПОСЛЕДНЮЮ КАРТУ
   if (data.cards.length === 1) {
     await ctx.reply(
       `❌ *Нельзя обменять последнюю карту!*\n\n` +
@@ -684,7 +768,6 @@ async function tradeCard(ctx, cardId, currency) {
     return;
   }
   
-  // ✅ УДАЛЯЕМ КАРТУ
   data.cards.splice(cardIndex, 1);
   
   saveUsers(users);
@@ -702,6 +785,7 @@ async function tradeCard(ctx, cardId, currency) {
   
   await ctx.reply(text, { parse_mode: 'Markdown' });
 }
+
 // ============================================
 // ПОКАЗ КАРТ ДЛЯ КРАФТА
 // ============================================
@@ -868,6 +952,15 @@ module.exports = (bot) => {
   bot.action('edit_team', async (ctx) => {
     await ctx.answerCbQuery();
     await showEditTeam(ctx);
+  });
+
+  // ✅ ОБРАБОТЧИКИ ПАГИНАЦИИ
+  bot.action(/team_forward_page_(\d+)/, async (ctx) => {
+    await changePage(ctx, 'forward', parseInt(ctx.match[1]));
+  });
+
+  bot.action(/team_goalie_page_(\d+)/, async (ctx) => {
+    await changePage(ctx, 'goalie', parseInt(ctx.match[1]));
   });
 
   bot.action(/team_toggle_forward_(\d+)/, async (ctx) => {
