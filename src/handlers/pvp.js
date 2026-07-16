@@ -14,8 +14,6 @@ const pvpQueue = [];
 const pvpMatches = {};
 const pvpTimers = {};
 const pvpReady = {}; // Кто нажал "Готов"
-
-// ✅ ДОБАВЛЯЕМ ОБЪЕКТ ДЛЯ АКТИВНЫХ МАТЧЕЙ ИГРОКОВ
 const playerActiveMatches = {};
 
 function getUsers() {
@@ -185,7 +183,7 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
     started: false
   };
   
-  // ✅ ЗАПОМИНАЕМ АКТИВНЫЙ МАТЧ ДЛЯ ИГРОКОВ
+  // ЗАПОМИНАЕМ АКТИВНЫЙ МАТЧ ДЛЯ ИГРОКОВ
   playerActiveMatches[player1Id] = matchId;
   playerActiveMatches[player2Id] = matchId;
   
@@ -715,7 +713,7 @@ async function finishPvPMatch(ctx, matchId) {
   await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown' });
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown' });
   
-  // ✅ УДАЛЯЕМ ИЗ АКТИВНЫХ МАТЧЕЙ
+  // УДАЛЯЕМ ИЗ АКТИВНЫХ МАТЧЕЙ
   delete playerActiveMatches[match.player1];
   delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
@@ -776,7 +774,7 @@ async function pvpForfeit(ctx, matchId) {
   await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown' });
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown' });
   
-  // ✅ УДАЛЯЕМ ИЗ АКТИВНЫХ МАТЧЕЙ
+  // УДАЛЯЕМ ИЗ АКТИВНЫХ МАТЧЕЙ
   delete playerActiveMatches[match.player1];
   delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
