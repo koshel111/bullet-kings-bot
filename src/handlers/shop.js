@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/shop.js - С ЗАДЕРЖКОЙ ПРИ ОТКРЫТИИ
+// src/handlers/shop.js - ОТКРЫТИЕ ПАКА С ОБНОВЛЕНИЕМ СООБЩЕНИЯ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -186,45 +186,50 @@ module.exports = (bot) => {
     const positionEmoji = card.position === 'G' ? '🧤' : '🏒';
     const posName = card.position === 'G' ? 'Вратарь' : 'Полевой';
     
-    // ✅ ОТПРАВЛЯЕМ 4 СООБЩЕНИЯ С ЗАДЕРЖКОЙ 3 СЕКУНДЫ
+    // ✅ ОТПРАВЛЯЕМ ПЕРВОЕ СООБЩЕНИЕ
     await ctx.editMessageText(
-      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*',
+      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n' +
+      '📋 *Позиция:* ' + posName + '\n\n' +
+      '⏳ Загружаем информацию о карте...',
       { parse_mode: 'Markdown' }
     );
     
-    await sleep(3000);
+    await sleep(1500);
     
-    await ctx.reply(
-      '📋 *Позиция:* ' + posName,
+    // ✅ ОБНОВЛЯЕМ СООБЩЕНИЕ — ДОБАВЛЯЕМ РЕДКОСТЬ
+    await ctx.editMessageText(
+      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n' +
+      '📋 *Позиция:* ' + posName + '\n' +
+      '🏆 *Редкость:* ' + card.rarity + ' ' + emoji + '\n\n' +
+      '⏳ Загружаем рейтинг...',
       { parse_mode: 'Markdown' }
     );
     
-    await sleep(3000);
+    await sleep(1500);
     
-    await ctx.reply(
-      '🏆 *Редкость:* ' + card.rarity + ' ' + emoji,
+    // ✅ ОБНОВЛЯЕМ СООБЩЕНИЕ — ДОБАВЛЯЕМ РЕЙТИНГ
+    await ctx.editMessageText(
+      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n' +
+      '📋 *Позиция:* ' + posName + '\n' +
+      '🏆 *Редкость:* ' + card.rarity + ' ' + emoji + '\n' +
+      '📊 *Рейтинг:* ' + card.overall + ' OVR\n\n' +
+      '⏳ Загружаем полную информацию...',
       { parse_mode: 'Markdown' }
     );
     
-    await sleep(3000);
+    await sleep(1500);
     
-    await ctx.reply(
-      '📊 *Рейтинг:* ' + card.overall + ' OVR',
-      { parse_mode: 'Markdown' }
-    );
-    
-    await sleep(3000);
-    
-    // Финальное сообщение с полной информацией
+    // ✅ ФИНАЛЬНОЕ СООБЩЕНИЕ С ПОЛНОЙ ИНФОРМАЦИЕЙ
     let finalText = 
-      '🃏 *' + card.name + '*\n\n' +
+      '🎉 *' + pack.emoji + ' ' + pack.name + ' пак открыт!*\n\n' +
+      '🃏 *' + card.name + '*\n' +
       positionEmoji + ' ' + posName + '\n' +
       emoji + ' ' + card.rarity + '\n' +
       '📊 ' + card.overall + ' OVR\n\n' +
       '💡 Карта добавлена в коллекцию!\n' +
       '📊 Всего карт: ' + data.cards.length;
     
-    await ctx.reply(finalText, {
+    await ctx.editMessageText(finalText, {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Открыть ещё', 'buy_' + packType)],
