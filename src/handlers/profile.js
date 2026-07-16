@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННЫЙ
+// src/handlers/profile.js - С ЛОГИРОВАНИЕМ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -49,6 +49,7 @@ function getTimeUntilNextBonus(lastBonusDate) {
 // ГЛАВНЫЙ ЭКРАН КОМАНДЫ
 // ============================================
 async function showTeam(ctx) {
+  console.log('👥 [showTeam] Показываем команду');
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -109,6 +110,7 @@ async function showTeam(ctx) {
 // РЕДАКТИРОВАНИЕ СОСТАВА
 // ============================================
 async function showEditTeam(ctx) {
+  console.log('📋 [showEditTeam] Показываем редактирование состава');
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -184,6 +186,7 @@ async function showEditTeam(ctx) {
 // ПЕРЕКЛЮЧЕНИЕ ПОЛЕВОГО ИГРОКА
 // ============================================
 async function toggleForward(ctx, index) {
+  console.log('🏒 [toggleForward] Индекс:', index);
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -194,21 +197,27 @@ async function toggleForward(ctx, index) {
   const player = forwards[index];
   
   if (!player) {
+    console.log('❌ [toggleForward] Игрок не найден!');
     await ctx.answerCbQuery('❌ Игрок не найден!');
     return;
   }
+  
+  console.log('🔍 [toggleForward] Игрок:', player.name, 'ID:', player.id);
   
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const goalies = currentTeam.filter(p => p.position === 'G');
   
   const inTeam = teamForwards.some(p => p.id === player.id);
+  console.log('📊 [toggleForward] В составе:', inTeam);
   
   if (inTeam) {
     const newForwards = teamForwards.filter(p => p.id !== player.id);
     data.team = [...goalies, ...newForwards];
+    console.log('✅ [toggleForward] Убран из состава');
     await ctx.answerCbQuery(`❌ ${player.name} убран из состава`);
   } else {
     if (teamForwards.length >= 5) {
+      console.log('⚠️ [toggleForward] Уже 5 полевых!');
       const sorted = [...teamForwards].sort((a, b) => a.overall - b.overall);
       const weakest = sorted[0];
       
@@ -236,6 +245,7 @@ async function toggleForward(ctx, index) {
     
     const newForwards = [...teamForwards, { ...player, count: 1 }];
     data.team = [...goalies, ...newForwards];
+    console.log('✅ [toggleForward] Добавлен в состав');
     await ctx.answerCbQuery(`✅ ${player.name} добавлен в состав`);
   }
   
@@ -247,6 +257,7 @@ async function toggleForward(ctx, index) {
 // ЗАМЕНА ПОЛЕВОГО ИГРОКА
 // ============================================
 async function replaceForward(ctx, newPlayerId, oldPlayerId) {
+  console.log('🔄 [replaceForward] Новый:', newPlayerId, 'Старый:', oldPlayerId);
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -261,6 +272,7 @@ async function replaceForward(ctx, newPlayerId, oldPlayerId) {
   const newPlayer = allCards.find(p => p.id === newPlayerId);
   
   if (!newPlayer) {
+    console.log('❌ [replaceForward] Новый игрок не найден!');
     await ctx.answerCbQuery('❌ Игрок не найден!');
     await showEditTeam(ctx);
     return;
@@ -270,46 +282,76 @@ async function replaceForward(ctx, newPlayerId, oldPlayerId) {
   data.team = [...goalies, ...newForwards];
   
   saveUsers(users);
+  console.log('✅ [replaceForward] Замена выполнена');
   await ctx.answerCbQuery(`✅ ${newPlayer.name} заменил игрока`);
   await showEditTeam(ctx);
 }
 
 // ============================================
-// ПЕРЕКЛЮЧЕНИЕ ВРАТАРЯ - ИСПРАВЛЕНО!
+// ПЕРЕКЛЮЧЕНИЕ ВРАТАРЯ - С ЛОГАМИ
 // ============================================
 async function toggleGoalie(ctx, index) {
+  console.log('🧤 [toggleGoalie] ===== НАЧАЛО =====');
+  console.log('🧤 [toggleGoalie] Индекс:', index);
+  console.log('🧤 [toggleGoalie] ctx.from.id:', ctx.from.id);
+  console.log('🧤 [toggleGoalie] ctx.match:', ctx.match);
+  
   const userId = ctx.from.id;
   const users = getUsers();
+  console.log('🧤 [toggleGoalie] Пользователей в БД:', Object.keys(users).length);
+  
   const data = users[userId];
+  if (!data) {
+    console.log('❌ [toggleGoalie] Пользователь не найден!');
+    await ctx.answerCbQuery('❌ Пользователь не найден!');
+    return;
+  }
+  
   const allCards = data.cards || [];
+  console.log('🧤 [toggleGoalie] Всего карт:', allCards.length);
+  
   const currentTeam = data.team || [];
+  console.log('🧤 [toggleGoalie] Текущий состав:', currentTeam.length, 'игроков');
   
   const goalies = allCards.filter(c => c.position === 'G');
-  const player = goalies[index];
+  console.log('🧤 [toggleGoalie] Всего вратарей:', goalies.length);
   
-  if (!player) {
+  if (index >= goalies.length) {
+    console.log('❌ [toggleGoalie] Индекс вне диапазона! Индекс:', index, 'Доступно:', goalies.length);
     await ctx.answerCbQuery('❌ Игрок не найден!');
     return;
   }
   
+  const player = goalies[index];
+  console.log('🧤 [toggleGoalie] Выбран игрок:', player.name, 'ID:', player.id, 'OVR:', player.overall);
+  
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   
+  console.log('🧤 [toggleGoalie] Текущий вратарь:', teamGoalie ? teamGoalie.name : 'НЕТ');
+  console.log('🧤 [toggleGoalie] Полевых в составе:', teamForwards.length);
+  
   // Проверяем, есть ли игрок в составе
   const inTeam = teamGoalie && teamGoalie.id === player.id;
+  console.log('🧤 [toggleGoalie] Игрок в составе вратарём:', inTeam);
   
   if (inTeam) {
     // ✅ УБИРАЕМ ВРАТАРЯ
+    console.log('🧤 [toggleGoalie] Убираем вратаря из состава');
     data.team = [...teamForwards];
     saveUsers(users);
+    console.log('✅ [toggleGoalie] Вратарь убран, сохранено');
     await ctx.answerCbQuery(`❌ ${player.name} убран из состава`);
     await showEditTeam(ctx);
     return;
   }
   
   // ✅ ДОБАВЛЯЕМ ВРАТАРЯ
+  console.log('🧤 [toggleGoalie] Добавляем вратаря в состав');
+  
   if (teamGoalie) {
     // Если вратарь уже есть — предлагаем заменить
+    console.log('🧤 [toggleGoalie] Вратарь уже есть, предлагаем замену');
     const buttons = [
       [Markup.button.callback(`🔄 Заменить ${teamGoalie.name} (${teamGoalie.overall} OVR)`, `replace_goalie_${player.id}_${teamGoalie.id}`)],
       [Markup.button.callback('❌ Отмена', 'edit_team')]
@@ -328,8 +370,10 @@ async function toggleGoalie(ctx, index) {
   }
   
   // Добавляем нового вратаря
+  console.log('🧤 [toggleGoalie] Добавляем нового вратаря');
   data.team = [...teamForwards, { ...player, count: 1 }];
   saveUsers(users);
+  console.log('✅ [toggleGoalie] Вратарь добавлен, сохранено');
   await ctx.answerCbQuery(`✅ ${player.name} добавлен в состав как вратарь`);
   await showEditTeam(ctx);
 }
@@ -338,6 +382,7 @@ async function toggleGoalie(ctx, index) {
 // ЗАМЕНА ВРАТАРЯ
 // ============================================
 async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
+  console.log('🔄 [replaceGoalie] Новый:', newPlayerId, 'Старый:', oldPlayerId);
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -349,14 +394,17 @@ async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
   const newPlayer = allCards.find(p => p.id === newPlayerId);
   
   if (!newPlayer) {
+    console.log('❌ [replaceGoalie] Новый игрок не найден!');
     await ctx.answerCbQuery('❌ Игрок не найден!');
     await showEditTeam(ctx);
     return;
   }
   
+  console.log('🔄 [replaceGoalie] Заменяем на:', newPlayer.name);
   data.team = [...teamForwards, { ...newPlayer, count: 1 }];
   saveUsers(users);
   
+  console.log('✅ [replaceGoalie] Замена выполнена');
   await ctx.answerCbQuery(`✅ ${newPlayer.name} стал вратарём`);
   await showEditTeam(ctx);
 }
@@ -365,6 +413,7 @@ async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
 // СОХРАНЕНИЕ СОСТАВА
 // ============================================
 async function saveTeam(ctx) {
+  console.log('💾 [saveTeam] Сохраняем состав');
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -374,6 +423,7 @@ async function saveTeam(ctx) {
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   
   if (teamForwards.length !== 5) {
+    console.log('❌ [saveTeam] Не хватает полевых:', teamForwards.length);
     await ctx.editMessageText(
       `❌ *Нужно 5 полевых игроков!*\n\nСейчас: ${teamForwards.length}/5\n\nДобавь ещё ${5 - teamForwards.length} полевых игроков.`,
       { parse_mode: 'Markdown' }
@@ -382,6 +432,7 @@ async function saveTeam(ctx) {
   }
   
   if (!teamGoalie) {
+    console.log('❌ [saveTeam] Нет вратаря');
     await ctx.editMessageText(
       '❌ *Нужен вратарь!*\n\nДобавь вратаря в состав.',
       { parse_mode: 'Markdown' }
@@ -391,6 +442,7 @@ async function saveTeam(ctx) {
   
   data.teamReady = true;
   saveUsers(users);
+  console.log('✅ [saveTeam] Состав сохранён');
   
   await ctx.editMessageText(
     '✅ *Состав сохранён!*\n\n' +
@@ -410,12 +462,14 @@ async function saveTeam(ctx) {
 // ОЧИСТКА СОСТАВА
 // ============================================
 async function clearTeam(ctx) {
+  console.log('🗑️ [clearTeam] Очищаем состав');
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
   data.team = [];
   data.teamReady = false;
   saveUsers(users);
+  console.log('✅ [clearTeam] Состав очищен');
   await ctx.answerCbQuery('🗑️ Состав очищен');
   await showTeam(ctx);
 }
@@ -424,6 +478,7 @@ async function clearTeam(ctx) {
 // ПРОФИЛЬ
 // ============================================
 async function showProfile(ctx) {
+  console.log('👤 [showProfile] Показываем профиль');
   const user = ctx.from;
   const users = getUsers();
   const data = users[user.id];
@@ -481,6 +536,7 @@ async function showProfile(ctx) {
 // КОЛЛЕКЦИЯ
 // ============================================
 async function showCollection(ctx) {
+  console.log('📚 [showCollection] Показываем коллекцию');
   const user = ctx.from;
   const users = getUsers();
   const data = users[user.id];
@@ -508,6 +564,7 @@ async function showCollection(ctx) {
 // БОНУС
 // ============================================
 async function getBonus(ctx) {
+  console.log('🎁 [getBonus] Получаем бонус');
   try {
     await ctx.answerCbQuery();
     
@@ -561,57 +618,69 @@ async function getBonus(ctx) {
 module.exports = (bot) => {
   
   bot.action('team', async (ctx) => {
+    console.log('🔘 [action] team');
     await ctx.answerCbQuery();
     await showTeam(ctx);
   });
 
   bot.action('edit_team', async (ctx) => {
+    console.log('🔘 [action] edit_team');
     await ctx.answerCbQuery();
     await showEditTeam(ctx);
   });
 
   bot.action(/toggle_forward_(\d+)/, async (ctx) => {
+    console.log('🔘 [action] toggle_forward:', ctx.match[1]);
     await ctx.answerCbQuery();
     await toggleForward(ctx, parseInt(ctx.match[1]));
   });
 
   bot.action(/toggle_goalie_(\d+)/, async (ctx) => {
+    console.log('🔘 [action] toggle_goalie:', ctx.match[1]);
+    console.log('🔘 [action] Полный ctx.match:', ctx.match);
     await ctx.answerCbQuery();
     // ✅ ВЫЗЫВАЕМ ПРАВИЛЬНУЮ ФУНКЦИЮ
     await toggleGoalie(ctx, parseInt(ctx.match[1]));
   });
 
   bot.action(/replace_forward_(.+)_(.+)/, async (ctx) => {
+    console.log('🔘 [action] replace_forward');
     await ctx.answerCbQuery();
     await replaceForward(ctx, ctx.match[1], ctx.match[2]);
   });
 
   bot.action(/replace_goalie_(.+)_(.+)/, async (ctx) => {
+    console.log('🔘 [action] replace_goalie');
     await ctx.answerCbQuery();
     await replaceGoalie(ctx, ctx.match[1], ctx.match[2]);
   });
 
   bot.action('save_team', async (ctx) => {
+    console.log('🔘 [action] save_team');
     await ctx.answerCbQuery();
     await saveTeam(ctx);
   });
 
   bot.action('clear_team', async (ctx) => {
+    console.log('🔘 [action] clear_team');
     await ctx.answerCbQuery();
     await clearTeam(ctx);
   });
 
   bot.action('profile', async (ctx) => {
+    console.log('🔘 [action] profile');
     await ctx.answerCbQuery();
     await showProfile(ctx);
   });
 
   bot.action('collection', async (ctx) => {
+    console.log('🔘 [action] collection');
     await ctx.answerCbQuery();
     await showCollection(ctx);
   });
 
   bot.action('bonus', async (ctx) => {
+    console.log('🔘 [action] bonus');
     await getBonus(ctx);
   });
 
