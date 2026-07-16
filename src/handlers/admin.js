@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - ИСПРАВЛЕННЫЙ
+// src/handlers/admin.js - ПОЛНЫЙ ФАЙЛ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -17,6 +17,7 @@ const {
   getActiveJerseys,
   getActiveArenas
 } = require('../data/cosmetics');
+const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -31,6 +32,7 @@ function getUsers() {
 }
 
 function saveUsers(users) {
+  createBackup();
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
@@ -230,6 +232,15 @@ async function sendCrystalsNotification(ctx, userId, amount) {
   try {
     await ctx.telegram.sendMessage(Number(userId), 
       "💎 *Вам выдали кристаллы!*\n\n👑 Выдал: администратор\n💎 Количество: " + amount + " кристаллов\n\n💡 Кристаллы уже добавлены на счёт!",
+      { parse_mode: "Markdown" }
+    );
+  } catch (e) { console.log("❌ Не удалось отправить уведомление " + userId + ":", e.message); }
+}
+
+async function sendDustNotification(ctx, userId, amount) {
+  try {
+    await ctx.telegram.sendMessage(Number(userId), 
+      "💎 *Вам выдали пыль!*\n\n👑 Выдал: администратор\n💎 Количество: " + amount + " пыли\n\n💡 Пыль добавлена на счёт!",
       { parse_mode: "Markdown" }
     );
   } catch (e) { console.log("❌ Не удалось отправить уведомление " + userId + ":", e.message); }
@@ -467,18 +478,53 @@ async function showArenasList(ctx) {
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
 
+async function showBackupMenu(ctx) {
+  const userId = ctx.from.id;
+  if (!isAdmin(userId)) return;
+  
+  const backups = getBackupList();
+  let text = "💾 *УПРАВЛЕНИЕ БЕКАПАМИ*\n\n";
+  
+  if (backups.length === 0) {
+    text += "❌ Нет сохранённых бекапов\n\n";
+  } else {
+    text += "📋 *Доступные бекапы:*\n";
+    backups.slice(0, 10).forEach((b, i) => {
+      text += `${i+1}. ${b.name}\n   📅 ${b.date} (${b.size})\n`;
+    });
+    text += `\n📊 Всего бекапов: ${backups.length}\n`;
+  }
+  
+  text += "\n*Выбери действие:*";
+  
+  await ctx.reply(text, {
+    parse_mode: "Markdown",
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback("💾 Создать бекап", "admin_backup_create")],
+      [Markup.button.callback("📂 Восстановить последний", "admin_backup_restore")],
+      [Markup.button.callback("🗑️ Очистить БД", "admin_clear_db")],
+      [Markup.button.callback("🔙 Назад", "admin_panel")],
+    ])
+  });
+}
+
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) { await ctx.reply("⛔ Доступ запрещён!"); return; }
   const users = getUsers();
   const totalUsers = Object.keys(users).length;
-  let totalCards = 0, totalMatches = 0, totalCoins = 0, totalCrystals = 0;
+  let totalCards = 0, totalMatches = 0, totalCoins = 0, totalCrystals = 0, totalDust = 0;
   Object.values(users).forEach(data => {
     totalCards += data.cards?.length || 0;
     totalMatches += data.matches || 0;
     totalCoins += data.coins || 0;
     totalCrystals += data.crystals || 0;
+    totalDust += data.dust || 0;
   });
+  
+  const backups = getBackupList();
+  const lastBackup = backups.length > 0 ? backups[0].name : 'Нет бекапов';
+  
   const text = 
     "👑 *АДМИН-ПАНЕЛЬ*\n\n" +
     "📊 *СТАТИСТИКА:*\n" +
@@ -486,11 +532,14 @@ async function showAdminMenu(ctx) {
     "📚 Всего карт: " + totalCards + "\n" +
     "⚔️ Матчей: " + totalMatches + "\n" +
     "⭐ Монет в игре: " + totalCoins + "\n" +
-    "💎 Кристаллов: " + totalCrystals + "\n\n" +
+    "💎 Кристаллов: " + totalCrystals + "\n" +
+    "💎 Пыли в игре: " + totalDust + "\n" +
+    "💾 Последний бекап: " + lastBackup + "\n\n" +
     "*Выбери действие:*\n\n" +
     "📋 *Формат команд:*\n" +
     "💰 `coins_ID_СУММА` — монеты\n" +
     "💎 `crystals_ID_СУММА` — кристаллы\n" +
+    "💎 `dust_ID_СУММА` — пыль\n" +
     "🃏 `card_ID_Название` — карта\n" +
     "📦 `pack_ID_тип_количество` — паки\n" +
     "🎁 `seasonal_ID_количество` — сезонные паки\n" +
@@ -498,11 +547,13 @@ async function showAdminMenu(ctx) {
     "💎 `premium_ID` — выдать премиум\n" +
     "📢 `broadcast_ID_сообщение` — рассылка\n\n" +
     "🌐 `all` — вместо ID для всех пользователей";
+  
   await ctx.reply(text, {
     parse_mode: "Markdown",
     ...Markup.inlineKeyboard([
       [Markup.button.callback("💰 Выдать монеты", "admin_coins")],
       [Markup.button.callback("💎 Выдать кристаллы", "admin_crystals")],
+      [Markup.button.callback("💎 Выдать пыль", "admin_dust")],
       [Markup.button.callback("🃏 Выдать карту", "admin_card")],
       [Markup.button.callback("📦 Выдать паки", "admin_packs")],
       [Markup.button.callback("🎁 Сезонный пак", "admin_season")],
@@ -510,6 +561,7 @@ async function showAdminMenu(ctx) {
       [Markup.button.callback("💎 Премиум пропуска", "admin_premium")],
       [Markup.button.callback("🃏 Все карты", "admin_all_cards")],
       [Markup.button.callback("🏪 Косметика", "admin_cosmetics")],
+      [Markup.button.callback("💾 Бекапы", "admin_backup")],
       [Markup.button.callback("📢 Рассылка", "admin_broadcast")],
       [Markup.button.callback("🔙 Главное меню", "back")],
     ])
@@ -556,6 +608,43 @@ module.exports = (bot) => {
     await showArenasList(ctx);
   });
 
+  bot.action("admin_backup", async (ctx) => {
+    await ctx.answerCbQuery();
+    await showBackupMenu(ctx);
+  });
+
+  bot.action("admin_backup_create", async (ctx) => {
+    await ctx.answerCbQuery();
+    const backup = createBackup();
+    if (backup) {
+      await ctx.reply(`✅ *Бекап создан!*\n\n📁 ${backup}`, { parse_mode: "Markdown" });
+    } else {
+      await ctx.reply("❌ Ошибка создания бекапа!");
+    }
+    await showBackupMenu(ctx);
+  });
+
+  bot.action("admin_backup_restore", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply("⚠️ *Восстановить последний бекап?*\n\nЭто перезапишет текущую базу данных!", {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("✅ ДА, ВОССТАНОВИТЬ", "admin_confirm_restore")],
+        [Markup.button.callback("❌ НЕТ, ОТМЕНА", "admin_backup")],
+      ])
+    });
+  });
+
+  bot.action("admin_confirm_restore", async (ctx) => {
+    await ctx.answerCbQuery();
+    if (restoreFromBackup()) {
+      await ctx.reply("✅ *База данных восстановлена из последнего бекапа!*", { parse_mode: "Markdown" });
+    } else {
+      await ctx.reply("❌ Ошибка восстановления!");
+    }
+    await showBackupMenu(ctx);
+  });
+
   bot.action("admin_coins", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply("💰 *Выдать монеты*\n\n📋 *Формат:* `coins_ID_СУММА`\n📌 *Пример:* `coins_123456789_500`", { parse_mode: "Markdown" });
@@ -564,6 +653,11 @@ module.exports = (bot) => {
   bot.action("admin_crystals", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply("💎 *Выдать кристаллы*\n\n📋 *Формат:* `crystals_ID_СУММА`\n📌 *Пример:* `crystals_123456789_50`", { parse_mode: "Markdown" });
+  });
+
+  bot.action("admin_dust", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply("💎 *Выдать пыль*\n\n📋 *Формат:* `dust_ID_СУММА`\n📌 *Пример:* `dust_123456789_100`", { parse_mode: "Markdown" });
   });
 
   bot.action("admin_card", async (ctx) => {
@@ -601,6 +695,27 @@ module.exports = (bot) => {
     await ctx.reply("📢 *Рассылка*\n\n📋 *Формат:* `broadcast_ID_сообщение`\n📌 *Пример:* `broadcast_all_Привет_всем!`", { parse_mode: "Markdown" });
   });
 
+  bot.action("admin_clear_db", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await ctx.reply("⚠️ *Очистить БД?*\n\nЭто действие создаст бекап перед очисткой!", {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("✅ ДА, УДАЛИТЬ", "admin_confirm_clear")],
+        [Markup.button.callback("❌ НЕТ, ОТМЕНА", "admin_backup")],
+      ])
+    });
+  });
+
+  bot.action("admin_confirm_clear", async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    createBackup();
+    saveUsers({});
+    await ctx.editMessageText("✅ *База данных очищена!*\n\n💾 Бекап создан автоматически.", { parse_mode: "Markdown" });
+    await showBackupMenu(ctx);
+  });
+
   // ============================================
   // ОБРАБОТКА ТЕКСТОВЫХ КОМАНД
   // ============================================
@@ -609,6 +724,40 @@ module.exports = (bot) => {
     if (!isAdmin(userId)) return;
     const text = ctx.text.trim();
     const parts = text.split("_");
+    
+    // ПЫЛЬ
+    if (text.startsWith("dust_") && parts.length === 3) {
+      const target = parts[1];
+      const amount = parseInt(parts[2]);
+      if (isNaN(amount) || amount <= 0) {
+        await ctx.reply("❌ Укажи сумму!");
+        return;
+      }
+      const users = getUsers();
+      const ids = Object.keys(users);
+      if (ids.length === 0) {
+        await ctx.reply("❌ Нет зарегистрированных пользователей!");
+        return;
+      }
+      if (target === "all") {
+        ids.forEach(id => { 
+          users[id].dust = (users[id].dust || 0) + amount; 
+        });
+        saveUsers(users);
+        for (const id of ids) await sendDustNotification(ctx, id, amount);
+        await ctx.reply("✅ *Результат:* Выдано " + amount + "💎 пыли всем " + ids.length + " пользователям!");
+        return;
+      } else if (users[target]) {
+        users[target].dust = (users[target].dust || 0) + amount;
+        saveUsers(users);
+        await sendDustNotification(ctx, target, amount);
+        await ctx.reply("✅ *Результат:* Выдано " + amount + "💎 пыли пользователю `" + target + "`!", { parse_mode: "Markdown" });
+        return;
+      } else {
+        await ctx.reply("❌ Пользователь `" + target + "` не найден!", { parse_mode: "Markdown" });
+        return;
+      }
+    }
     
     // ПРОПУСК УРОВНЕЙ
     if (text.startsWith("skip_") && parts.length === 3) {
@@ -1015,6 +1164,7 @@ module.exports = (bot) => {
     await ctx.reply("❌ Неизвестная команда!\n\n📋 *Доступные команды:*\n" +
       "`coins_ID_СУММА` — монеты\n" +
       "`crystals_ID_СУММА` — кристаллы\n" +
+      "`dust_ID_СУММА` — пыль\n" +
       "`card_ID_Название` — карта\n" +
       "`pack_ID_тип_количество` — паки\n" +
       "`seasonal_ID_количество` — сезонные паки\n" +

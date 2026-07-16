@@ -1,11 +1,12 @@
 ﻿// ============================================
-// src/handlers/profile.js - ИСПРАВЛЕННЫЙ
+// src/handlers/profile.js - ПОЛНЫЙ ФАЙЛ
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 const { getRarityEmoji } = require('../data/players');
+const { CRAFTABLE_CARDS, getCraftableCardById } = require('../data/craftables');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -63,6 +64,23 @@ function getCardKey(card) {
   return card.name + '_' + card.position;
 }
 
+// ✅ РЕЙТИНГ СОСТАВА
+function getTeamRating(team) {
+  if (!team || team.length === 0) return 0;
+  const total = team.reduce((sum, p) => sum + (p.overall || 0), 0);
+  return Math.round(total / team.length);
+}
+
+// ✅ ЦЕНЫ ЗА ОБМЕН КАРТ
+const TRADE_PRICES = {
+  'Обычный': { dust: 1, coins: 10 },
+  'Редкий': { dust: 3, coins: 30 },
+  'Элитный': { dust: 5, coins: 50 },
+  'Эпический': { dust: 10, coins: 100 },
+  'Легендарный': { dust: 25, coins: 250 },
+  'Икона': { dust: 50, coins: 500 }
+};
+
 // ============================================
 // ГЛАВНЫЙ ЭКРАН КОМАНДЫ
 // ============================================
@@ -74,7 +92,6 @@ async function showTeam(ctx) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
-  // ✅ НОРМАЛИЗУЕМ ВСЕ КАРТЫ
   allCards.forEach(c => ensureCardId(c));
   currentTeam.forEach(c => ensureCardId(c));
   
@@ -82,10 +99,7 @@ async function showTeam(ctx) {
   const goalies = allCards.filter(c => c.position === 'G');
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
-  
-  console.log('📊 [showTeam] Всего карт:', allCards.length);
-  console.log('📊 [showTeam] В составе полевых:', teamForwards.length);
-  console.log('📊 [showTeam] В составе вратарь:', teamGoalie ? 'да' : 'нет');
+  const teamRating = getTeamRating(currentTeam);
   
   let text = '👥 *ТВОЯ КОМАНДА*\n\n';
   
@@ -115,6 +129,7 @@ async function showTeam(ctx) {
     }
   }
   
+  text += `\n📊 Рейтинг состава: ${teamRating}`;
   text += `\n📊 Всего карт: ${allCards.length}`;
   text += `\n📊 В составе: ${teamForwards.length}/5 полевых, ${teamGoalie ? '1/1' : '0/1'} вратарь`;
   
@@ -143,7 +158,6 @@ async function showEditTeam(ctx) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
-  // ✅ НОРМАЛИЗУЕМ ВСЕ КАРТЫ
   allCards.forEach(c => ensureCardId(c));
   currentTeam.forEach(c => ensureCardId(c));
   
@@ -152,18 +166,12 @@ async function showEditTeam(ctx) {
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   
-  // ✅ СОЗДАЁМ SET ДЛЯ БЫСТРОЙ ПРОВЕРКИ (по ключу имя+позиция)
   const teamKeys = new Set(teamForwards.map(p => getCardKey(p)));
   const goalieKey = teamGoalie ? getCardKey(teamGoalie) : null;
-  
-  console.log('📊 [showEditTeam] Всего полевых:', forwards.length);
-  console.log('📊 [showEditTeam] В составе полевых:', teamForwards.length);
-  console.log('📊 [showEditTeam] Ключи в составе:', [...teamKeys]);
   
   let text = '📋 *РЕДАКТИРОВАНИЕ СОСТАВА*\n\n';
   text += 'Нажми на игрока, чтобы добавить или убрать из состава.\n\n';
   
-  // ПОЛЕВЫЕ ИГРОКИ
   text += '🏒 *Полевые игроки (нужно 5):*\n';
   if (forwards.length === 0) {
     text += '  ❌ Нет полевых игроков! Открой паки в магазине.\n\n';
@@ -180,7 +188,6 @@ async function showEditTeam(ctx) {
     text += `\n📊 В составе: ${teamForwards.length}/5\n`;
   }
   
-  // ВРАТАРИ
   text += '\n🧤 *Вратари (нужно 1):*\n';
   if (goalies.length === 0) {
     text += '  ❌ Нет вратарей! Открой паки в магазине.\n\n';
@@ -197,10 +204,8 @@ async function showEditTeam(ctx) {
     text += `\n📊 В составе: ${teamGoalie ? 1 : 0}/1\n`;
   }
   
-  // КНОПКИ
   const buttons = [];
   
-  // Кнопки для полевых
   forwards.forEach((player, index) => {
     ensureCardId(player);
     const key = getCardKey(player);
@@ -209,7 +214,6 @@ async function showEditTeam(ctx) {
     buttons.push([Markup.button.callback(label, `team_toggle_forward_${index}`)]);
   });
   
-  // Кнопки для вратарей
   goalies.forEach((player, index) => {
     ensureCardId(player);
     const key = getCardKey(player);
@@ -239,7 +243,6 @@ async function toggleForward(ctx, index) {
   const allCards = data.cards || [];
   const currentTeam = data.team || [];
   
-  // НОРМАЛИЗУЕМ ВСЕ КАРТЫ
   allCards.forEach(c => ensureCardId(c));
   currentTeam.forEach(c => ensureCardId(c));
   
@@ -247,48 +250,31 @@ async function toggleForward(ctx, index) {
   const player = forwards[index];
   
   if (!player) {
-    console.log('❌ [toggleForward] Игрок не найден!');
     await ctx.answerCbQuery('❌ Игрок не найден!');
     return;
   }
   
   ensureCardId(player);
   const playerKey = getCardKey(player);
-  console.log('🔍 [toggleForward] Игрок:', player.name, 'Ключ:', playerKey);
   
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const goalies = currentTeam.filter(p => p.position === 'G');
-  
-  // ✅ ПРОВЕРЯЕМ ПО КЛЮЧУ (имя + позиция)
   const teamKeys = new Set(teamForwards.map(p => getCardKey(p)));
   const inTeam = teamKeys.has(playerKey);
   
-  console.log('📊 [toggleForward] В составе:', inTeam);
-  console.log('📊 [toggleForward] Всего полевых в составе:', teamForwards.length);
-  
   if (inTeam) {
-    // УБИРАЕМ ИЗ СОСТАВА (по ключу)
     const newForwards = teamForwards.filter(p => getCardKey(p) !== playerKey);
     data.team = [...goalies, ...newForwards];
-    console.log('✅ [toggleForward] Убран из состава');
     await ctx.answerCbQuery(`❌ ${player.name} убран из состава`);
     saveUsers(users);
     await showEditTeam(ctx);
     return;
   }
   
-  // ДОБАВЛЯЕМ В СОСТАВ
   if (teamForwards.length >= 5) {
-    console.log('⚠️ [toggleForward] Уже 5 полевых!');
-    
-    // НАХОДИМ САМОГО СЛАБОГО ИГРОКА В СОСТАВЕ
     const sorted = [...teamForwards].sort((a, b) => (a.overall || 0) - (b.overall || 0));
     const weakest = sorted[0];
     
-    console.log('📊 [toggleForward] Самый слабый:', weakest ? weakest.name : 'нет', 'OVR:', weakest ? weakest.overall : 'нет');
-    console.log('📊 [toggleForward] Новый игрок OVR:', player.overall);
-    
-    // ✅ ПРОВЕРЯЕМ, ЧТО НОВЫЙ ИГРОК СИЛЬНЕЕ СЛАБОГО
     if (weakest && player.overall > weakest.overall) {
       const buttons = [
         [Markup.button.callback(`🔄 Заменить ${weakest.name} (${weakest.overall} OVR)`, `team_replace_forward_${player.id}_${weakest.id}`)],
@@ -311,10 +297,8 @@ async function toggleForward(ctx, index) {
     return;
   }
   
-  // ДОБАВЛЯЕМ НОВОГО ИГРОКА
   const newForwards = [...teamForwards, { ...player, count: 1 }];
   data.team = [...goalies, ...newForwards];
-  console.log('✅ [toggleForward] Добавлен в состав');
   await ctx.answerCbQuery(`✅ ${player.name} добавлен в состав`);
   
   saveUsers(users);
@@ -325,7 +309,6 @@ async function toggleForward(ctx, index) {
 // ЗАМЕНА ПОЛЕВОГО ИГРОКА
 // ============================================
 async function replaceForward(ctx, newPlayerId, oldPlayerId) {
-  console.log('🔄 [replaceForward] Новый:', newPlayerId, 'Старый:', oldPlayerId);
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -338,14 +321,10 @@ async function replaceForward(ctx, newPlayerId, oldPlayerId) {
   const goalies = currentTeam.filter(p => p.position === 'G');
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   
-  // Убираем старого игрока (по ID)
   const newForwards = teamForwards.filter(p => p.id !== oldPlayerId);
-  
-  // Находим нового игрока в коллекции
   const newPlayer = allCards.find(p => p.id === newPlayerId);
   
   if (!newPlayer) {
-    console.log('❌ [replaceForward] Новый игрок не найден!');
     await ctx.answerCbQuery('❌ Игрок не найден!');
     await showEditTeam(ctx);
     return;
@@ -356,7 +335,6 @@ async function replaceForward(ctx, newPlayerId, oldPlayerId) {
   data.team = [...goalies, ...newForwards];
   
   saveUsers(users);
-  console.log('✅ [replaceForward] Замена выполнена');
   await ctx.answerCbQuery(`✅ ${newPlayer.name} заменил игрока`);
   await showEditTeam(ctx);
 }
@@ -379,35 +357,28 @@ async function toggleGoalie(ctx, index) {
   const player = goalies[index];
   
   if (!player) {
-    console.log('❌ [toggleGoalie] Игрок не найден!');
     await ctx.answerCbQuery('❌ Игрок не найден!');
     return;
   }
   
   ensureCardId(player);
   const playerKey = getCardKey(player);
-  console.log('🧤 [toggleGoalie] Игрок:', player.name, 'Ключ:', playerKey);
   
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   const goalieKey = teamGoalie ? getCardKey(teamGoalie) : null;
   
   const inTeam = goalieKey === playerKey;
-  console.log('🧤 [toggleGoalie] В составе:', inTeam);
   
   if (inTeam) {
-    // УБИРАЕМ ВРАТАРЯ
     data.team = [...teamForwards];
     saveUsers(users);
-    console.log('✅ [toggleGoalie] Вратарь убран');
     await ctx.answerCbQuery(`❌ ${player.name} убран из состава`);
     await showEditTeam(ctx);
     return;
   }
   
-  // ДОБАВЛЯЕМ ВРАТАРЯ
   if (teamGoalie) {
-    // Если вратарь уже есть — предлагаем заменить
     const buttons = [
       [Markup.button.callback(`🔄 Заменить ${teamGoalie.name} (${teamGoalie.overall} OVR)`, `team_replace_goalie_${player.id}_${teamGoalie.id}`)],
       [Markup.button.callback('❌ Отмена', 'edit_team')]
@@ -425,10 +396,8 @@ async function toggleGoalie(ctx, index) {
     return;
   }
   
-  // Добавляем нового вратаря
   data.team = [...teamForwards, { ...player, count: 1 }];
   saveUsers(users);
-  console.log('✅ [toggleGoalie] Вратарь добавлен');
   await ctx.answerCbQuery(`✅ ${player.name} добавлен в состав как вратарь`);
   await showEditTeam(ctx);
 }
@@ -437,7 +406,6 @@ async function toggleGoalie(ctx, index) {
 // ЗАМЕНА ВРАТАРЯ
 // ============================================
 async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
-  console.log('🔄 [replaceGoalie] Новый:', newPlayerId, 'Старый:', oldPlayerId);
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -451,7 +419,6 @@ async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
   const newPlayer = allCards.find(p => p.id === newPlayerId);
   
   if (!newPlayer) {
-    console.log('❌ [replaceGoalie] Новый игрок не найден!');
     await ctx.answerCbQuery('❌ Игрок не найден!');
     await showEditTeam(ctx);
     return;
@@ -461,7 +428,6 @@ async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
   data.team = [...teamForwards, { ...newPlayer, count: 1 }];
   saveUsers(users);
   
-  console.log('✅ [replaceGoalie] Замена выполнена');
   await ctx.answerCbQuery(`✅ ${newPlayer.name} стал вратарём`);
   await showEditTeam(ctx);
 }
@@ -470,7 +436,6 @@ async function replaceGoalie(ctx, newPlayerId, oldPlayerId) {
 // СОХРАНЕНИЕ СОСТАВА
 // ============================================
 async function saveTeam(ctx) {
-  console.log('💾 [saveTeam] Сохраняем состав');
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
@@ -481,11 +446,7 @@ async function saveTeam(ctx) {
   const teamForwards = currentTeam.filter(p => p.position !== 'G');
   const teamGoalie = currentTeam.find(p => p.position === 'G');
   
-  console.log('📊 [saveTeam] Полевых в составе:', teamForwards.length);
-  console.log('📊 [saveTeam] Вратарь:', teamGoalie ? teamGoalie.name : 'нет');
-  
   if (teamForwards.length !== 5) {
-    console.log('❌ [saveTeam] Не хватает полевых:', teamForwards.length);
     await ctx.editMessageText(
       `❌ *Нужно 5 полевых игроков!*\n\nСейчас: ${teamForwards.length}/5\n\nДобавь ещё ${5 - teamForwards.length} полевых игроков.`,
       { parse_mode: 'Markdown' }
@@ -494,7 +455,6 @@ async function saveTeam(ctx) {
   }
   
   if (!teamGoalie) {
-    console.log('❌ [saveTeam] Нет вратаря');
     await ctx.editMessageText(
       '❌ *Нужен вратарь!*\n\nДобавь вратаря в состав.',
       { parse_mode: 'Markdown' }
@@ -504,7 +464,6 @@ async function saveTeam(ctx) {
   
   data.teamReady = true;
   saveUsers(users);
-  console.log('✅ [saveTeam] Состав сохранён');
   
   await ctx.editMessageText(
     '✅ *Состав сохранён!*\n\n' +
@@ -524,14 +483,12 @@ async function saveTeam(ctx) {
 // ОЧИСТКА СОСТАВА
 // ============================================
 async function clearTeam(ctx) {
-  console.log('🗑️ [clearTeam] Очищаем состав');
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
   data.team = [];
   data.teamReady = false;
   saveUsers(users);
-  console.log('✅ [clearTeam] Состав очищен');
   await ctx.answerCbQuery('🗑️ Состав очищен');
   await showTeam(ctx);
 }
@@ -544,6 +501,16 @@ async function showProfile(ctx) {
   const user = ctx.from;
   const users = getUsers();
   const data = users[user.id];
+  
+  if (!data) {
+    await ctx.editMessageText('❌ Ошибка! Попробуй /start');
+    return;
+  }
+  
+  if (!data.cards) {
+    data.cards = [];
+    saveUsers(users);
+  }
   
   const rarityCount = {};
   data.cards.forEach(c => {
@@ -559,6 +526,7 @@ async function showProfile(ctx) {
   
   const teamForwards = data.team.filter(p => p.position !== 'G');
   const teamGoalie = data.team.find(p => p.position === 'G');
+  const teamRating = getTeamRating(data.team);
   
   let bonusText = '🎁 Доступен!';
   if (data.lastBonus) {
@@ -580,9 +548,11 @@ async function showProfile(ctx) {
     `⚖️ Ничьих: ${data.draws || 0}\n` +
     `⭐ Монет: ${data.coins || 0}\n` +
     `💎 Кристаллов: ${data.crystals || 0}\n` +
+    `💎 Пыль: ${data.dust || 0}\n` +
     `📚 Карт: ${data.cards.length}\n` +
     `📊 Матчей: ${data.matches || 0}\n` +
     `👥 В команде: ${teamForwards.length} полевых, ${teamGoalie ? '1 вратарь' : '0 вратарей'}\n` +
+    `📊 Рейтинг состава: ${teamRating}\n` +
     `🎖️ БП уровень: ${bpLevel}\n` +
     `🎖️ XP: ${xp}\n` +
     `📅 Бонус: ${bonusText}\n\n` +
@@ -603,30 +573,229 @@ async function showCollection(ctx) {
   const users = getUsers();
   const data = users[user.id];
   
-  let text = '📚 *Коллекция:*\n\n';
-  if (data.cards.length === 0) {
-    text += 'У тебя пока нет карточек!';
-  } else {
-    data.cards.forEach((c) => {
-      const emoji = getRarityEmoji(c.rarity);
-      const pos = getPositionEmoji(c.position);
-      const name = getPositionName(c.position);
-      text += `${emoji} ${pos} ${c.name} - ${name} (${c.overall} OVR)\n`;
-    });
-    text += `\n📊 Всего: ${data.cards.length}`;
+  if (!data || !data.cards) {
+    await ctx.editMessageText('❌ Ошибка! Попробуй /start');
+    return;
   }
+  
+  let text = '📚 *КОЛЛЕКЦИЯ*\n\n';
+  text += `💎 Пыль: ${data.dust || 0}\n`;
+  text += `📊 Карт: ${data.cards.length}\n\n`;
+  
+  if (data.cards.length === 0) {
+    text += '❌ У тебя пока нет карточек!\n';
+    text += 'Открой паки в магазине 🛒';
+  } else {
+    const grouped = {};
+    data.cards.forEach(c => {
+      const key = c.rarity || 'Обычный';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(c);
+    });
+    
+    const rarityOrder = ['Икона', 'Легендарный', 'Эпический', 'Элитный', 'Редкий', 'Обычный'];
+    rarityOrder.forEach(rarity => {
+      if (grouped[rarity]) {
+        text += `\n*${rarity} (${grouped[rarity].length}):*\n`;
+        grouped[rarity].forEach(c => {
+          const emoji = getRarityEmoji(c.rarity);
+          const pos = getPositionEmoji(c.position);
+          const count = c.count || 1;
+          const craftedMark = c.isCrafted ? ' 🔨' : '';
+          text += `  ${emoji} ${pos} ${c.name} (${c.overall} OVR) x${count}${craftedMark}\n`;
+          text += `  🆔 \`${c.id}\`\n`;
+        });
+      }
+    });
+  }
+  
+  text += '\n📋 *Команды:*\n';
+  text += '`trade_ID_монеты` — обменять на монеты\n';
+  text += '`trade_ID_пыль` — обменять на пыль\n';
+  text += '`craft_list` — показать доступные карты для крафта\n\n';
+  text += '💡 *Важно:* Нельзя обменять последнюю карту!';
+  
+  const buttons = [
+    [Markup.button.callback('🔨 Крафт карт', 'craft_show')],
+    [Markup.button.callback('🔙 Назад', 'back')]
+  ];
   
   await ctx.editMessageText(text, {
     parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
+    ...Markup.inlineKeyboard(buttons)
   });
+}
+
+// ============================================
+// ОБМЕН КАРТЫ
+// ============================================
+async function tradeCard(ctx, cardId, currency) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  
+  if (!data || !data.cards) {
+    await ctx.reply('❌ Ошибка! Попробуй /start');
+    return;
+  }
+  
+  const cardIndex = data.cards.findIndex(c => c.id === cardId);
+  if (cardIndex === -1) {
+    await ctx.reply('❌ Карта не найдена!');
+    return;
+  }
+  
+  const card = data.cards[cardIndex];
+  const prices = TRADE_PRICES[card.rarity];
+  
+  if (!prices) {
+    await ctx.reply('❌ Неизвестная редкость карты!');
+    return;
+  }
+  
+  if (!card.count || card.count < 2) {
+    await ctx.reply(`❌ У тебя только 1 карта "${card.name}". Нельзя обменять последнюю карту!`);
+    return;
+  }
+  
+  let reward = 0;
+  let currencyName = '';
+  
+  if (currency === 'пыль') {
+    reward = prices.dust;
+    currencyName = 'пыли';
+    data.dust = (data.dust || 0) + reward;
+  } else if (currency === 'монеты') {
+    reward = prices.coins;
+    currencyName = 'монет';
+    data.coins = (data.coins || 0) + reward;
+  } else {
+    await ctx.reply('❌ Используй: `trade_ID_монеты` или `trade_ID_пыль`', { parse_mode: 'Markdown' });
+    return;
+  }
+  
+  card.count = (card.count || 1) - 1;
+  if (card.count <= 0) {
+    data.cards.splice(cardIndex, 1);
+  }
+  
+  saveUsers(users);
+  
+  await ctx.reply(
+    `✅ *Обмен выполнен!*\n\n` +
+    `🃏 ${card.name} (${card.rarity})\n` +
+    `➡️ +${reward} ${currencyName}\n\n` +
+    `📊 У тебя осталось ${card.count || 0} карт "${card.name}"`,
+    { parse_mode: 'Markdown' }
+  );
+}
+
+// ============================================
+// ПОКАЗ КАРТ ДЛЯ КРАФТА
+// ============================================
+async function showCraftableCards(ctx) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  
+  if (!data) {
+    await ctx.reply('❌ Ошибка! Попробуй /start');
+    return;
+  }
+  
+  let text = '🔨 *КРАФТ КАРТ (СЕЗОН 1)*\n\n';
+  text += `💎 Твоя пыль: ${data.dust || 0}\n\n`;
+  text += '📋 *Доступные карты:*\n\n';
+  
+  CRAFTABLE_CARDS.forEach(card => {
+    const existing = data.cards.find(c => c.name === card.name && c.position === card.position);
+    const status = existing ? '❌ УЖЕ ЕСТЬ' : '✅ ДОСТУПЕН';
+    const emoji = existing ? '🔒' : '🔓';
+    
+    text += `${emoji} *${card.name}* ${card.emoji}\n`;
+    text += `  📊 ${card.overall} OVR | ${card.rarity} | ${card.league}\n`;
+    text += `  💰 ${card.price} пыли | ${status}\n`;
+    text += `  🆔 \`craft_${card.id}\`\n\n`;
+  });
+  
+  text += '📋 *Как скрафтить:*\n';
+  text += 'Отправь команду `craft_ID` — например `craft_ovechkin_season1`\n\n';
+  text += '💡 Сезонные карты можно скрафтить только один раз!';
+  
+  await ctx.reply(text, { parse_mode: 'Markdown' });
+}
+
+// ============================================
+// КРАФТ КОНКРЕТНОЙ КАРТЫ
+// ============================================
+async function craftSpecificCard(ctx, cardId) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  
+  if (!data || !data.cards) {
+    await ctx.reply('❌ Ошибка! Попробуй /start');
+    return;
+  }
+  
+  const cardTemplate = getCraftableCardById(cardId);
+  if (!cardTemplate) {
+    await ctx.reply('❌ Карта для крафта не найдена!\n\n📋 Доступные ID:\n' + 
+      CRAFTABLE_CARDS.map(c => `  • \`${c.id}\` — ${c.name} (${c.overall} OVR) — ${c.price} пыли`).join('\n'),
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+  
+  const existing = data.cards.find(c => c.name === cardTemplate.name && c.position === cardTemplate.position);
+  if (existing) {
+    await ctx.reply(`❌ У тебя уже есть карта "${cardTemplate.name}"!\n\n💡 Сезонные карты можно скрафтить только один раз.`);
+    return;
+  }
+  
+  if ((data.dust || 0) < cardTemplate.price) {
+    await ctx.reply(`❌ Недостаточно пыли!\n\nНужно: ${cardTemplate.price} пыли\nУ тебя: ${data.dust || 0} пыли`);
+    return;
+  }
+  
+  data.dust = (data.dust || 0) - cardTemplate.price;
+  
+  const newCard = {
+    name: cardTemplate.name,
+    overall: cardTemplate.overall,
+    rarity: cardTemplate.rarity,
+    position: cardTemplate.position,
+    league: cardTemplate.league,
+    id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+    count: 1,
+    isCrafted: true,
+    craftedFrom: cardId
+  };
+  
+  data.cards.push(newCard);
+  saveUsers(users);
+  
+  const emoji = cardTemplate.emoji || '🃏';
+  const posName = cardTemplate.position === 'G' ? 'Вратарь' : 'Полевой';
+  
+  await ctx.reply(
+    `✅ *Крафт выполнен!*\n\n` +
+    `${emoji} *${cardTemplate.name}*\n` +
+    `📊 ${cardTemplate.overall} OVR\n` +
+    `🏆 ${cardTemplate.rarity}\n` +
+    `🏒 ${posName}\n` +
+    `🏟️ ${cardTemplate.league}\n\n` +
+    `📝 ${cardTemplate.description}\n\n` +
+    `💡 Карта добавлена в коллекцию!\n` +
+    `💎 Осталось пыли: ${data.dust}`,
+    { parse_mode: 'Markdown' }
+  );
 }
 
 // ============================================
 // БОНУС
 // ============================================
 async function getBonus(ctx) {
-  console.log('🎁 [getBonus] Получаем бонус');
   try {
     await ctx.answerCbQuery();
     
@@ -680,68 +849,78 @@ async function getBonus(ctx) {
 module.exports = (bot) => {
   
   bot.action('team', async (ctx) => {
-    console.log('🔘 [action] team');
     await ctx.answerCbQuery();
     await showTeam(ctx);
   });
 
   bot.action('edit_team', async (ctx) => {
-    console.log('🔘 [action] edit_team');
     await ctx.answerCbQuery();
     await showEditTeam(ctx);
   });
 
   bot.action(/team_toggle_forward_(\d+)/, async (ctx) => {
-    console.log('🔘 [action] team_toggle_forward:', ctx.match[1]);
     await ctx.answerCbQuery();
     await toggleForward(ctx, parseInt(ctx.match[1]));
   });
 
   bot.action(/team_toggle_goalie_(\d+)/, async (ctx) => {
-    console.log('🔘 [action] team_toggle_goalie:', ctx.match[1]);
     await ctx.answerCbQuery();
     await toggleGoalie(ctx, parseInt(ctx.match[1]));
   });
 
   bot.action(/team_replace_forward_(.+)_(.+)/, async (ctx) => {
-    console.log('🔘 [action] team_replace_forward');
     await ctx.answerCbQuery();
     await replaceForward(ctx, ctx.match[1], ctx.match[2]);
   });
 
   bot.action(/team_replace_goalie_(.+)_(.+)/, async (ctx) => {
-    console.log('🔘 [action] team_replace_goalie');
     await ctx.answerCbQuery();
     await replaceGoalie(ctx, ctx.match[1], ctx.match[2]);
   });
 
   bot.action('team_save', async (ctx) => {
-    console.log('🔘 [action] team_save');
     await ctx.answerCbQuery();
     await saveTeam(ctx);
   });
 
   bot.action('team_clear', async (ctx) => {
-    console.log('🔘 [action] team_clear');
     await ctx.answerCbQuery();
     await clearTeam(ctx);
   });
 
   bot.action('profile', async (ctx) => {
-    console.log('🔘 [action] profile');
     await ctx.answerCbQuery();
     await showProfile(ctx);
   });
 
   bot.action('collection', async (ctx) => {
-    console.log('🔘 [action] collection');
     await ctx.answerCbQuery();
     await showCollection(ctx);
   });
 
+  bot.action('craft_show', async (ctx) => {
+    await ctx.answerCbQuery();
+    await showCraftableCards(ctx);
+  });
+
   bot.action('bonus', async (ctx) => {
-    console.log('🔘 [action] bonus');
     await getBonus(ctx);
+  });
+
+  // ✅ ОБРАБОТКА КОМАНД
+  bot.hears(/^craft_([a-zA-Z0-9_]+)$/, async (ctx) => {
+    const cardId = ctx.match[1];
+    if (cardId === 'list') {
+      await showCraftableCards(ctx);
+      return;
+    }
+    await craftSpecificCard(ctx, cardId);
+  });
+
+  bot.hears(/^trade_([a-zA-Z0-9_]+)_(монеты|пыль)$/, async (ctx) => {
+    const cardId = ctx.match[1];
+    const currency = ctx.match[2];
+    await tradeCard(ctx, cardId, currency);
   });
 
 };

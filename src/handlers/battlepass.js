@@ -279,7 +279,7 @@ function getLevelStatus(data, level, isPremium = false) {
 async function showBattlepass(ctx) {
   const userId = ctx.from.id;
   
-  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ ДАННЫЕ ИЗ ФАЙЛА (без кэша)
+  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ ДАННЫЕ ИЗ ФАЙЛА
   const users = getUsersDirect();
   const data = users[userId];
   
