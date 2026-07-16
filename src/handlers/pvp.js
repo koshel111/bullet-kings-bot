@@ -14,6 +14,9 @@ const pvpMatches = {};
 const pvpTimers = {};
 const playerActiveMatches = {};
 
+// ✅ СОХРАНЯЕМ ССЫЛКУ НА БОТА
+let botInstance = null;
+
 function getUsers() {
   if (!fs.existsSync(DB_PATH)) return {};
   return JSON.parse(fs.readFileSync(DB_PATH));
@@ -38,6 +41,23 @@ function hasActiveMatch(userId) {
     }
   }
   return null;
+}
+
+// ✅ ОТПРАВКА СООБЩЕНИЯ ИГРОКУ (без ctx)
+async function sendMessageToPlayer(playerId, text, keyboard = null) {
+  if (!botInstance) {
+    console.error('❌ Бот не инициализирован!');
+    return;
+  }
+  try {
+    const options = { parse_mode: 'Markdown' };
+    if (keyboard) {
+      options.reply_markup = keyboard.reply_markup;
+    }
+    await botInstance.telegram.sendMessage(playerId, text, options);
+  } catch (error) {
+    console.error('❌ Ошибка отправки сообщения игроку:', error.message);
+  }
 }
 
 // ПОИСК СОПЕРНИКА
@@ -270,16 +290,23 @@ async function pvpReady(ctx, matchId) {
   }
 }
 
-// ПОКАЗ ВЫБОРА ИГРОКА ДЛЯ КОНКРЕТНОГО ИГРОКА
+// ✅ ПОКАЗ ВЫБОРА ИГРОКА ДЛЯ КОНКРЕТНОГО ИГРОКА (без ctx)
 async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
+  console.log('📊 [PvP] showPvPPlayerSelectionToPlayer для:', playerId);
+  
   const match = pvpMatches[matchId];
-  if (!match || match.isFinished) return;
+  if (!match || match.isFinished) {
+    console.log('❌ [PvP] Матч не найден или завершён');
+    return;
+  }
   
   const isPlayer1 = playerId === match.player1;
   const team = isPlayer1 ? match.player1Team : match.player2Team;
   const usedPlayers = isPlayer1 ? match.usedPlayers1 : match.usedPlayers2;
   const forwards = team.filter(p => p.position !== 'G');
   const available = forwards.filter((p, i) => !usedPlayers.includes(i));
+  
+  console.log('📊 [PvP] Доступно игроков:', available.length);
   
   if (available.length === 0) {
     if (match.isSuddenDeath) {
@@ -321,13 +348,10 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
   text += `*Выбери полевого игрока для броска:*`;
   
   try {
-    await ctx.telegram.sendMessage(
-      playerId,
-      text,
-      { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) }
-    );
+    await sendMessageToPlayer(playerId, text, Markup.inlineKeyboard(buttons));
+    console.log('✅ [PvP] Сообщение отправлено игроку:', playerId);
   } catch (error) {
-    console.log('❌ Ошибка при отправке выбора игрока:', error.message);
+    console.error('❌ Ошибка при отправке выбора игрока:', error.message);
   }
 }
 
@@ -564,7 +588,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown', ...resultKeyboard });
   
   if (match.isFinished) {
-    await finishPvPMatch(ctx, matchId);
+    await finishPvPMatch(matchId);
     return;
   }
   
@@ -620,7 +644,7 @@ async function finishPvPRound(matchId) {
   
   if (isAfterMaxRounds && isScoreDifferent) {
     match.isFinished = true;
-    await finishPvPMatch(null, matchId);
+    await finishPvPMatch(matchId);
     return;
   }
   
@@ -629,7 +653,7 @@ async function finishPvPRound(matchId) {
 }
 
 // ЗАВЕРШЕНИЕ PvP МАТЧА
-async function finishPvPMatch(ctx, matchId) {
+async function finishPvPMatch(matchId) {
   const match = pvpMatches[matchId];
   if (!match) return;
   
@@ -662,8 +686,8 @@ async function finishPvPMatch(ctx, matchId) {
     `🏆 +30⭐ +20 рейтинга\n` +
     `😔 Поражение: -5 рейтинга`;
   
-  await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown' });
-  await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown' });
+  await sendMessageToPlayer(match.player1, resultText);
+  await sendMessageToPlayer(match.player2, resultText);
   
   delete playerActiveMatches[match.player1];
   delete playerActiveMatches[match.player2];
@@ -733,6 +757,8 @@ async function pvpForfeit(ctx, matchId) {
 // ЭКСПОРТ
 // ============================================
 module.exports = (bot) => {
+  // ✅ СОХРАНЯЕМ ССЫЛКУ НА БОТА
+  botInstance = bot;
   
   bot.action('pvp_find', async (ctx) => {
     await ctx.answerCbQuery();
