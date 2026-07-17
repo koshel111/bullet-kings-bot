@@ -394,9 +394,9 @@ async function selectPrizeCard(ctx, cardIndex) {
 }
 
 // ============================================
-// ЭКСПОРТ (ТОЛЬКО ФУНКЦИИ)
+// ✅ ЕДИНСТВЕННЫЙ ЭКСПОРТ
 // ============================================
-module.exports = {
+const tournament = {
   getTournamentData,
   saveTournamentData,
   addTournamentResult,
@@ -410,3 +410,5 @@ module.exports = {
   showPrizeCardSelection,
   selectPrizeCard
 };
+
+module.exports = tournament;

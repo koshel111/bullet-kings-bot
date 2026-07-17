@@ -2,17 +2,11 @@
 // BULLET KINGS - ГЛАВНЫЙ БОТ
 // ============================================
 
-// ============================================
-// BULLET KINGS - ГЛАВНЫЙ БОТ
-// ============================================
-
 const { Telegraf } = require('telegraf');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
-const { showTournament } = require('./src/handlers/tournament');
-const { showDonateShop } = require('./src/handlers/donate');
-const { handleCheckSubscription } = require('./src/handlers/subscription');
+const { connectDB } = require('./src/database/mongoose');
 
 dotenv.config();
 
@@ -22,12 +16,9 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
-
 // ============================================
 // ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ
 // ============================================
-const { connectDB } = require('./src/database/mongoose');
-
 (async () => {
   try {
     await connectDB();
@@ -102,14 +93,19 @@ require('./src/handlers/profile')(bot);
 require('./src/handlers/shopCosmetics')(bot);
 require('./src/handlers/admin')(bot);
 require('./src/handlers/battlepass')(bot);
-require('./src/handlers/tournament')(bot);
 require('./src/handlers/subscription')(bot);
 require('./src/handlers/donate')(bot);
+
+// ✅ ИМПОРТИРУЕМ ФУНКЦИИ ИЗ TOURNAMENT
+const tournament = require('./src/handlers/tournament');
+const { showTournament, selectPrizeCard } = tournament;
 
 // ============================================
 // ОБРАБОТЧИКИ КНОПОК
 // ============================================
 const { showMainMenu } = require('./src/handlers/start');
+const { showDonateShop } = require('./src/handlers/donate');
+const { handleCheckSubscription } = require('./src/handlers/subscription');
 
 bot.action('back', async (ctx) => {
   await ctx.answerCbQuery();
@@ -132,7 +128,6 @@ bot.action('tournament_refresh', async (ctx) => {
 
 bot.action(/prize_card_(\d+)/, async (ctx) => {
   await ctx.answerCbQuery();
-  const { selectPrizeCard } = require('./src/handlers/tournament');
   await selectPrizeCard(ctx, parseInt(ctx.match[1]));
 });
 
@@ -144,6 +139,7 @@ bot.action('donate', async (ctx) => {
 bot.action('check_subscription', async (ctx) => {
   await handleCheckSubscription(ctx);
 });
+
 // ============================================
 // ЗАПУСК БОТА
 // ============================================
@@ -159,11 +155,10 @@ async function startBot() {
     console.log('📅 ' + new Date().toLocaleString());
     console.log('🆔 PID:', process.pid);
     
-    // Запускаем автоматическую проверку турнира (каждый час)
-    const { checkTournamentAutoFinish } = require('./src/handlers/tournament');
+    // ✅ ЗАПУСКАЕМ АВТОМАТИЧЕСКУЮ ПРОВЕРКУ ТУРНИРА (каждый час)
     setInterval(() => {
-      checkTournamentAutoFinish();
-    }, 60 * 60 * 1000); // Каждый час
+      tournament.checkTournamentAutoFinish();
+    }, 60 * 60 * 1000);
     
   } catch (error) {
     console.error('❌ Ошибка запуска:', error.message);
