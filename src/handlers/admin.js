@@ -430,22 +430,38 @@ async function showCosmeticsManagement(ctx) {
 async function showJerseysManagement(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) return;
+  
   const allJerseys = ALL_JERSEYS;
   const activeJerseys = getActiveJerseys();
-  let text = "🎽 *Управление формами*\n\n✅ *В магазине:*\n";
-  if (activeJerseys.length === 0) text += "  Нет активных форм\n";
-  else activeJerseys.forEach(j => { 
-    text += `  • \`${j.id}\` — ${j.name} (${j.rarity})\n`; 
-  });
-  text += "\n📋 *Все формы:*\n";
+  
+  // ✅ ПОКАЗЫВАЕМ ТОЛЬКО АКТИВНЫЕ ФОРМЫ (В МАГАЗИНЕ)
+  let text = "🎽 *Управление формами*\n\n";
+  text += "📊 *Всего форм:* " + allJerseys.length + "\n";
+  text += "✅ *В магазине (активно):* " + activeJerseys.length + "\n\n";
+  
+  text += "✅ *Формы в магазине (5 шт):*\n";
+  if (activeJerseys.length === 0) {
+    text += "  ❌ Нет активных форм\n";
+  } else {
+    activeJerseys.forEach(j => { 
+      text += `  • \`${j.id}\` — ${j.name} (${j.rarity})\n`; 
+    });
+  }
+  
+  text += "\n📋 *Все формы (вкл/выкл):*\n";
   allJerseys.forEach(j => {
-    text += (j.active !== false ? "✅" : "❌") + " `" + j.id + "` — " + j.name + " (" + j.rarity + ")\n";
+    const isActive = j.active !== false;
+    text += (isActive ? "✅" : "❌") + " `" + j.id + "` — " + j.name + " (" + j.rarity + ")\n";
   });
-  text += "\n📋 *Команды:*\n`shop_add_form ID` — добавить\n`shop_remove_form ID` — убрать\n📌 *Пример:* `shop_add_form csk`\n";
+  
+  text += "\n📋 *Команды:*\n";
+  text += "`shop_add_form ID` — добавить в магазин\n";
+  text += "`shop_remove_form ID` — убрать из магазина\n";
+  text += "📌 *Пример:* `shop_add_form csk`\n";
   text += "⚠️ *Важно:* Используйте ID формы (например `ussr`, а не название `СССР`)";
+  
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
-
 async function showArenasManagement(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) return;
