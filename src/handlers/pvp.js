@@ -1,10 +1,11 @@
 // ============================================
-// src/handlers/pvp.js - PvP РЕЖИМ (С ПОКАЗОМ СОСТАВОВ)
+// src/handlers/pvp.js - PvP РЕЖИМ (ИСПРАВЛЕННЫЙ)
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
+const { addXP } = require('./xp');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -15,6 +16,9 @@ const pvpTimers = {};
 const playerActiveMatches = {};
 
 let botInstance = null;
+
+// ✅ ХРАНИЛИЩЕ ДЛЯ СООБЩЕНИЙ (ЧТОБЫ РЕДАКТИРОВАТЬ)
+const playerMessages = {};
 
 function getUsers() {
   if (!fs.existsSync(DB_PATH)) return {};
@@ -59,19 +63,39 @@ function hasActiveMatch(userId) {
   return null;
 }
 
-async function sendMessageToPlayer(playerId, text, keyboard = null) {
+async function sendOrEditMessage(playerId, text, keyboard = null, messageId = null) {
   if (!botInstance) {
     console.error('❌ Бот не инициализирован!');
-    return;
+    return null;
   }
+  
   try {
     const options = { parse_mode: 'Markdown' };
     if (keyboard) {
       options.reply_markup = keyboard.reply_markup;
     }
-    await botInstance.telegram.sendMessage(playerId, text, options);
+    
+    // Если есть messageId — редактируем
+    if (messageId) {
+      try {
+        await botInstance.telegram.editMessageText(playerId, messageId, null, text, options);
+        return messageId;
+      } catch (error) {
+        // Если не удалось отредактировать — отправляем новое
+        if (error.message && error.message.includes('message is not modified')) {
+          return messageId;
+        }
+        const msg = await botInstance.telegram.sendMessage(playerId, text, options);
+        return msg.message_id;
+      }
+    } else {
+      // Отправляем новое сообщение
+      const msg = await botInstance.telegram.sendMessage(playerId, text, options);
+      return msg.message_id;
+    }
   } catch (error) {
-    console.error('❌ Ошибка отправки сообщения игроку:', error.message);
+    console.error('❌ Ошибка отправки/редактирования сообщения:', error.message);
+    return null;
   }
 }
 
@@ -112,7 +136,7 @@ function calculateShot(playerAction, goalieAction, playerOverall = 80) {
   return { isGoal: Math.random() < probability, probability: Math.round(probability * 100) };
 }
 
-// ✅ ПОКАЗ СОСТАВОВ И РЕЙТИНГОВ
+// ✅ ПОКАЗ СОСТАВОВ
 async function showTeamInfo(matchId) {
   const match = pvpMatches[matchId];
   if (!match) return;
@@ -163,34 +187,20 @@ async function showTeamInfo(matchId) {
     text2 += `\n🧤 *Вратарь:* ❌ Нет`;
   }
   
-  // Отправляем обоим игрокам информацию о составах
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
   ]);
   
-  await sendMessageToPlayer(
-    match.player1,
-    `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
-    `📋 *Твой состав:*\n${text1}\n\n` +
-    `📋 *Состав соперника:*\n${text2}\n\n` +
-    `📊 Рейтинг твоего состава: ${rating1}\n` +
-    `📊 Рейтинг состава соперника: ${rating2}\n\n` +
-    `${rating1 > rating2 ? '🔥 Твой состав сильнее!' : rating1 < rating2 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}\n\n` +
-    `Нажми "Готов", чтобы начать матч!`,
-    keyboard
-  );
+  const fullText1 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n📋 *Твой состав:*\n${text1}\n\n📋 *Состав соперника:*\n${text2}\n\n📊 Рейтинг твоего состава: ${rating1}\n📊 Рейтинг состава соперника: ${rating2}\n\n${rating1 > rating2 ? '🔥 Твой состав сильнее!' : rating1 < rating2 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}\n\nНажми "Готов", чтобы начать матч!`;
   
-  await sendMessageToPlayer(
-    match.player2,
-    `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
-    `📋 *Твой состав:*\n${text2}\n\n` +
-    `📋 *Состав соперника:*\n${text1}\n\n` +
-    `📊 Рейтинг твоего состава: ${rating2}\n` +
-    `📊 Рейтинг состава соперника: ${rating1}\n\n` +
-    `${rating2 > rating1 ? '🔥 Твой состав сильнее!' : rating2 < rating1 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}\n\n` +
-    `Нажми "Готов", чтобы начать матч!`,
-    keyboard
-  );
+  const fullText2 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n📋 *Твой состав:*\n${text2}\n\n📋 *Состав соперника:*\n${text1}\n\n📊 Рейтинг твоего состава: ${rating2}\n📊 Рейтинг состава соперника: ${rating1}\n\n${rating2 > rating1 ? '🔥 Твой состав сильнее!' : rating2 < rating1 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}\n\nНажми "Готов", чтобы начать матч!`;
+  
+  // Сохраняем ID сообщений
+  const msg1 = await sendOrEditMessage(match.player1, fullText1, keyboard);
+  const msg2 = await sendOrEditMessage(match.player2, fullText2, keyboard);
+  
+  if (msg1) playerMessages[match.player1] = msg1;
+  if (msg2) playerMessages[match.player2] = msg2;
 }
 
 // ПОИСК СОПЕРНИКА
@@ -328,7 +338,6 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
   playerActiveMatches[player1Id] = matchId;
   playerActiveMatches[player2Id] = matchId;
   
-  // ✅ ПОКАЗЫВАЕМ СОСТАВЫ ОБОИМ ИГРОКАМ
   await showTeamInfo(matchId);
 }
 
@@ -369,21 +378,25 @@ async function pvpReady(ctx, matchId) {
     `📊 Готовность: ${readyCount}/2\n\n` +
     `${readyCount === 2 ? '🎯 Все готовы! Начинаем матч!' : 'Ожидаем подтверждения от соперника...'}`;
   
-  await ctx.telegram.sendMessage(match.player1, statusText, { parse_mode: 'Markdown' });
-  await ctx.telegram.sendMessage(match.player2, statusText, { parse_mode: 'Markdown' });
+  // Редактируем или отправляем новые сообщения
+  await sendOrEditMessage(match.player1, statusText, null, playerMessages[match.player1]);
+  await sendOrEditMessage(match.player2, statusText, null, playerMessages[match.player2]);
   
   if (readyCount === 2) {
     match.started = true;
     match.currentTurn = match.player1;
     
+    // Очищаем старые сообщения
+    delete playerMessages[match.player1];
+    delete playerMessages[match.player2];
+    
     await showPvPPlayerSelectionToPlayer(match.player1, matchId);
     
-    await ctx.telegram.sendMessage(
+    await sendOrEditMessage(
       match.player2,
-      `⏳ *Ожидание хода соперника...*\n\n` +
-      `👤 ${match.player1Name} выбирает игрока для броска.\n` +
-      `Подождите, скоро ваш ход!`,
-      { parse_mode: 'Markdown' }
+      `⏳ *Ожидание хода соперника...*\n\n👤 ${match.player1Name} выбирает игрока для броска.\nПодождите, скоро ваш ход!`,
+      null,
+      playerMessages[match.player2]
     );
   }
 }
@@ -399,6 +412,7 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
   const forwards = team.filter(p => p.position !== 'G');
   const available = forwards.filter((p, i) => !usedPlayers.includes(i));
   
+  // ✅ ПРОВЕРЯЕМ ОКОНЧАНИЕ РАУНДА
   if (available.length === 0) {
     if (match.isSuddenDeath) {
       if (isPlayer1) {
@@ -410,15 +424,7 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
       return;
     }
     
-    const isAfterMaxRounds = match.round >= match.maxRounds;
-    const isScoreDifferent = match.player1Score !== match.player2Score;
-    
-    if (isAfterMaxRounds && isScoreDifferent) {
-      match.isFinished = true;
-      await finishPvPMatch(matchId);
-      return;
-    }
-    
+    // Завершаем раунд — переходим к следующему игроку
     match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
     await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
     return;
@@ -448,11 +454,8 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
   text += `🔢 Раунд ${match.round + 1} ${match.isSuddenDeath ? '(ДО ГОЛА!)' : 'из ' + match.maxRounds}\n\n`;
   text += `*Выбери полевого игрока для броска:*`;
   
-  try {
-    await sendMessageToPlayer(playerId, text, Markup.inlineKeyboard(buttons));
-  } catch (error) {
-    console.error('❌ Ошибка при отправке выбора игрока:', error.message);
-  }
+  const messageId = await sendOrEditMessage(playerId, text, Markup.inlineKeyboard(buttons), playerMessages[playerId]);
+  if (messageId) playerMessages[playerId] = messageId;
 }
 
 // ВЫБОР БРОСКА
@@ -493,13 +496,9 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
     [Markup.button.callback('💥 Щелчок', `pvp_throw_${matchId}_slap`)],
   ];
   
-  await ctx.editMessageText(
-    `🎯 *Выбран полевой игрок:* ${player.name} (${player.overall} OVR)\n\n*Выбери действие:*`,
-    {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard(buttons)
-    }
-  );
+  const text = `🎯 *Выбран полевой игрок:* ${player.name} (${player.overall} OVR)\n\n*Выбери действие:*`;
+  
+  await sendOrEditMessage(userId, text, Markup.inlineKeyboard(buttons), playerMessages[userId]);
 }
 
 // ОБРАБОТКА БРОСКА
@@ -562,23 +561,12 @@ async function pvpHandleThrow(ctx, matchId, throwType) {
     [Markup.button.callback('💪 Агрессивный выход', `pvp_goalie_${matchId}_aggressive`)],
   ];
   
-  await ctx.telegram.sendMessage(
-    opponentId,
-    `🧤 *Вратарь!*\n\n` +
-    `🎯 Соперник: ${isPlayer1 ? match.player1Name : match.player2Name}\n` +
-    `🏒 Игрок: ${shooter.player.name} (${shooter.player.overall} OVR)\n\n` +
-    `*Выбери действие вратаря:*`,
-    {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard(buttons)
-    }
-  );
+  const goalieText = `🧤 *Вратарь!*\n\n🎯 Соперник: ${isPlayer1 ? match.player1Name : match.player2Name}\n🏒 Игрок: ${shooter.player.name} (${shooter.player.overall} OVR)\n\n*Выбери действие вратаря:*`;
   
-  await ctx.editMessageText(
-    `⏳ *Ожидание ответа от соперника...*\n\n` +
-    `🧤 ${isPlayer1 ? match.player2Name : match.player1Name} выбирает действие вратаря.`,
-    { parse_mode: 'Markdown' }
-  );
+  await sendOrEditMessage(opponentId, goalieText, Markup.inlineKeyboard(buttons), playerMessages[opponentId]);
+  
+  const waitingText = `⏳ *Ожидание ответа от соперника...*\n\n🧤 ${isPlayer1 ? match.player2Name : match.player1Name} выбирает действие вратаря.`;
+  await sendOrEditMessage(userId, waitingText, null, playerMessages[userId]);
 }
 
 // ДЕЙСТВИЕ ВРАТАРЯ
@@ -623,6 +611,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   match.pendingShot = null;
   match.lastProbability = result.probability;
   
+  // ✅ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ МАТЧА ПОСЛЕ 5 РАУНДОВ
   const isAfterMaxRounds = match.round >= match.maxRounds;
   const isScoreDifferent = match.player1Score !== match.player2Score;
   const isScoreEqual = match.player1Score === match.player2Score;
@@ -675,25 +664,28 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     [Markup.button.callback('📊 Продолжить', `pvp_continue_${matchId}`)]
   ]);
   
-  await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown', ...resultKeyboard });
-  await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown', ...resultKeyboard });
+  // Редактируем сообщения для обоих игроков
+  await sendOrEditMessage(match.player1, resultText, resultKeyboard, playerMessages[match.player1]);
+  await sendOrEditMessage(match.player2, resultText, resultKeyboard, playerMessages[match.player2]);
   
   if (match.isFinished) {
     await finishPvPMatch(matchId);
     return;
   }
   
+  // ✅ МЕНЯЕМ ХОД
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
   
+  // ✅ ПОКАЗЫВАЕМ ВЫБОР ИГРОКА СЛЕДУЮЩЕМУ
   await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
   
+  // ✅ УВЕДОМЛЯЕМ ПРЕДЫДУЩЕГО
   const waitingPlayer = match.currentTurn === match.player1 ? match.player2 : match.player1;
-  await ctx.telegram.sendMessage(
+  await sendOrEditMessage(
     waitingPlayer,
-    `⏳ *Ожидание хода соперника...*\n\n` +
-    `👤 ${match.currentTurn === match.player1 ? match.player1Name : match.player2Name} выбирает игрока для броска.\n` +
-    `Подождите, скоро ваш ход!`,
-    { parse_mode: 'Markdown' }
+    `⏳ *Ожидание хода соперника...*\n\n👤 ${match.currentTurn === match.player1 ? match.player1Name : match.player2Name} выбирает игрока для броска.\nПодождите, скоро ваш ход!`,
+    null,
+    playerMessages[waitingPlayer]
   );
 }
 
@@ -727,10 +719,19 @@ async function finishPvPMatch(matchId) {
   const winnerData = users[winner];
   const loserData = users[loser];
   
+  // ✅ НАГРАДЫ: ПОБЕДИТЕЛЬ +2 XP
   if (winnerData) {
     winnerData.wins = (winnerData.wins || 0) + 1;
     winnerData.coins = (winnerData.coins || 0) + 30;
     winnerData.rating = (winnerData.rating || 0) + 20;
+    
+    // ✅ ДОБАВЛЯЕМ XP (2 XP)
+    try {
+      await addXP(winner, 2);
+      console.log('✅ [PvP] Добавлено 2 XP победителю:', winner);
+    } catch (error) {
+      console.log('❌ [PvP] Ошибка добавления XP:', error.message);
+    }
   }
   
   if (loserData) {
@@ -746,7 +747,7 @@ async function finishPvPMatch(matchId) {
     `🔥 ${match.player2Name}: ${match.player2Score}\n` +
     `🔢 Раундов: ${match.round}\n\n` +
     `🎉 *ПОБЕДИТЕЛЬ: ${winnerName}!*\n\n` +
-    `🏆 +30⭐ +20 рейтинга\n` +
+    `🏆 +30⭐ +20 рейтинга +2 XP\n` +
     `😔 Поражение: -5 рейтинга\n\n` +
     `Выбери действие:`;
   
@@ -755,12 +756,16 @@ async function finishPvPMatch(matchId) {
     [Markup.button.callback('🔙 Назад', 'back')]
   ]);
   
-  await sendMessageToPlayer(match.player1, resultText, finalKeyboard);
-  await sendMessageToPlayer(match.player2, resultText, finalKeyboard);
+  await sendOrEditMessage(match.player1, resultText, finalKeyboard, playerMessages[match.player1]);
+  await sendOrEditMessage(match.player2, resultText, finalKeyboard, playerMessages[match.player2]);
   
   delete playerActiveMatches[match.player1];
   delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
+  
+  // Очищаем сообщения
+  delete playerMessages[match.player1];
+  delete playerMessages[match.player2];
 }
 
 // ОТМЕНА ПОИСКА
@@ -806,6 +811,9 @@ async function pvpForfeit(ctx, matchId) {
     winnerData.wins = (winnerData.wins || 0) + 1;
     winnerData.coins = (winnerData.coins || 0) + 30;
     winnerData.rating = (winnerData.rating || 0) + 20;
+    try {
+      await addXP(winner, 2);
+    } catch (error) {}
   }
   
   saveUsers(users);
@@ -814,12 +822,15 @@ async function pvpForfeit(ctx, matchId) {
     `🏳️ ${match.player1 === userId ? match.player1Name : match.player2Name} сдался!\n\n` +
     `🎉 *ПОБЕДИТЕЛЬ: ${winner === match.player1 ? match.player1Name : match.player2Name}!*`;
   
-  await ctx.telegram.sendMessage(match.player1, resultText, { parse_mode: 'Markdown' });
-  await ctx.telegram.sendMessage(match.player2, resultText, { parse_mode: 'Markdown' });
+  await sendOrEditMessage(match.player1, resultText, null, playerMessages[match.player1]);
+  await sendOrEditMessage(match.player2, resultText, null, playerMessages[match.player2]);
   
   delete playerActiveMatches[match.player1];
   delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
+  
+  delete playerMessages[match.player1];
+  delete playerMessages[match.player2];
 }
 
 // ============================================
