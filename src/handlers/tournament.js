@@ -10,7 +10,7 @@ const { addXP } = require('./xp');
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 const TOURNAMENT_PATH = path.join(__dirname, '../../data/tournament.json');
 
-// ✅ ЗАГРУЗКА ДАННЫХ ТУРНИРА
+// ЗАГРУЗКА ДАННЫХ ТУРНИРА
 function getTournamentData() {
   if (!fs.existsSync(TOURNAMENT_PATH)) {
     const defaultData = {
@@ -42,7 +42,7 @@ function getUsers() {
   return JSON.parse(fs.readFileSync(DB_PATH));
 }
 
-// ✅ ДОБАВЛЕНИЕ РЕЗУЛЬТАТА МАТЧА В ТУРНИР
+// ДОБАВЛЕНИЕ РЕЗУЛЬТАТА МАТЧА В ТУРНИР
 async function addTournamentResult(playerId, isWin, isDraw = false) {
   const tournament = getTournamentData();
   
@@ -74,7 +74,7 @@ async function addTournamentResult(playerId, isWin, isDraw = false) {
   saveTournamentData(tournament);
 }
 
-// ✅ ПОКАЗ ТАБЛИЦЫ ТУРНИРА
+// ПОКАЗ ТАБЛИЦЫ ТУРНИРА
 async function showTournament(ctx) {
   const tournament = getTournamentData();
   const users = getUsers();
@@ -132,7 +132,7 @@ async function showTournament(ctx) {
   });
 }
 
-// ✅ ПОЛУЧЕНИЕ ОСТАВШЕГОСЯ ВРЕМЕНИ
+// ПОЛУЧЕНИЕ ОСТАВШЕГОСЯ ВРЕМЕНИ
 function getTimeLeft(endDate) {
   const now = new Date();
   const end = new Date(endDate);
@@ -147,7 +147,7 @@ function getTimeLeft(endDate) {
   return `${days}д ${hours}ч ${minutes}м`;
 }
 
-// ✅ АВТОМАТИЧЕСКОЕ ЗАВЕРШЕНИЕ ТУРНИРА
+// АВТОМАТИЧЕСКОЕ ЗАВЕРШЕНИЕ ТУРНИРА
 async function finishTournament(ctx = null) {
   const tournament = getTournamentData();
   
@@ -221,7 +221,7 @@ async function finishTournament(ctx = null) {
   return { resultText, winners };
 }
 
-// ✅ ПОЛУЧЕНИЕ ПОБЕДИТЕЛЕЙ
+// ПОЛУЧЕНИЕ ПОБЕДИТЕЛЕЙ
 async function getTournamentWinners() {
   const tournament = getTournamentData();
   const users = getUsers();
@@ -238,7 +238,7 @@ async function getTournamentWinners() {
   return text;
 }
 
-// ✅ АДМИНСКИЕ КОМАНДЫ
+// АДМИНСКИЕ КОМАНДЫ
 async function adminStopTournament(ctx) {
   const result = await finishTournament(ctx);
   if (result) {
@@ -282,7 +282,7 @@ async function adminSetTournamentName(ctx, name) {
   await ctx.reply(`✅ *Название турнира обновлено!*\n\n🏆 ${name}`, { parse_mode: 'Markdown' });
 }
 
-// ✅ АВТОМАТИЧЕСКАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ
+// АВТОМАТИЧЕСКАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ
 function checkTournamentAutoFinish() {
   const tournament = getTournamentData();
   
@@ -299,7 +299,7 @@ function checkTournamentAutoFinish() {
   }
 }
 
-// ✅ ВЫБОР КАРТЫ ДЛЯ ПОБЕДИТЕЛЯ
+// ВЫБОР КАРТЫ ДЛЯ ПОБЕДИТЕЛЯ
 async function showPrizeCardSelection(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -339,7 +339,7 @@ async function showPrizeCardSelection(ctx) {
   });
 }
 
-// ✅ ВЫБОР КАРТЫ
+// ВЫБОР КАРТЫ
 async function selectPrizeCard(ctx, cardIndex) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -394,7 +394,7 @@ async function selectPrizeCard(ctx, cardIndex) {
 }
 
 // ============================================
-// ✅ ЭКСПОРТ ВСЕХ ФУНКЦИЙ
+// ✅ ЭКСПОРТ
 // ============================================
 module.exports = {
   getTournamentData,
@@ -410,4 +410,3 @@ module.exports = {
   showPrizeCardSelection,
   selectPrizeCard
 };
-module.exports = tournament;
