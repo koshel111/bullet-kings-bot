@@ -359,15 +359,15 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
   match.currentShooter = { playerNum, playerIndex, player };
   match.waitingForAction = true;
   
-  // ✅ ИЗМЕНЕНО: pvp_shot_ вместо shot_
+  // ✅ УНИКАЛЬНЫЙ ПРЕФИКС: pvp_shot_ вместо shot_
   const buttons = [
-    [Markup.button.callback('⬅️ Влево', `pvp_shot_${matchId}_left`)],
-    [Markup.button.callback('➡️ Вправо', `pvp_shot_${matchId}_right`)],
-    [Markup.button.callback('⬆️ Верхний', `pvp_shot_${matchId}_top`)],
-    [Markup.button.callback('⬇️ Между щитков', `pvp_shot_${matchId}_fivehole`)],
-    [Markup.button.callback('🔄 Финт', `pvp_shot_${matchId}_deke`)],
-    [Markup.button.callback('✋ Кистевой', `pvp_shot_${matchId}_wrist`)],
-    [Markup.button.callback('💥 Щелчок', `pvp_shot_${matchId}_slap`)],
+    [Markup.button.callback('⬅️ Влево', `pvp_shot_action_${matchId}_left`)],
+    [Markup.button.callback('➡️ Вправо', `pvp_shot_action_${matchId}_right`)],
+    [Markup.button.callback('⬆️ Верхний', `pvp_shot_action_${matchId}_top`)],
+    [Markup.button.callback('⬇️ Между щитков', `pvp_shot_action_${matchId}_fivehole`)],
+    [Markup.button.callback('🔄 Финт', `pvp_shot_action_${matchId}_deke`)],
+    [Markup.button.callback('✋ Кистевой', `pvp_shot_action_${matchId}_wrist`)],
+    [Markup.button.callback('💥 Щелчок', `pvp_shot_action_${matchId}_slap`)],
   ];
   
   await ctx.editMessageText(
@@ -379,7 +379,7 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
   );
 }
 
-// ОБРАБОТКА БРОСКА (только для pvp_shot_)
+// ОБРАБОТКА БРОСКА (только для pvp_shot_action_)
 async function pvpHandleShot(ctx, matchId, shotType) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -732,8 +732,8 @@ module.exports = (bot) => {
     await pvpChooseShot(ctx, ctx.match[1], parseInt(ctx.match[2]), parseInt(ctx.match[3]));
   });
   
-  // ✅ ИЗМЕНЕНО: pvp_shot_ вместо shot_
-  bot.action(/pvp_shot_(.+)_(.+)/, async (ctx) => {
+  // ✅ НОВЫЙ УНИКАЛЬНЫЙ ПРЕФИКС: pvp_shot_action_
+  bot.action(/pvp_shot_action_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     await pvpHandleShot(ctx, ctx.match[1], ctx.match[2]);
   });
