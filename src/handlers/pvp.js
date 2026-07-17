@@ -17,7 +17,7 @@ const playerActiveMatches = {};
 
 let botInstance = null;
 
-// ✅ ХРАНИЛИЩЕ ДЛЯ СООБЩЕНИЙ (ЧТОБЫ РЕДАКТИРОВАТЬ)
+// ХРАНИЛИЩЕ ДЛЯ СООБЩЕНИЙ
 const playerMessages = {};
 
 function getUsers() {
@@ -75,13 +75,11 @@ async function sendOrEditMessage(playerId, text, keyboard = null, messageId = nu
       options.reply_markup = keyboard.reply_markup;
     }
     
-    // Если есть messageId — редактируем
     if (messageId) {
       try {
         await botInstance.telegram.editMessageText(playerId, messageId, null, text, options);
         return messageId;
       } catch (error) {
-        // Если не удалось отредактировать — отправляем новое
         if (error.message && error.message.includes('message is not modified')) {
           return messageId;
         }
@@ -89,7 +87,6 @@ async function sendOrEditMessage(playerId, text, keyboard = null, messageId = nu
         return msg.message_id;
       }
     } else {
-      // Отправляем новое сообщение
       const msg = await botInstance.telegram.sendMessage(playerId, text, options);
       return msg.message_id;
     }
@@ -147,8 +144,8 @@ async function showTeamInfo(matchId) {
   const rating1 = getTeamRating(player1Team);
   const rating2 = getTeamRating(player2Team);
   
-  // Состав игрока 1
-  let text1 = `👤 *${match.player1Name}*\n`;
+  let text1 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n`;
+  text1 += `👤 *${match.player1Name}*\n`;
   text1 += `📊 Рейтинг состава: ${rating1}\n\n`;
   text1 += `🏒 *Полевые:*\n`;
   
@@ -167,13 +164,35 @@ async function showTeamInfo(matchId) {
     text1 += `\n🧤 *Вратарь:* ❌ Нет`;
   }
   
-  // Состав игрока 2
-  let text2 = `👤 *${match.player2Name}*\n`;
-  text2 += `📊 Рейтинг состава: ${rating2}\n\n`;
-  text2 += `🏒 *Полевые:*\n`;
+  text1 += `\n\n👤 *${match.player2Name}*\n`;
+  text1 += `📊 Рейтинг состава: ${rating2}\n\n`;
+  text1 += `🏒 *Полевые:*\n`;
   
   const forwards2 = player2Team.filter(p => p.position !== 'G');
   const goalie2 = player2Team.find(p => p.position === 'G');
+  
+  forwards2.forEach((p, i) => {
+    const emoji = getRarityEmoji(p.rarity);
+    text1 += `  ${i+1}. ${emoji} ${p.name} (${p.overall} OVR)\n`;
+  });
+  
+  if (goalie2) {
+    const emoji = getRarityEmoji(goalie2.rarity);
+    text1 += `\n🧤 *Вратарь:* ${emoji} ${goalie2.name} (${goalie2.overall} OVR)`;
+  } else {
+    text1 += `\n🧤 *Вратарь:* ❌ Нет`;
+  }
+  
+  text1 += `\n\n📊 Рейтинг твоего состава: ${rating1}`;
+  text1 += `\n📊 Рейтинг состава соперника: ${rating2}`;
+  text1 += `\n\n${rating1 > rating2 ? '🔥 Твой состав сильнее!' : rating1 < rating2 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}`;
+  text1 += `\n\nНажми "Готов", чтобы начать матч!`;
+  
+  // Для второго игрока — меняем местами
+  let text2 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n`;
+  text2 += `👤 *${match.player2Name}*\n`;
+  text2 += `📊 Рейтинг состава: ${rating2}\n\n`;
+  text2 += `🏒 *Полевые:*\n`;
   
   forwards2.forEach((p, i) => {
     const emoji = getRarityEmoji(p.rarity);
@@ -187,17 +206,33 @@ async function showTeamInfo(matchId) {
     text2 += `\n🧤 *Вратарь:* ❌ Нет`;
   }
   
+  text2 += `\n\n👤 *${match.player1Name}*\n`;
+  text2 += `📊 Рейтинг состава: ${rating1}\n\n`;
+  text2 += `🏒 *Полевые:*\n`;
+  
+  forwards1.forEach((p, i) => {
+    const emoji = getRarityEmoji(p.rarity);
+    text2 += `  ${i+1}. ${emoji} ${p.name} (${p.overall} OVR)\n`;
+  });
+  
+  if (goalie1) {
+    const emoji = getRarityEmoji(goalie1.rarity);
+    text2 += `\n🧤 *Вратарь:* ${emoji} ${goalie1.name} (${goalie1.overall} OVR)`;
+  } else {
+    text2 += `\n🧤 *Вратарь:* ❌ Нет`;
+  }
+  
+  text2 += `\n\n📊 Рейтинг твоего состава: ${rating2}`;
+  text2 += `\n📊 Рейтинг состава соперника: ${rating1}`;
+  text2 += `\n\n${rating2 > rating1 ? '🔥 Твой состав сильнее!' : rating2 < rating1 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}`;
+  text2 += `\n\nНажми "Готов", чтобы начать матч!`;
+  
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
   ]);
   
-  const fullText1 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n📋 *Твой состав:*\n${text1}\n\n📋 *Состав соперника:*\n${text2}\n\n📊 Рейтинг твоего состава: ${rating1}\n📊 Рейтинг состава соперника: ${rating2}\n\n${rating1 > rating2 ? '🔥 Твой состав сильнее!' : rating1 < rating2 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}\n\nНажми "Готов", чтобы начать матч!`;
-  
-  const fullText2 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n📋 *Твой состав:*\n${text2}\n\n📋 *Состав соперника:*\n${text1}\n\n📊 Рейтинг твоего состава: ${rating2}\n📊 Рейтинг состава соперника: ${rating1}\n\n${rating2 > rating1 ? '🔥 Твой состав сильнее!' : rating2 < rating1 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}\n\nНажми "Готов", чтобы начать матч!`;
-  
-  // Сохраняем ID сообщений
-  const msg1 = await sendOrEditMessage(match.player1, fullText1, keyboard);
-  const msg2 = await sendOrEditMessage(match.player2, fullText2, keyboard);
+  const msg1 = await sendOrEditMessage(match.player1, text1, keyboard);
+  const msg2 = await sendOrEditMessage(match.player2, text2, keyboard);
   
   if (msg1) playerMessages[match.player1] = msg1;
   if (msg2) playerMessages[match.player2] = msg2;
@@ -341,7 +376,7 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
   await showTeamInfo(matchId);
 }
 
-// ГОТОВНОСТЬ К МАТЧУ
+// ✅ ГОТОВНОСТЬ К МАТЧУ (ИСПРАВЛЕНО)
 async function pvpReady(ctx, matchId) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -361,6 +396,7 @@ async function pvpReady(ctx, matchId) {
     return;
   }
   
+  // Отмечаем готовность
   if (match.player1 === userId) {
     match.player1Ready = true;
   } else if (match.player2 === userId) {
@@ -372,16 +408,30 @@ async function pvpReady(ctx, matchId) {
   
   const readyCount = (match.player1Ready ? 1 : 0) + (match.player2Ready ? 1 : 0);
   
-  const statusText = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
+  // ✅ ДЛЯ ИГРОКА 1
+  const text1 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
     `👤 ${match.player1Name} ${match.player1Ready ? '✅' : '⏳'}\n` +
     `👤 ${match.player2Name} ${match.player2Ready ? '✅' : '⏳'}\n` +
     `📊 Готовность: ${readyCount}/2\n\n` +
     `${readyCount === 2 ? '🎯 Все готовы! Начинаем матч!' : 'Ожидаем подтверждения от соперника...'}`;
   
-  // Редактируем или отправляем новые сообщения
-  await sendOrEditMessage(match.player1, statusText, null, playerMessages[match.player1]);
-  await sendOrEditMessage(match.player2, statusText, null, playerMessages[match.player2]);
+  // ✅ ДЛЯ ИГРОКА 2 (такой же текст)
+  const text2 = text1;
   
+  // ✅ КНОПКА ПОКАЗЫВАЕТСЯ ТОЛЬКО ТОМУ, КТО НЕ НАЖАЛ
+  const keyboard1 = match.player1Ready ? null : Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
+  ]);
+  
+  const keyboard2 = match.player2Ready ? null : Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
+  ]);
+  
+  // ✅ ОТПРАВЛЯЕМ КАЖДОМУ ИГРОКУ СВОЁ СООБЩЕНИЕ
+  await sendOrEditMessage(match.player1, text1, keyboard1, playerMessages[match.player1]);
+  await sendOrEditMessage(match.player2, text2, keyboard2, playerMessages[match.player2]);
+  
+  // ✅ ЕСЛИ ОБА ГОТОВЫ — ЗАПУСКАЕМ МАТЧ
   if (readyCount === 2) {
     match.started = true;
     match.currentTurn = match.player1;
@@ -412,7 +462,6 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
   const forwards = team.filter(p => p.position !== 'G');
   const available = forwards.filter((p, i) => !usedPlayers.includes(i));
   
-  // ✅ ПРОВЕРЯЕМ ОКОНЧАНИЕ РАУНДА
   if (available.length === 0) {
     if (match.isSuddenDeath) {
       if (isPlayer1) {
@@ -424,7 +473,6 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
       return;
     }
     
-    // Завершаем раунд — переходим к следующему игроку
     match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
     await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
     return;
@@ -611,7 +659,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   match.pendingShot = null;
   match.lastProbability = result.probability;
   
-  // ✅ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ МАТЧА ПОСЛЕ 5 РАУНДОВ
+  // ✅ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ ПОСЛЕ 5 РАУНДОВ
   const isAfterMaxRounds = match.round >= match.maxRounds;
   const isScoreDifferent = match.player1Score !== match.player2Score;
   const isScoreEqual = match.player1Score === match.player2Score;
@@ -664,7 +712,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     [Markup.button.callback('📊 Продолжить', `pvp_continue_${matchId}`)]
   ]);
   
-  // Редактируем сообщения для обоих игроков
   await sendOrEditMessage(match.player1, resultText, resultKeyboard, playerMessages[match.player1]);
   await sendOrEditMessage(match.player2, resultText, resultKeyboard, playerMessages[match.player2]);
   
@@ -673,13 +720,10 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     return;
   }
   
-  // ✅ МЕНЯЕМ ХОД
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
   
-  // ✅ ПОКАЗЫВАЕМ ВЫБОР ИГРОКА СЛЕДУЮЩЕМУ
   await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
   
-  // ✅ УВЕДОМЛЯЕМ ПРЕДЫДУЩЕГО
   const waitingPlayer = match.currentTurn === match.player1 ? match.player2 : match.player1;
   await sendOrEditMessage(
     waitingPlayer,
@@ -719,13 +763,10 @@ async function finishPvPMatch(matchId) {
   const winnerData = users[winner];
   const loserData = users[loser];
   
-  // ✅ НАГРАДЫ: ПОБЕДИТЕЛЬ +2 XP
   if (winnerData) {
     winnerData.wins = (winnerData.wins || 0) + 1;
     winnerData.coins = (winnerData.coins || 0) + 30;
     winnerData.rating = (winnerData.rating || 0) + 20;
-    
-    // ✅ ДОБАВЛЯЕМ XP (2 XP)
     try {
       await addXP(winner, 2);
       console.log('✅ [PvP] Добавлено 2 XP победителю:', winner);
@@ -763,7 +804,6 @@ async function finishPvPMatch(matchId) {
   delete playerActiveMatches[match.player2];
   delete pvpMatches[matchId];
   
-  // Очищаем сообщения
   delete playerMessages[match.player1];
   delete playerMessages[match.player2];
 }
