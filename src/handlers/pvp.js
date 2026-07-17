@@ -1,5 +1,5 @@
 // ============================================
-// src/handlers/pvp.js - PvP РЕЖИМ (ИНТЕРФЕЙС КАК В ИГРЕ С БОТОМ)
+// src/handlers/pvp.js - PvP РЕЖИМ (С РЕЙТИНГОМ И ШАНСОМ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -55,6 +55,45 @@ async function sendMessageToPlayer(playerId, text, keyboard = null) {
   } catch (error) {
     console.error('❌ Ошибка отправки сообщения игроку:', error.message);
   }
+}
+
+// ✅ РАСЧЁТ ШАНСА ГОЛА (как в игре с ботом)
+function calculateShot(playerAction, goalieAction, playerOverall = 80) {
+  const actionBonus = {
+    'left': { 'left': 0.05, 'right': 0.75, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
+    'right': { 'left': 0.75, 'right': 0.05, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
+    'top': { 'left': 0.70, 'right': 0.70, 'stand': 0.15, 'low': 0.65, 'glove': 0.65, 'aggressive': 0.40 },
+    'fivehole': { 'left': 0.65, 'right': 0.65, 'stand': 0.10, 'low': 0.05, 'glove': 0.70, 'aggressive': 0.35 },
+    'deke': { 'left': 0.55, 'right': 0.55, 'stand': 0.35, 'low': 0.45, 'glove': 0.45, 'aggressive': 0.10 },
+    'wrist': { 'left': 0.45, 'right': 0.45, 'stand': 0.35, 'low': 0.55, 'glove': 0.10, 'aggressive': 0.55 },
+    'slap': { 'left': 0.45, 'right': 0.45, 'stand': 0.35, 'low': 0.10, 'glove': 0.55, 'aggressive': 0.55 }
+  };
+
+  const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
+  const randomFactor = 0.7 + Math.random() * 0.6;
+  
+  // ✅ БОНУС ЗА РЕЙТИНГ ИГРОКА
+  let ratingBonus = 0;
+  if (playerOverall >= 96) ratingBonus = 0.40;
+  else if (playerOverall >= 91) ratingBonus = 0.30;
+  else if (playerOverall >= 86) ratingBonus = 0.20;
+  else if (playerOverall >= 81) ratingBonus = 0.10;
+  else if (playerOverall >= 71) ratingBonus = 0;
+  else ratingBonus = -0.10;
+  
+  let probability = multiplier * randomFactor * (1 + ratingBonus);
+  
+  // ✅ ДОПОЛНИТЕЛЬНЫЙ БОНУС ДЛЯ ВЫСОКИХ РЕЙТИНГОВ
+  if (playerOverall >= 90) {
+    probability = Math.max(probability, 0.30);
+  }
+  if (playerOverall >= 95) {
+    probability = Math.max(probability, 0.40);
+  }
+  
+  probability = Math.max(0.05, Math.min(0.95, probability));
+  
+  return { isGoal: Math.random() < probability, probability: Math.round(probability * 100) };
 }
 
 // ПОИСК СОПЕРНИКА
@@ -180,7 +219,10 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
     currentGoalie: null,
     player1Ready: false,
     player2Ready: false,
-    started: false
+    started: false,
+    lastThrow: null,
+    lastPlayer: null,
+    lastProbability: 0
   };
   
   playerActiveMatches[player1Id] = matchId;
@@ -253,10 +295,8 @@ async function pvpReady(ctx, matchId) {
     match.started = true;
     match.currentTurn = match.player1;
     
-    // ✅ ПОКАЗЫВАЕМ ВЫБОР ИГРОКА ПЕРВОМУ ИГРОКУ
     await showPvPPlayerSelectionToPlayer(match.player1, matchId);
     
-    // ✅ ВТОРОМУ ИГРОКУ ПОКАЗЫВАЕМ ОЖИДАНИЕ
     await ctx.telegram.sendMessage(
       match.player2,
       `⏳ *Ожидание хода соперника...*\n\n` +
@@ -362,7 +402,6 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
   match.currentShooter = { playerNum, playerIndex, player };
   match.waitingForAction = true;
   
-  // ✅ КНОПКИ КАК В ИГРЕ С БОТОМ
   const buttons = [
     [Markup.button.callback('⬅️ Влево', `pvp_throw_${matchId}_left`)],
     [Markup.button.callback('➡️ Вправо', `pvp_throw_${matchId}_right`)],
@@ -413,7 +452,8 @@ async function pvpHandleThrow(ctx, matchId, throwType) {
     shooter: shooter.player,
     shotType: throwType,
     playerNum: shooter.playerNum,
-    isPlayer1: isPlayer1
+    isPlayer1: isPlayer1,
+    playerOverall: shooter.player.overall || 80
   };
   
   match.waitingForGoalie = true;
@@ -429,11 +469,10 @@ async function pvpHandleThrow(ctx, matchId, throwType) {
     slap: '💥 Щелчок'
   };
   
-  // ✅ СОХРАНЯЕМ ДЕЙСТВИЕ ДЛЯ ПОКАЗА РЕЗУЛЬТАТА
   match.lastThrow = throwNames[throwType] || throwType;
   match.lastPlayer = shooter.player.name;
   
-  // ✅ ОТПРАВЛЯЕМ СОПЕРНИКУ ЗАПРОС НА ВЫБОР ВРАТАРЯ (БЕЗ ПОКАЗА БРОСКА)
+  // ✅ ОТПРАВЛЯЕМ СОПЕРНИКУ ЗАПРОС НА ВЫБОР ВРАТАРЯ
   const buttons = [
     [Markup.button.callback('🧤 Закрыть левый угол', `pvp_goalie_${matchId}_left`)],
     [Markup.button.callback('🧤 Закрыть правый угол', `pvp_goalie_${matchId}_right`)],
@@ -443,12 +482,11 @@ async function pvpHandleThrow(ctx, matchId, throwType) {
     [Markup.button.callback('💪 Агрессивный выход', `pvp_goalie_${matchId}_aggressive`)],
   ];
   
-  // ✅ СОПЕРНИКУ НЕ ПОКАЗЫВАЕМ БРОСОК
   await ctx.telegram.sendMessage(
     opponentId,
     `🧤 *Вратарь!*\n\n` +
     `🎯 Соперник: ${isPlayer1 ? match.player1Name : match.player2Name}\n` +
-    `🏒 Игрок: ${shooter.player.name}\n\n` +
+    `🏒 Игрок: ${shooter.player.name} (${shooter.player.overall} OVR)\n\n` +
     `*Выбери действие вратаря:*`,
     {
       parse_mode: 'Markdown',
@@ -456,7 +494,6 @@ async function pvpHandleThrow(ctx, matchId, throwType) {
     }
   );
   
-  // ✅ ТЕКУЩЕМУ ИГРОКУ ПОКАЗЫВАЕМ ОЖИДАНИЕ
   await ctx.editMessageText(
     `⏳ *Ожидание ответа от соперника...*\n\n` +
     `🧤 ${isPlayer1 ? match.player2Name : match.player1Name} выбирает действие вратаря.`,
@@ -488,23 +525,13 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   const shooter = pendingShot.shooter;
   const shotType = pendingShot.shotType;
   const isPlayer1 = pendingShot.isPlayer1;
+  const playerOverall = pendingShot.playerOverall || 80;
   
-  // Расчёт результата (как в игре с ботом)
-  const goalieSuccess = {
-    left: { left: 0.9, right: 0.2, stand: 0.5, low: 0.4, glove: 0.4, aggressive: 0.3 },
-    right: { left: 0.2, right: 0.9, stand: 0.5, low: 0.4, glove: 0.4, aggressive: 0.3 },
-    top: { left: 0.4, right: 0.4, stand: 0.8, low: 0.3, glove: 0.3, aggressive: 0.5 },
-    fivehole: { left: 0.4, right: 0.4, stand: 0.7, low: 0.9, glove: 0.3, aggressive: 0.5 },
-    deke: { left: 0.5, right: 0.5, stand: 0.4, low: 0.4, glove: 0.4, aggressive: 0.8 },
-    wrist: { left: 0.5, right: 0.5, stand: 0.4, low: 0.4, glove: 0.8, aggressive: 0.4 },
-    slap: { left: 0.5, right: 0.5, stand: 0.4, low: 0.8, glove: 0.4, aggressive: 0.4 }
-  };
-  
-  const successRate = goalieSuccess[goalieAction]?.[shotType] || 0.5;
-  const isGoal = Math.random() > successRate;
+  // ✅ РАСЧЁТ ШАНСА ГОЛА С УЧЁТОМ РЕЙТИНГА
+  const result = calculateShot(shotType, goalieAction, playerOverall);
   
   // Обновляем счёт
-  if (isGoal) {
+  if (result.isGoal) {
     if (isPlayer1) {
       match.player1Score++;
     } else {
@@ -516,6 +543,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   match.waitingForGoalie = false;
   match.currentGoalie = null;
   match.pendingShot = null;
+  match.lastProbability = result.probability;
   
   // Проверяем завершение матча
   const isAfterMaxRounds = match.round >= match.maxRounds;
@@ -558,13 +586,14 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     aggressive: '💪 Агрессивный выход'
   };
   
-  // ✅ ПОКАЗЫВАЕМ РЕЗУЛЬТАТ ОБОИМ ИГРОКАМ (как в игре с ботом)
-  const resultText = `🎯 *${shooter.name} бросает!*\n` +
-    `🎯 *Твой бросок:* ${throwNames[shotType] || shotType}\n` +
-    `🧤 *Вратарь:* ${goalieNames[goalieAction] || goalieAction}\n` +
-    `${isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*'}\n\n` +
-    `📊 *Счёт:* ${match.player1Name} ${match.player1Score} — ${match.player2Score} ${match.player2Name}\n` +
-    `🔢 Раунд ${match.round} ${match.isSuddenDeath ? '(ДО ГОЛА!)' : 'из ' + match.maxRounds}`;
+  // ✅ ПОКАЗЫВАЕМ РЕЗУЛЬТАТ С ШАНСОМ ГОЛА
+  let resultText = `🎯 *${shooter.name} бросает!*\n`;
+  resultText += `🎯 *Твой бросок:* ${throwNames[shotType] || shotType}\n`;
+  resultText += `🧤 *Вратарь:* ${goalieNames[goalieAction] || goalieAction}\n`;
+  resultText += `${result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*'}\n\n`;
+  resultText += `📊 *Шанс гола:* ${result.probability}% (рейтинг ${playerOverall})\n\n`;
+  resultText += `📊 *Счёт:* ${match.player1Name} ${match.player1Score} — ${match.player2Score} ${match.player2Name}\n`;
+  resultText += `🔢 Раунд ${match.round} ${match.isSuddenDeath ? '(ДО ГОЛА!)' : 'из ' + match.maxRounds}`;
   
   const resultKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback('📊 Продолжить', `pvp_continue_${matchId}`)]
@@ -581,10 +610,8 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   // Меняем ход
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
   
-  // ✅ ПОКАЗЫВАЕМ ВЫБОР ИГРОКА СЛЕДУЮЩЕМУ ИГРОКУ
   await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
   
-  // ✅ УВЕДОМЛЯЕМ ПРЕДЫДУЩЕГО ИГРОКА
   const waitingPlayer = match.currentTurn === match.player1 ? match.player2 : match.player1;
   await ctx.telegram.sendMessage(
     waitingPlayer,
@@ -638,7 +665,6 @@ async function finishPvPMatch(matchId) {
   
   saveUsers(users);
   
-  // ✅ РЕЗУЛЬТАТ КАК В ИГРЕ С БОТОМ
   const resultText = `🏁 *МАТЧ ЗАВЕРШЁН!*\n\n` +
     `📊 *Итоговый счёт:*\n` +
     `🔥 ${match.player1Name}: ${match.player1Score}\n` +
