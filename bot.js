@@ -2,10 +2,17 @@
 // BULLET KINGS - ГЛАВНЫЙ БОТ
 // ============================================
 
+// ============================================
+// BULLET KINGS - ГЛАВНЫЙ БОТ
+// ============================================
+
 const { Telegraf } = require('telegraf');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
+const { showTournament } = require('./src/handlers/tournament');
+const { showDonateShop } = require('./src/handlers/donate');
+const { handleCheckSubscription } = require('./src/handlers/subscription');
 
 dotenv.config();
 
@@ -14,6 +21,7 @@ if (!BOT_TOKEN) {
   console.error('❌ BOT_TOKEN не найден в .env!');
   process.exit(1);
 }
+
 
 // ============================================
 // ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ
@@ -102,9 +110,6 @@ require('./src/handlers/donate')(bot);
 // ОБРАБОТЧИКИ КНОПОК
 // ============================================
 const { showMainMenu } = require('./src/handlers/start');
-const { showTournament } = require('./src/handlers/tournament');
-const { showDonateShop } = require('./src/handlers/donate');
-const { handleCheckSubscription } = require('./src/handlers/subscription');
 
 bot.action('back', async (ctx) => {
   await ctx.answerCbQuery();
@@ -120,6 +125,17 @@ bot.action('tournament', async (ctx) => {
   await showTournament(ctx);
 });
 
+bot.action('tournament_refresh', async (ctx) => {
+  await ctx.answerCbQuery();
+  await showTournament(ctx);
+});
+
+bot.action(/prize_card_(\d+)/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const { selectPrizeCard } = require('./src/handlers/tournament');
+  await selectPrizeCard(ctx, parseInt(ctx.match[1]));
+});
+
 bot.action('donate', async (ctx) => {
   await ctx.answerCbQuery();
   await showDonateShop(ctx);
@@ -128,7 +144,6 @@ bot.action('donate', async (ctx) => {
 bot.action('check_subscription', async (ctx) => {
   await handleCheckSubscription(ctx);
 });
-
 // ============================================
 // ЗАПУСК БОТА
 // ============================================

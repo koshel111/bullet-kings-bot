@@ -394,7 +394,7 @@ async function selectPrizeCard(ctx, cardIndex) {
 }
 
 // ============================================
-// ЭКСПОРТ (ТОЛЬКО ФУНКЦИИ, БЕЗ (BOT) =>)
+// ЭКСПОРТ (ТОЛЬКО ФУНКЦИИ)
 // ============================================
 module.exports = {
   getTournamentData,
@@ -409,25 +409,4 @@ module.exports = {
   getTournamentWinners,
   showPrizeCardSelection,
   selectPrizeCard
-};
-
-// ============================================
-// РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ БОТА (ОТДЕЛЬНО)
-// ============================================
-module.exports = (bot) => {
-  
-  bot.action('tournament', async (ctx) => {
-    await ctx.answerCbQuery();
-    await showTournament(ctx);
-  });
-  
-  bot.action('tournament_refresh', async (ctx) => {
-    await ctx.answerCbQuery();
-    await showTournament(ctx);
-  });
-  
-  bot.action(/prize_card_(\d+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await selectPrizeCard(ctx, parseInt(ctx.match[1]));
-  });
 };
