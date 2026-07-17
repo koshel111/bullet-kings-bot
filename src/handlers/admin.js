@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - ПОЛНЫЙ ФАЙЛ
+// src/handlers/admin.js - ПОЛНЫЙ ФАЙЛ (С ПРАВИЛЬНЫМ ИМПОРТОМ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -18,12 +18,15 @@ const {
   getActiveArenas
 } = require('../data/cosmetics');
 const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
+
+// ✅ ПРАВИЛЬНЫЙ ИМПОРТ ИЗ TOURNAMENT
+const tournament = require('./tournament');
 const { 
   adminStopTournament, 
   adminStartTournament, 
   adminSetTournamentName,
   getTournamentData 
-} = require('./tournament');
+} = tournament;
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -434,12 +437,11 @@ async function showJerseysManagement(ctx) {
   const allJerseys = ALL_JERSEYS;
   const activeJerseys = getActiveJerseys();
   
-  // ✅ ПОКАЗЫВАЕМ ТОЛЬКО АКТИВНЫЕ ФОРМЫ (В МАГАЗИНЕ)
   let text = "🎽 *Управление формами*\n\n";
   text += "📊 *Всего форм:* " + allJerseys.length + "\n";
   text += "✅ *В магазине (активно):* " + activeJerseys.length + "\n\n";
   
-  text += "✅ *Формы в магазине (5 шт):*\n";
+  text += "✅ *Формы в магазине:*\n";
   if (activeJerseys.length === 0) {
     text += "  ❌ Нет активных форм\n";
   } else {
@@ -462,6 +464,7 @@ async function showJerseysManagement(ctx) {
   
   await ctx.reply(text, { parse_mode: "Markdown" });
 }
+
 async function showArenasManagement(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) return;
