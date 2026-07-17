@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - ПОЛНЫЙ ФАЙЛ (С ПРАВИЛЬНЫМ ИМПОРТОМ)
+// src/handlers/admin.js - ПОЛНЫЙ ИСПРАВЛЕННЫЙ ФАЙЛ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -19,8 +19,8 @@ const {
 } = require('../data/cosmetics');
 const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
 
-// ✅ ПРАВИЛЬНЫЙ ИМПОРТ ИЗ TOURNAMENT
-cconst { 
+// ✅ ИМПОРТ ИЗ TOURNAMENT
+const { 
   adminStopTournament, 
   adminStartTournament, 
   adminSetTournamentName,
@@ -596,6 +596,9 @@ async function showAdminMenu(ctx) {
   });
 }
 
+// ============================================
+// ЭКСПОРТ — ВСЕ ОБРАБОТЧИКИ БОТА
+// ============================================
 module.exports = (bot) => {
   
   bot.command("admin", async (ctx) => {
@@ -744,7 +747,7 @@ module.exports = (bot) => {
     await showBackupMenu(ctx);
   });
 
-  // ✅ УПРАВЛЕНИЕ ТУРНИРОМ
+  // УПРАВЛЕНИЕ ТУРНИРОМ
   bot.action("admin_tournament", async (ctx) => {
     await ctx.answerCbQuery();
     const tournament = getTournamentData();
@@ -773,19 +776,19 @@ module.exports = (bot) => {
     const text = ctx.text.trim();
     const parts = text.split("_");
     
-    // ✅ ТУРНИР: ОСТАНОВИТЬ
+    // ТУРНИР: ОСТАНОВИТЬ
     if (text === "stop_tournament") {
       await adminStopTournament(ctx);
       return;
     }
     
-    // ✅ ТУРНИР: НАЧАТЬ НОВЫЙ
+    // ТУРНИР: НАЧАТЬ НОВЫЙ
     if (text === "start_tournament") {
       await adminStartTournament(ctx);
       return;
     }
     
-    // ✅ ТУРНИР: ИЗМЕНИТЬ НАЗВАНИЕ
+    // ТУРНИР: ИЗМЕНИТЬ НАЗВАНИЕ
     if (text.startsWith("set_name_")) {
       const name = text.replace("set_name_", "").trim();
       await adminSetTournamentName(ctx, name);
@@ -1251,4 +1254,4 @@ module.exports = (bot) => {
     );
   });
 
-};
+}; // ← ЭТА СКОБКА ЗАКРЫВАЕТ module.exports = (bot) => {
