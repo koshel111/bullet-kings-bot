@@ -2,15 +2,10 @@
 // BULLET KINGS - ГЛАВНЫЙ БОТ
 // ============================================
 
-// ============================================
-// BULLET KINGS - ГЛАВНЫЙ БОТ (С MONGODB)
-// ============================================
-
 const { Telegraf } = require('telegraf');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
-const { connectDB } = require('./src/database/mongoose');
 
 dotenv.config();
 
@@ -23,6 +18,8 @@ if (!BOT_TOKEN) {
 // ============================================
 // ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ
 // ============================================
+const { connectDB } = require('./src/database/mongoose');
+
 (async () => {
   try {
     await connectDB();
@@ -32,8 +29,6 @@ if (!BOT_TOKEN) {
     console.log('⚠️ Бот запущен без MongoDB, используем JSON');
   }
 })();
-
-// ... остальной код bot.js без изменений
 
 // ============================================
 // ЗАЩИТА ОТ ДУБЛИРОВАНИЯ
@@ -99,12 +94,17 @@ require('./src/handlers/profile')(bot);
 require('./src/handlers/shopCosmetics')(bot);
 require('./src/handlers/admin')(bot);
 require('./src/handlers/battlepass')(bot);
-// В bot.js, после других require:
-require('./src/handlers/pvp')(bot);
+require('./src/handlers/tournament')(bot);
+require('./src/handlers/subscription')(bot);
+require('./src/handlers/donate')(bot);
+
 // ============================================
-// ГЛАВНОЕ МЕНЮ ДЛЯ КНОПКИ НАЗАД
+// ОБРАБОТЧИКИ КНОПОК
 // ============================================
 const { showMainMenu } = require('./src/handlers/start');
+const { showTournament } = require('./src/handlers/tournament');
+const { showDonateShop } = require('./src/handlers/donate');
+const { handleCheckSubscription } = require('./src/handlers/subscription');
 
 bot.action('back', async (ctx) => {
   await ctx.answerCbQuery();
@@ -113,6 +113,20 @@ bot.action('back', async (ctx) => {
     delete require.cache[require.resolve(battlepassPath)];
   } catch (e) {}
   await showMainMenu(ctx, bot);
+});
+
+bot.action('tournament', async (ctx) => {
+  await ctx.answerCbQuery();
+  await showTournament(ctx);
+});
+
+bot.action('donate', async (ctx) => {
+  await ctx.answerCbQuery();
+  await showDonateShop(ctx);
+});
+
+bot.action('check_subscription', async (ctx) => {
+  await handleCheckSubscription(ctx);
 });
 
 // ============================================
@@ -130,8 +144,19 @@ async function startBot() {
     console.log('📅 ' + new Date().toLocaleString());
     console.log('🆔 PID:', process.pid);
     
+    // Запускаем автоматическую проверку турнира (каждый час)
+    const { checkTournamentAutoFinish } = require('./src/handlers/tournament');
+    setInterval(() => {
+      checkTournamentAutoFinish();
+    }, 60 * 60 * 1000); // Каждый час
+    
   } catch (error) {
     console.error('❌ Ошибка запуска:', error.message);
+    
+    if (error.message.includes('Conflict')) {
+      console.log('⚠️ Конфликт! Подождите 30 секунд и перезапустите.');
+    }
+    
     removeLockFile();
     process.exit(1);
   }

@@ -6,10 +6,10 @@ const { Markup } = require('telegraf');
 const { STARTING_CARDS } = require('../data/players');
 const fs = require('fs');
 const path = require('path');
+const { checkSubscription } = require('./subscription');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-// ✅ ФУНКЦИЯ ДЛЯ ПРЯМОГО ЧТЕНИЯ ИЗ ФАЙЛА (без кэша)
 function getUsersDirect() {
   try {
     if (!fs.existsSync(DB_PATH)) {
@@ -29,9 +29,11 @@ function saveUsers(users) {
 }
 
 async function showMainMenu(ctx, bot) {
-  const user = ctx.from;
+  // ✅ ПРОВЕРКА ПОДПИСКИ
+  const isSubscribed = await checkSubscription(ctx);
+  if (!isSubscribed) return;
   
-  // ✅ ПРИНУДИТЕЛЬНО ЧИТАЕМ СВЕЖИЕ ДАННЫЕ ИЗ ФАЙЛА
+  const user = ctx.from;
   const users = getUsersDirect();
   
   if (!users[user.id]) {
@@ -39,6 +41,7 @@ async function showMainMenu(ctx, bot) {
       name: user.first_name,
       coins: 100,
       crystals: 10,
+      dust: 0,
       rating: 0,
       league: "Бронза",
       wins: 0,
@@ -54,26 +57,31 @@ async function showMainMenu(ctx, bot) {
       packs: {},
       seasonal_packs: [],
       jerseys: [],
-      arenas: []
+      arenas: [],
+      tournament_win: false,
+      tournament_prize: null,
+      tournament_place: null
     };
     saveUsers(users);
   }
   
-  // ✅ БЕРЁМ АКТУАЛЬНЫЕ ДАННЫЕ
   const data = users[user.id];
-  
-  // ✅ ПОЛУЧАЕМ АКТУАЛЬНЫЙ XP
   const xp = data.battlepass_xp || 0;
   const bpLevel = Math.floor(xp / 20);
   const nextLevelXP = (bpLevel + 1) * 20;
   const xpToNext = Math.min(nextLevelXP - xp, 20);
   
-  // ✅ ПРОГРЕСС-БАР XP
   const progressBarLength = 10;
   const currentLevelProgress = xp % 20;
   const filledBars = Math.floor((currentLevelProgress / 20) * progressBarLength);
   const emptyBars = progressBarLength - filledBars;
   const progressBar = '▓'.repeat(filledBars) + '░'.repeat(emptyBars);
+  
+  // ✅ ПРОВЕРКА НА ПОБЕДУ В ТУРНИРЕ
+  let tournamentText = '';
+  if (data.tournament_win && data.tournament_place === 1) {
+    tournamentText = '\n🏆 *ТЫ ПОБЕДИЛ В ТУРНИРЕ!*\nВыбери свою награду в разделе 🏆 Турнир\n';
+  }
   
   const text = 
     "🏒 *Добро пожаловать в Bullet Kings!*\n\n" +
@@ -83,6 +91,7 @@ async function showMainMenu(ctx, bot) {
     "🥇 Лига: " + data.league + "\n" +
     "⭐ Монет: " + data.coins + "\n" +
     "💎 Кристаллов: " + data.crystals + "\n" +
+    "💎 Пыль: " + (data.dust || 0) + "\n" +
     "✅ Побед: " + data.wins + "\n" +
     "📊 Матчей: " + data.matches + "\n" +
     "🎖️ БП уровень: " + bpLevel + "/30\n" +
@@ -90,16 +99,19 @@ async function showMainMenu(ctx, bot) {
     "📊 " + progressBar + "\n" +
     "🎯 До следующего уровня: " + xpToNext + " XP\n" +
     "👥 В команде: " + data.team.length + " игроков\n" +
-    "📚 Карт: " + data.cards.length + "\n\n" +
-    "📋 *Главное меню:*\n\n" +
+    "📚 Карт: " + data.cards.length + 
+    tournamentText +
+    "\n\n📋 *Главное меню:*\n\n" +
     "🎮 Играть — сражайся с ИИ или PvP\n" +
     "👥 Команда — управляй составом\n" +
     "📚 Коллекция — все твои карты\n" +
     "🛒 Магазин — паки и бусты\n" +
+    "💎 Донат — купить кристаллы\n" +
     "👤 Профиль — твоя статистика\n" +
     "🎖️ Пропуск — боевой пропуск\n" +
     "📦 Инвентарь — паки и косметика\n" +
     "🎨 Косметика — формы и арены\n" +
+    "🏆 Турнир — турнирная таблица\n" +
     "📅 Бонус — ежедневный бонус";
   
   await ctx.reply(text, {
@@ -109,10 +121,12 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback("👥 Команда", "team")],
       [Markup.button.callback("📚 Коллекция", "collection")],
       [Markup.button.callback("🛒 Магазин", "shop")],
+      [Markup.button.callback("💎 Донат", "donate")],
       [Markup.button.callback("👤 Профиль", "profile")],
       [Markup.button.callback("🎖️ Пропуск", "battlepass")],
       [Markup.button.callback("📦 Инвентарь", "inventory")],
       [Markup.button.callback("🎨 Косметика", "cosmetics_menu")],
+      [Markup.button.callback("🏆 Турнир", "tournament")],
       [Markup.button.callback("📅 Бонус", "bonus")],
     ])
   });
@@ -124,7 +138,6 @@ module.exports = (bot) => {
     await showMainMenu(ctx, bot);
   });
 
-  // ЭКСПОРТИРУЕМ showMainMenu ДЛЯ ИСПОЛЬЗОВАНИЯ В ДРУГИХ МОДУЛЯХ
   module.exports.showMainMenu = showMainMenu;
 
   bot.action("play", async (ctx) => {
@@ -135,9 +148,7 @@ module.exports = (bot) => {
         parse_mode: "Markdown",
         ...Markup.inlineKeyboard([
           [Markup.button.callback("🤖 Против ИИ", "play_ai")],
-          // В функции showMainMenu, в inline клавиатуру добавьте:
-
-          [Markup.button.callback("⚔️ PvP", "pvp_find")],
+          [Markup.button.callback("⚔️ PvP", "play_pvp")],
           [Markup.button.callback("🔙 Назад", "back")],
         ])
       }
