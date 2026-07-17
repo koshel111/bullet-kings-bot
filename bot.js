@@ -97,8 +97,11 @@ require('./src/handlers/subscription')(bot);
 require('./src/handlers/donate')(bot);
 
 // ✅ ИМПОРТИРУЕМ ФУНКЦИИ ИЗ TOURNAMENT
-const tournament = require('./src/handlers/tournament');
-const { showTournament, selectPrizeCard } = tournament;
+const { 
+  showTournament, 
+  selectPrizeCard,
+  checkTournamentAutoFinish 
+} = require('./src/handlers/tournament');
 
 // ============================================
 // ОБРАБОТЧИКИ КНОПОК
@@ -157,7 +160,7 @@ async function startBot() {
     
     // ✅ ЗАПУСКАЕМ АВТОМАТИЧЕСКУЮ ПРОВЕРКУ ТУРНИРА (каждый час)
     setInterval(() => {
-      tournament.checkTournamentAutoFinish();
+      checkTournamentAutoFinish();
     }, 60 * 60 * 1000);
     
   } catch (error) {
