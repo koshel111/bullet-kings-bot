@@ -1,5 +1,5 @@
 // ============================================
-// src/handlers/pvp.js - PvP РЕЖИМ (С РЕЙТИНГОМ И ШАНСОМ)
+// src/handlers/pvp.js - PvP РЕЖИМ (С ПОКАЗОМ СОСТАВОВ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -23,6 +23,24 @@ function getUsers() {
 
 function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
+}
+
+function getRarityEmoji(rarity) {
+  const emojis = {
+    'Обычный': '⬜',
+    'Редкий': '🟩',
+    'Элитный': '🔵',
+    'Эпический': '🟣',
+    'Легендарный': '⭐',
+    'Икона': '🔥'
+  };
+  return emojis[rarity] || '⬜';
+}
+
+function getTeamRating(team) {
+  if (!team || team.length === 0) return 0;
+  const total = team.reduce((sum, p) => sum + (p.overall || 0), 0);
+  return Math.round(total / team.length);
 }
 
 function hasActiveMatch(userId) {
@@ -57,7 +75,7 @@ async function sendMessageToPlayer(playerId, text, keyboard = null) {
   }
 }
 
-// ✅ РАСЧЁТ ШАНСА ГОЛА (как в игре с ботом)
+// ✅ РАСЧЁТ ШАНСА ГОЛА
 function calculateShot(playerAction, goalieAction, playerOverall = 80) {
   const actionBonus = {
     'left': { 'left': 0.05, 'right': 0.75, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
@@ -72,7 +90,6 @@ function calculateShot(playerAction, goalieAction, playerOverall = 80) {
   const multiplier = actionBonus[playerAction]?.[goalieAction] || 0.5;
   const randomFactor = 0.7 + Math.random() * 0.6;
   
-  // ✅ БОНУС ЗА РЕЙТИНГ ИГРОКА
   let ratingBonus = 0;
   if (playerOverall >= 96) ratingBonus = 0.40;
   else if (playerOverall >= 91) ratingBonus = 0.30;
@@ -83,7 +100,6 @@ function calculateShot(playerAction, goalieAction, playerOverall = 80) {
   
   let probability = multiplier * randomFactor * (1 + ratingBonus);
   
-  // ✅ ДОПОЛНИТЕЛЬНЫЙ БОНУС ДЛЯ ВЫСОКИХ РЕЙТИНГОВ
   if (playerOverall >= 90) {
     probability = Math.max(probability, 0.30);
   }
@@ -94,6 +110,87 @@ function calculateShot(playerAction, goalieAction, playerOverall = 80) {
   probability = Math.max(0.05, Math.min(0.95, probability));
   
   return { isGoal: Math.random() < probability, probability: Math.round(probability * 100) };
+}
+
+// ✅ ПОКАЗ СОСТАВОВ И РЕЙТИНГОВ
+async function showTeamInfo(matchId) {
+  const match = pvpMatches[matchId];
+  if (!match) return;
+  
+  const player1Team = match.player1Team || [];
+  const player2Team = match.player2Team || [];
+  
+  const rating1 = getTeamRating(player1Team);
+  const rating2 = getTeamRating(player2Team);
+  
+  // Состав игрока 1
+  let text1 = `👤 *${match.player1Name}*\n`;
+  text1 += `📊 Рейтинг состава: ${rating1}\n\n`;
+  text1 += `🏒 *Полевые:*\n`;
+  
+  const forwards1 = player1Team.filter(p => p.position !== 'G');
+  const goalie1 = player1Team.find(p => p.position === 'G');
+  
+  forwards1.forEach((p, i) => {
+    const emoji = getRarityEmoji(p.rarity);
+    text1 += `  ${i+1}. ${emoji} ${p.name} (${p.overall} OVR)\n`;
+  });
+  
+  if (goalie1) {
+    const emoji = getRarityEmoji(goalie1.rarity);
+    text1 += `\n🧤 *Вратарь:* ${emoji} ${goalie1.name} (${goalie1.overall} OVR)`;
+  } else {
+    text1 += `\n🧤 *Вратарь:* ❌ Нет`;
+  }
+  
+  // Состав игрока 2
+  let text2 = `👤 *${match.player2Name}*\n`;
+  text2 += `📊 Рейтинг состава: ${rating2}\n\n`;
+  text2 += `🏒 *Полевые:*\n`;
+  
+  const forwards2 = player2Team.filter(p => p.position !== 'G');
+  const goalie2 = player2Team.find(p => p.position === 'G');
+  
+  forwards2.forEach((p, i) => {
+    const emoji = getRarityEmoji(p.rarity);
+    text2 += `  ${i+1}. ${emoji} ${p.name} (${p.overall} OVR)\n`;
+  });
+  
+  if (goalie2) {
+    const emoji = getRarityEmoji(goalie2.rarity);
+    text2 += `\n🧤 *Вратарь:* ${emoji} ${goalie2.name} (${goalie2.overall} OVR)`;
+  } else {
+    text2 += `\n🧤 *Вратарь:* ❌ Нет`;
+  }
+  
+  // Отправляем обоим игрокам информацию о составах
+  const keyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
+  ]);
+  
+  await sendMessageToPlayer(
+    match.player1,
+    `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
+    `📋 *Твой состав:*\n${text1}\n\n` +
+    `📋 *Состав соперника:*\n${text2}\n\n` +
+    `📊 Рейтинг твоего состава: ${rating1}\n` +
+    `📊 Рейтинг состава соперника: ${rating2}\n\n` +
+    `${rating1 > rating2 ? '🔥 Твой состав сильнее!' : rating1 < rating2 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}\n\n` +
+    `Нажми "Готов", чтобы начать матч!`,
+    keyboard
+  );
+  
+  await sendMessageToPlayer(
+    match.player2,
+    `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
+    `📋 *Твой состав:*\n${text2}\n\n` +
+    `📋 *Состав соперника:*\n${text1}\n\n` +
+    `📊 Рейтинг твоего состава: ${rating2}\n` +
+    `📊 Рейтинг состава соперника: ${rating1}\n\n` +
+    `${rating2 > rating1 ? '🔥 Твой состав сильнее!' : rating2 < rating1 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}\n\n` +
+    `Нажми "Готов", чтобы начать матч!`,
+    keyboard
+  );
 }
 
 // ПОИСК СОПЕРНИКА
@@ -194,6 +291,9 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
   
   console.log('📊 [PvP] Создаём матч:', matchId);
   
+  const player1Team = player1Data?.team || [];
+  const player2Team = player2Data?.team || [];
+  
   pvpMatches[matchId] = {
     id: matchId,
     player1: player1Id,
@@ -212,8 +312,8 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
     waitingForAction: false,
     currentShooter: null,
     lastShot: null,
-    player1Team: player1Data?.team || [],
-    player2Team: player2Data?.team || [],
+    player1Team: player1Team,
+    player2Team: player2Team,
     waitingForGoalie: false,
     pendingShot: null,
     currentGoalie: null,
@@ -228,27 +328,8 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
   playerActiveMatches[player1Id] = matchId;
   playerActiveMatches[player2Id] = matchId;
   
-  const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
-  ]);
-  
-  await ctx.telegram.sendMessage(
-    player1Id,
-    `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
-    `👤 Соперник: ${player2Data?.name || 'Игрок 2'}\n` +
-    `📊 Готовность: 0/2\n\n` +
-    `Нажмите "Готов", чтобы начать матч!`,
-    { parse_mode: 'Markdown', ...keyboard }
-  );
-  
-  await ctx.telegram.sendMessage(
-    player2Id,
-    `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
-    `👤 Соперник: ${player1Data?.name || 'Игрок 1'}\n` +
-    `📊 Готовность: 0/2\n\n` +
-    `Нажмите "Готов", чтобы начать матч!`,
-    { parse_mode: 'Markdown', ...keyboard }
-  );
+  // ✅ ПОКАЗЫВАЕМ СОСТАВЫ ОБОИМ ИГРОКАМ
+  await showTeamInfo(matchId);
 }
 
 // ГОТОВНОСТЬ К МАТЧУ
@@ -472,7 +553,6 @@ async function pvpHandleThrow(ctx, matchId, throwType) {
   match.lastThrow = throwNames[throwType] || throwType;
   match.lastPlayer = shooter.player.name;
   
-  // ✅ ОТПРАВЛЯЕМ СОПЕРНИКУ ЗАПРОС НА ВЫБОР ВРАТАРЯ
   const buttons = [
     [Markup.button.callback('🧤 Закрыть левый угол', `pvp_goalie_${matchId}_left`)],
     [Markup.button.callback('🧤 Закрыть правый угол', `pvp_goalie_${matchId}_right`)],
@@ -527,10 +607,8 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   const isPlayer1 = pendingShot.isPlayer1;
   const playerOverall = pendingShot.playerOverall || 80;
   
-  // ✅ РАСЧЁТ ШАНСА ГОЛА С УЧЁТОМ РЕЙТИНГА
   const result = calculateShot(shotType, goalieAction, playerOverall);
   
-  // Обновляем счёт
   if (result.isGoal) {
     if (isPlayer1) {
       match.player1Score++;
@@ -545,7 +623,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   match.pendingShot = null;
   match.lastProbability = result.probability;
   
-  // Проверяем завершение матча
   const isAfterMaxRounds = match.round >= match.maxRounds;
   const isScoreDifferent = match.player1Score !== match.player2Score;
   const isScoreEqual = match.player1Score === match.player2Score;
@@ -586,7 +663,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     aggressive: '💪 Агрессивный выход'
   };
   
-  // ✅ ПОКАЗЫВАЕМ РЕЗУЛЬТАТ С ШАНСОМ ГОЛА
   let resultText = `🎯 *${shooter.name} бросает!*\n`;
   resultText += `🎯 *Твой бросок:* ${throwNames[shotType] || shotType}\n`;
   resultText += `🧤 *Вратарь:* ${goalieNames[goalieAction] || goalieAction}\n`;
@@ -607,7 +683,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     return;
   }
   
-  // Меняем ход
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
   
   await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
