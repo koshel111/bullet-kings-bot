@@ -14,8 +14,10 @@ const pvpQueue = [];
 const pvpMatches = {};
 const pvpTimers = {};
 const playerActiveMatches = {};
+const searchTimers = {};
 
 let botInstance = null;
+let searchInterval = null;
 
 // ХРАНИЛИЩЕ ДЛЯ СООБЩЕНИЙ
 const playerMessages = {};
@@ -188,7 +190,6 @@ async function showTeamInfo(matchId) {
   text1 += `\n\n${rating1 > rating2 ? '🔥 Твой состав сильнее!' : rating1 < rating2 ? '⚠️ Состав соперника сильнее!' : '⚖️ Составы равны!'}`;
   text1 += `\n\nНажми "Готов", чтобы начать матч!`;
   
-  // Для второго игрока — меняем местами
   let text2 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n`;
   text2 += `👤 *${match.player2Name}*\n`;
   text2 += `📊 Рейтинг состава: ${rating2}\n\n`;
@@ -238,7 +239,7 @@ async function showTeamInfo(matchId) {
   if (msg2) playerMessages[match.player2] = msg2;
 }
 
-// ПОИСК СОПЕРНИКА
+// ✅ ПОИСК СОПЕРНИКА С ТАЙМЕРОМ
 async function findOpponent(ctx) {
   const userId = ctx.from.id;
   const user = ctx.from;
@@ -277,10 +278,13 @@ async function findOpponent(ctx) {
   
   pvpQueue.push(userId);
   
+  let seconds = 0;
+  
   const msg = await ctx.reply(
     `🔍 *Поиск соперника...*\n\n` +
     `👤 ${user.first_name}\n` +
-    `⏳ В очереди: ${pvpQueue.length} игроков\n\n` +
+    `⏳ В очереди: ${pvpQueue.length} игроков\n` +
+    `🕐 Прошло: ${seconds} сек.\n\n` +
     `💡 Для отмены нажмите кнопку ниже`,
     {
       parse_mode: 'Markdown',
@@ -290,13 +294,40 @@ async function findOpponent(ctx) {
     }
   );
   
+  // ✅ ЗАПУСКАЕМ ТАЙМЕР ОБНОВЛЕНИЯ
+  const timerInterval = setInterval(async () => {
+    seconds++;
+    try {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        msg.message_id,
+        null,
+        `🔍 *Поиск соперника...*\n\n` +
+        `👤 ${user.first_name}\n` +
+        `⏳ В очереди: ${pvpQueue.length} игроков\n` +
+        `🕐 Прошло: ${seconds} сек.\n\n` +
+        `💡 Для отмены нажмите кнопку ниже`,
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Отменить поиск', 'pvp_cancel')]
+          ])
+        }
+      );
+    } catch (e) {
+      clearInterval(timerInterval);
+    }
+  }, 1000);
+  
   pvpTimers[userId] = {
     messageId: msg.message_id,
     chatId: ctx.chat.id,
+    interval: timerInterval,
     timeout: setTimeout(() => {
       const index = pvpQueue.indexOf(userId);
       if (index !== -1) {
         pvpQueue.splice(index, 1);
+        clearInterval(timerInterval);
         ctx.telegram.editMessageText(
           ctx.chat.id,
           msg.message_id,
@@ -313,11 +344,14 @@ async function findOpponent(ctx) {
     const player1Id = pvpQueue.shift();
     const player2Id = pvpQueue.shift();
     
+    // Очищаем таймеры
     if (pvpTimers[player1Id]) {
+      clearInterval(pvpTimers[player1Id].interval);
       clearTimeout(pvpTimers[player1Id].timeout);
       delete pvpTimers[player1Id];
     }
     if (pvpTimers[player2Id]) {
+      clearInterval(pvpTimers[player2Id].interval);
       clearTimeout(pvpTimers[player2Id].timeout);
       delete pvpTimers[player2Id];
     }
@@ -367,7 +401,10 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
     started: false,
     lastThrow: null,
     lastPlayer: null,
-    lastProbability: 0
+    lastProbability: 0,
+    // ✅ НОВЫЕ ПОЛЯ ДЛЯ ОТСЛЕЖИВАНИЯ РАУНДОВ
+    player1Rounds: 0, // сколько бросков сделал игрок 1
+    player2Rounds: 0  // сколько бросков сделал игрок 2
   };
   
   playerActiveMatches[player1Id] = matchId;
@@ -376,7 +413,7 @@ async function createPvPMatch(ctx, player1Id, player2Id) {
   await showTeamInfo(matchId);
 }
 
-// ✅ ГОТОВНОСТЬ К МАТЧУ (ИСПРАВЛЕНО)
+// ГОТОВНОСТЬ К МАТЧУ
 async function pvpReady(ctx, matchId) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -396,7 +433,6 @@ async function pvpReady(ctx, matchId) {
     return;
   }
   
-  // Отмечаем готовность
   if (match.player1 === userId) {
     match.player1Ready = true;
   } else if (match.player2 === userId) {
@@ -408,17 +444,14 @@ async function pvpReady(ctx, matchId) {
   
   const readyCount = (match.player1Ready ? 1 : 0) + (match.player2Ready ? 1 : 0);
   
-  // ✅ ДЛЯ ИГРОКА 1
   const text1 = `⚔️ *СОПЕРНИК НАЙДЕН!*\n\n` +
     `👤 ${match.player1Name} ${match.player1Ready ? '✅' : '⏳'}\n` +
     `👤 ${match.player2Name} ${match.player2Ready ? '✅' : '⏳'}\n` +
     `📊 Готовность: ${readyCount}/2\n\n` +
     `${readyCount === 2 ? '🎯 Все готовы! Начинаем матч!' : 'Ожидаем подтверждения от соперника...'}`;
   
-  // ✅ ДЛЯ ИГРОКА 2 (такой же текст)
   const text2 = text1;
   
-  // ✅ КНОПКА ПОКАЗЫВАЕТСЯ ТОЛЬКО ТОМУ, КТО НЕ НАЖАЛ
   const keyboard1 = match.player1Ready ? null : Markup.inlineKeyboard([
     [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
   ]);
@@ -427,16 +460,13 @@ async function pvpReady(ctx, matchId) {
     [Markup.button.callback('✅ Готов к матчу!', `pvp_ready_${matchId}`)]
   ]);
   
-  // ✅ ОТПРАВЛЯЕМ КАЖДОМУ ИГРОКУ СВОЁ СООБЩЕНИЕ
   await sendOrEditMessage(match.player1, text1, keyboard1, playerMessages[match.player1]);
   await sendOrEditMessage(match.player2, text2, keyboard2, playerMessages[match.player2]);
   
-  // ✅ ЕСЛИ ОБА ГОТОВЫ — ЗАПУСКАЕМ МАТЧ
   if (readyCount === 2) {
     match.started = true;
     match.currentTurn = match.player1;
     
-    // Очищаем старые сообщения
     delete playerMessages[match.player1];
     delete playerMessages[match.player2];
     
@@ -462,6 +492,49 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
   const forwards = team.filter(p => p.position !== 'G');
   const available = forwards.filter((p, i) => !usedPlayers.includes(i));
   
+  // ✅ ПРОВЕРЯЕМ, СКОЛЬКО БРОСКОВ СДЕЛАЛ КАЖДЫЙ ИГРОК
+  const playerRounds = isPlayer1 ? match.player1Rounds : match.player2Rounds;
+  
+  // ✅ ЕСЛИ ИГРОК СДЕЛАЛ 5 БРОСКОВ — ХОД ПЕРЕХОДИТ К СОПЕРНИКУ
+  if (playerRounds >= 5) {
+    // Проверяем, сделал ли соперник 5 бросков
+    const opponentRounds = isPlayer1 ? match.player2Rounds : match.player1Rounds;
+    
+    if (opponentRounds >= 5) {
+      // Оба сделали по 5 бросков — проверяем счёт
+      if (match.player1Score === match.player2Score) {
+        // Ничья — овертайм
+        match.isSuddenDeath = true;
+        match.maxRounds = Infinity;
+        match.usedPlayers1 = [];
+        match.usedPlayers2 = [];
+        match.player1Rounds = 0;
+        match.player2Rounds = 0;
+        // Продолжаем с того же игрока
+        await showPvPPlayerSelectionToPlayer(playerId, matchId);
+        return;
+      } else {
+        // Разница в счёте — матч завершён
+        match.isFinished = true;
+        await finishPvPMatch(matchId);
+        return;
+      }
+    } else {
+      // Ход соперника
+      match.currentTurn = isPlayer1 ? match.player2 : match.player1;
+      await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
+      
+      // Уведомляем игрока
+      await sendOrEditMessage(
+        playerId,
+        `⏳ *Ожидание хода соперника...*\n\n👤 ${match.currentTurn === match.player1 ? match.player1Name : match.player2Name} выбирает игрока для броска.\nПодождите, скоро ваш ход!`,
+        null,
+        playerMessages[playerId]
+      );
+      return;
+    }
+  }
+  
   if (available.length === 0) {
     if (match.isSuddenDeath) {
       if (isPlayer1) {
@@ -473,8 +546,13 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
       return;
     }
     
-    match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
-    await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
+    // Все игроки использованы, но раундов меньше 5 — сбрасываем
+    if (isPlayer1) {
+      match.usedPlayers1 = [];
+    } else {
+      match.usedPlayers2 = [];
+    }
+    await showPvPPlayerSelectionToPlayer(playerId, matchId);
     return;
   }
   
@@ -499,8 +577,13 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
   text += `👤 ${myName} (ваш ход)\n`;
   text += `👤 ${oppName}\n`;
   text += `📊 Счёт: ${myScore} - ${oppScore}\n`;
-  text += `🔢 Раунд ${match.round + 1} ${match.isSuddenDeath ? '(ДО ГОЛА!)' : 'из ' + match.maxRounds}\n\n`;
-  text += `*Выбери полевого игрока для броска:*`;
+  text += `🔢 Ваши броски: ${playerRounds}/5\n`;
+  text += `🔢 Броски соперника: ${isPlayer1 ? match.player2Rounds : match.player1Rounds}/5\n`;
+  text += `📊 Раунд: ${match.round + 1}\n`;
+  if (match.isSuddenDeath) {
+    text += `⚡ *ОВЕРТАЙМ! БУЛЛИТЫ ДО ГОЛА!*\n`;
+  }
+  text += `\n*Выбери полевого игрока для броска:*`;
   
   const messageId = await sendOrEditMessage(playerId, text, Markup.inlineKeyboard(buttons), playerMessages[playerId]);
   if (messageId) playerMessages[playerId] = messageId;
@@ -569,6 +652,13 @@ async function pvpHandleThrow(ctx, matchId, throwType) {
   if (!shooter) {
     await ctx.reply('❌ Ошибка! Выберите игрока сначала.');
     return;
+  }
+  
+  // ✅ УВЕЛИЧИВАЕМ СЧЁТЧИК БРОСКОВ ИГРОКА
+  if (isPlayer1) {
+    match.player1Rounds++;
+  } else {
+    match.player2Rounds++;
   }
   
   const usedPlayers = isPlayer1 ? match.usedPlayers1 : match.usedPlayers2;
@@ -659,26 +749,25 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   match.pendingShot = null;
   match.lastProbability = result.probability;
   
-  // ✅ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ ПОСЛЕ 5 РАУНДОВ
-  const isAfterMaxRounds = match.round >= match.maxRounds;
-  const isScoreDifferent = match.player1Score !== match.player2Score;
-  const isScoreEqual = match.player1Score === match.player2Score;
-  
-  if (isAfterMaxRounds && isScoreEqual) {
-    match.isSuddenDeath = true;
-    match.maxRounds = Infinity;
-    match.usedPlayers1 = [];
-    match.usedPlayers2 = [];
-  }
-  
-  if (match.isSuddenDeath) {
+  // ✅ ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ МАТЧА
+  // Если оба сделали по 5 бросков
+  if (match.player1Rounds >= 5 && match.player2Rounds >= 5) {
     if (match.player1Score !== match.player2Score) {
       match.isFinished = true;
+    } else {
+      // Ничья — овертайм
+      match.isSuddenDeath = true;
+      match.maxRounds = Infinity;
+      match.usedPlayers1 = [];
+      match.usedPlayers2 = [];
+      match.player1Rounds = 0;
+      match.player2Rounds = 0;
     }
-  } else {
-    if (isAfterMaxRounds && isScoreDifferent) {
-      match.isFinished = true;
-    }
+  }
+  
+  // Если овертайм и есть разница в счёте — матч завершён
+  if (match.isSuddenDeath && match.player1Score !== match.player2Score) {
+    match.isFinished = true;
   }
   
   const throwNames = {
@@ -706,7 +795,10 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   resultText += `${result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*'}\n\n`;
   resultText += `📊 *Шанс гола:* ${result.probability}% (рейтинг ${playerOverall})\n\n`;
   resultText += `📊 *Счёт:* ${match.player1Name} ${match.player1Score} — ${match.player2Score} ${match.player2Name}\n`;
-  resultText += `🔢 Раунд ${match.round} ${match.isSuddenDeath ? '(ДО ГОЛА!)' : 'из ' + match.maxRounds}`;
+  resultText += `🔢 Броски: ${match.player1Name} ${match.player1Rounds}/5, ${match.player2Name} ${match.player2Rounds}/5\n`;
+  if (match.isSuddenDeath) {
+    resultText += `⚡ *ОВЕРТАЙМ! БУЛЛИТЫ ДО ГОЛА!*\n`;
+  }
   
   const resultKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback('📊 Продолжить', `pvp_continue_${matchId}`)]
@@ -720,17 +812,9 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     return;
   }
   
+  // ✅ МЕНЯЕМ ХОД
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
-  
   await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
-  
-  const waitingPlayer = match.currentTurn === match.player1 ? match.player2 : match.player1;
-  await sendOrEditMessage(
-    waitingPlayer,
-    `⏳ *Ожидание хода соперника...*\n\n👤 ${match.currentTurn === match.player1 ? match.player1Name : match.player2Name} выбирает игрока для броска.\nПодождите, скоро ваш ход!`,
-    null,
-    playerMessages[waitingPlayer]
-  );
 }
 
 // ПРОДОЛЖЕНИЕ МАТЧА
@@ -816,6 +900,7 @@ async function cancelPvpSearch(ctx) {
   if (index !== -1) {
     pvpQueue.splice(index, 1);
     if (pvpTimers[userId]) {
+      clearInterval(pvpTimers[userId].interval);
       clearTimeout(pvpTimers[userId].timeout);
       delete pvpTimers[userId];
     }
