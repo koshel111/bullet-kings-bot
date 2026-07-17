@@ -359,15 +359,15 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
   match.currentShooter = { playerNum, playerIndex, player };
   match.waitingForAction = true;
   
-  // ✅ УНИКАЛЬНЫЙ ПРЕФИКС: pvp_shot_ вместо shot_
+  // ✅ НОВЫЙ ПРЕФИКС: pvp_throw_ (не содержит "shot_")
   const buttons = [
-    [Markup.button.callback('⬅️ Влево', `pvp_shot_action_${matchId}_left`)],
-    [Markup.button.callback('➡️ Вправо', `pvp_shot_action_${matchId}_right`)],
-    [Markup.button.callback('⬆️ Верхний', `pvp_shot_action_${matchId}_top`)],
-    [Markup.button.callback('⬇️ Между щитков', `pvp_shot_action_${matchId}_fivehole`)],
-    [Markup.button.callback('🔄 Финт', `pvp_shot_action_${matchId}_deke`)],
-    [Markup.button.callback('✋ Кистевой', `pvp_shot_action_${matchId}_wrist`)],
-    [Markup.button.callback('💥 Щелчок', `pvp_shot_action_${matchId}_slap`)],
+    [Markup.button.callback('⬅️ Влево', `pvp_throw_${matchId}_left`)],
+    [Markup.button.callback('➡️ Вправо', `pvp_throw_${matchId}_right`)],
+    [Markup.button.callback('⬆️ Верхний', `pvp_throw_${matchId}_top`)],
+    [Markup.button.callback('⬇️ Между щитков', `pvp_throw_${matchId}_fivehole`)],
+    [Markup.button.callback('🔄 Финт', `pvp_throw_${matchId}_deke`)],
+    [Markup.button.callback('✋ Кистевой', `pvp_throw_${matchId}_wrist`)],
+    [Markup.button.callback('💥 Щелчок', `pvp_throw_${matchId}_slap`)],
   ];
   
   await ctx.editMessageText(
@@ -379,8 +379,8 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
   );
 }
 
-// ОБРАБОТКА БРОСКА (только для pvp_shot_action_)
-async function pvpHandleShot(ctx, matchId, shotType) {
+// ОБРАБОТКА БРОСКА (только для pvp_throw_)
+async function pvpHandleThrow(ctx, matchId, throwType) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
   
@@ -409,7 +409,7 @@ async function pvpHandleShot(ctx, matchId, shotType) {
   
   match.pendingShot = {
     shooter: shooter.player,
-    shotType: shotType,
+    shotType: throwType,
     playerNum: shooter.playerNum,
     isPlayer1: isPlayer1
   };
@@ -417,7 +417,7 @@ async function pvpHandleShot(ctx, matchId, shotType) {
   match.waitingForGoalie = true;
   match.currentGoalie = opponentId;
   
-  const shotNames = {
+  const throwNames = {
     left: '⬅️ Влево',
     right: '➡️ Вправо',
     top: '⬆️ Верхний',
@@ -441,7 +441,7 @@ async function pvpHandleShot(ctx, matchId, shotType) {
     `🧤 *Вратарь!*\n\n` +
     `🎯 Соперник: ${isPlayer1 ? match.player1Name : match.player2Name}\n` +
     `🏒 Игрок: ${shooter.player.name}\n` +
-    `🎯 Бросок: ${shotNames[shotType] || shotType}\n\n` +
+    `🎯 Бросок: ${throwNames[throwType] || throwType}\n\n` +
     `*Выбери действие вратаря:*`,
     {
       parse_mode: 'Markdown',
@@ -528,7 +528,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     }
   }
   
-  const shotNames = {
+  const throwNames = {
     left: '⬅️ Влево',
     right: '➡️ Вправо',
     top: '⬆️ Верхний',
@@ -549,7 +549,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   
   const resultText = `⚡ *РЕЗУЛЬТАТ БРОСКА!*\n\n` +
     `🎯 Игрок: ${shooter.name}\n` +
-    `🎯 Бросок: ${shotNames[shotType] || shotType}\n` +
+    `🎯 Бросок: ${throwNames[shotType] || shotType}\n` +
     `🧤 Вратарь: ${goalieNames[goalieAction] || goalieAction}\n` +
     `${isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*'}\n\n` +
     `📊 Счёт: ${match.player1Name} ${match.player1Score} - ${match.player2Score} ${match.player2Name}`;
@@ -732,10 +732,10 @@ module.exports = (bot) => {
     await pvpChooseShot(ctx, ctx.match[1], parseInt(ctx.match[2]), parseInt(ctx.match[3]));
   });
   
-  // ✅ НОВЫЙ УНИКАЛЬНЫЙ ПРЕФИКС: pvp_shot_action_
-  bot.action(/pvp_shot_action_(.+)_(.+)/, async (ctx) => {
+  // ✅ НОВЫЙ ПРЕФИКС: pvp_throw_ (не содержит "shot_")
+  bot.action(/pvp_throw_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
-    await pvpHandleShot(ctx, ctx.match[1], ctx.match[2]);
+    await pvpHandleThrow(ctx, ctx.match[1], ctx.match[2]);
   });
   
   bot.action(/pvp_goalie_(.+)_(.+)/, async (ctx) => {
