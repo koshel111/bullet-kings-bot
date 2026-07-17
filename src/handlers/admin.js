@@ -20,7 +20,7 @@ const {
 const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
 
 // ✅ ПРАВИЛЬНЫЙ ИМПОРТ ИЗ TOURNAMENT
-const { 
+cconst { 
   adminStopTournament, 
   adminStartTournament, 
   adminSetTournamentName,
