@@ -84,7 +84,6 @@ async function showTournament(ctx) {
   text += `📅 Сезон ${tournament.season}\n`;
   text += `🕐 До окончания: ${getTimeLeft(tournament.endDate)}\n\n`;
   
-  // Сортируем игроков по очкам
   const sortedPlayers = Object.entries(tournament.players)
     .sort((a, b) => b[1].points - a[1].points)
     .slice(0, 50);
@@ -148,7 +147,7 @@ function getTimeLeft(endDate) {
   return `${days}д ${hours}ч ${minutes}м`;
 }
 
-// ✅ АВТОМАТИЧЕСКОЕ ЗАВЕРШЕНИЕ ТУРНИРА (1 сентября)
+// ✅ АВТОМАТИЧЕСКОЕ ЗАВЕРШЕНИЕ ТУРНИРА
 async function finishTournament(ctx = null) {
   const tournament = getTournamentData();
   
@@ -163,7 +162,6 @@ async function finishTournament(ctx = null) {
     return;
   }
   
-  // Награды
   const prizes = [
     { place: 1, prize: 'Любая карта 96+ (3 варианта)' },
     { place: 2, prize: '100⭐ + 20💎' },
@@ -182,7 +180,6 @@ async function finishTournament(ctx = null) {
       resultText += `${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'} *${userName}* — ${stats.points} очков\n`;
       resultText += `  🎁 Приз: ${prize.prize}\n\n`;
       
-      // Начисляем награды
       const userData = users[id];
       if (userData) {
         if (index === 0) {
@@ -207,12 +204,10 @@ async function finishTournament(ctx = null) {
   tournament.isFinished = true;
   saveTournamentData(tournament);
   
-  // Отправляем результат всем
   if (ctx) {
     await ctx.reply(resultText, { parse_mode: 'Markdown' });
   }
   
-  // Рассылка всем участникам
   for (const playerId of Object.keys(tournament.players)) {
     try {
       await ctx.telegram.sendMessage(
@@ -287,7 +282,7 @@ async function adminSetTournamentName(ctx, name) {
   await ctx.reply(`✅ *Название турнира обновлено!*\n\n🏆 ${name}`, { parse_mode: 'Markdown' });
 }
 
-// ✅ АВТОМАТИЧЕСКАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ ТУРНИРА (запускать каждый час)
+// ✅ АВТОМАТИЧЕСКАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ
 function checkTournamentAutoFinish() {
   const tournament = getTournamentData();
   
@@ -296,7 +291,6 @@ function checkTournamentAutoFinish() {
   const now = new Date();
   const end = new Date(tournament.endDate);
   
-  // Проверяем, не пора ли завершить турнир (1 сентября)
   const isSeptemberFirst = now.getMonth() === 8 && now.getDate() === 1;
   const isMidnight = now.getHours() === 0 && now.getMinutes() === 0;
   
@@ -316,7 +310,6 @@ async function showPrizeCardSelection(ctx) {
     return;
   }
   
-  // 3 варианта карт 96+
   const cards = [
     { name: 'Александр Овечкин', overall: 99, position: 'LW', rarity: 'Икона' },
     { name: 'Сидни Кросби', overall: 97, position: 'C', rarity: 'Икона' },
@@ -371,7 +364,6 @@ async function selectPrizeCard(ctx, cardIndex) {
     return;
   }
   
-  // Добавляем карту в коллекцию
   const cardWithId = {
     ...card,
     id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
@@ -402,7 +394,25 @@ async function selectPrizeCard(ctx, cardIndex) {
 }
 
 // ============================================
-// ЭКСПОРТ
+// ЭКСПОРТ (ТОЛЬКО ФУНКЦИИ, БЕЗ (BOT) =>)
+// ============================================
+module.exports = {
+  getTournamentData,
+  saveTournamentData,
+  addTournamentResult,
+  showTournament,
+  finishTournament,
+  adminStopTournament,
+  adminStartTournament,
+  adminSetTournamentName,
+  checkTournamentAutoFinish,
+  getTournamentWinners,
+  showPrizeCardSelection,
+  selectPrizeCard
+};
+
+// ============================================
+// РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ БОТА (ОТДЕЛЬНО)
 // ============================================
 module.exports = (bot) => {
   
@@ -420,15 +430,4 @@ module.exports = (bot) => {
     await ctx.answerCbQuery();
     await selectPrizeCard(ctx, parseInt(ctx.match[1]));
   });
-  
-  // Экспортируем функции для использования в других файлах
-  module.exports.addTournamentResult = addTournamentResult;
-  module.exports.showTournament = showTournament;
-  module.exports.finishTournament = finishTournament;
-  module.exports.adminStopTournament = adminStopTournament;
-  module.exports.adminStartTournament = adminStartTournament;
-  module.exports.adminSetTournamentName = adminSetTournamentName;
-  module.exports.checkTournamentAutoFinish = checkTournamentAutoFinish;
-  module.exports.getTournamentData = getTournamentData;
-  module.exports.showPrizeCardSelection = showPrizeCardSelection;
 };
