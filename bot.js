@@ -97,6 +97,7 @@ require('./src/handlers/subscription')(bot);
 require('./src/handlers/donate')(bot);
 
 // ✅ ИМПОРТИРУЕМ ФУНКЦИИ ИЗ TOURNAMENT
+// ✅ ПРАВИЛЬНО:
 const { 
   showTournament, 
   selectPrizeCard,
