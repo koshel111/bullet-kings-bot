@@ -20,13 +20,12 @@ const {
 const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
 
 // ✅ ПРАВИЛЬНЫЙ ИМПОРТ ИЗ TOURNAMENT
-const tournament = require('./tournament');
 const { 
   adminStopTournament, 
   adminStartTournament, 
   adminSetTournamentName,
   getTournamentData 
-} = tournament;
+} = require('./tournament');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
