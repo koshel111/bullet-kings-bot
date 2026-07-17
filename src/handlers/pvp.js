@@ -286,7 +286,6 @@ async function showPvPPlayerSelectionToPlayer(playerId, matchId) {
       return;
     }
     
-    // Проверяем завершение
     const isAfterMaxRounds = match.round >= match.maxRounds;
     const isScoreDifferent = match.player1Score !== match.player2Score;
     
@@ -357,10 +356,10 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
     return;
   }
   
-  // Сохраняем выбранного игрока
   match.currentShooter = { playerNum, playerIndex, player };
   match.waitingForAction = true;
   
+  // ✅ ИЗМЕНЕНО: pvp_shot_ вместо shot_
   const buttons = [
     [Markup.button.callback('⬅️ Влево', `pvp_shot_${matchId}_left`)],
     [Markup.button.callback('➡️ Вправо', `pvp_shot_${matchId}_right`)],
@@ -380,7 +379,7 @@ async function pvpChooseShot(ctx, matchId, playerNum, playerIndex) {
   );
 }
 
-// ОБРАБОТКА БРОСКА
+// ОБРАБОТКА БРОСКА (только для pvp_shot_)
 async function pvpHandleShot(ctx, matchId, shotType) {
   const userId = ctx.from.id;
   const match = pvpMatches[matchId];
@@ -402,7 +401,6 @@ async function pvpHandleShot(ctx, matchId, shotType) {
     return;
   }
   
-  // Сохраняем бросок
   const usedPlayers = isPlayer1 ? match.usedPlayers1 : match.usedPlayers2;
   usedPlayers.push(shooter.playerIndex);
   
@@ -438,7 +436,6 @@ async function pvpHandleShot(ctx, matchId, shotType) {
     [Markup.button.callback('💪 Агрессивный выход', `pvp_goalie_${matchId}_aggressive`)],
   ];
   
-  // Отправляем сопернику запрос на выбор вратаря
   await ctx.telegram.sendMessage(
     opponentId,
     `🧤 *Вратарь!*\n\n` +
@@ -452,7 +449,6 @@ async function pvpHandleShot(ctx, matchId, shotType) {
     }
   );
   
-  // Уведомляем текущего игрока
   await ctx.editMessageText(
     `⏳ *Ожидание ответа от соперника...*\n\n` +
     `🧤 ${opponentName} выбирает действие вратаря.`,
@@ -485,7 +481,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   const shotType = pendingShot.shotType;
   const isPlayer1 = pendingShot.isPlayer1;
   
-  // Расчёт результата
   const goalieSuccess = {
     left: { left: 0.9, right: 0.2, stand: 0.5, low: 0.4, glove: 0.4, aggressive: 0.3 },
     right: { left: 0.2, right: 0.9, stand: 0.5, low: 0.4, glove: 0.4, aggressive: 0.3 },
@@ -499,7 +494,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   const successRate = goalieSuccess[goalieAction]?.[shotType] || 0.5;
   const isGoal = Math.random() > successRate;
   
-  // Обновляем счёт
   if (isGoal) {
     if (isPlayer1) {
       match.player1Score++;
@@ -513,7 +507,6 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   match.currentGoalie = null;
   match.pendingShot = null;
   
-  // Проверяем завершение матча
   const isAfterMaxRounds = match.round >= match.maxRounds;
   const isScoreDifferent = match.player1Score !== match.player2Score;
   const isScoreEqual = match.player1Score === match.player2Score;
@@ -573,13 +566,10 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     return;
   }
   
-  // Меняем ход
   match.currentTurn = match.currentTurn === match.player1 ? match.player2 : match.player1;
   
-  // Отправляем выбор игрока следующему игроку
   await showPvPPlayerSelectionToPlayer(match.currentTurn, matchId);
   
-  // Уведомляем предыдущего игрока
   const waitingPlayer = match.currentTurn === match.player1 ? match.player2 : match.player1;
   await ctx.telegram.sendMessage(
     waitingPlayer,
@@ -742,6 +732,7 @@ module.exports = (bot) => {
     await pvpChooseShot(ctx, ctx.match[1], parseInt(ctx.match[2]), parseInt(ctx.match[3]));
   });
   
+  // ✅ ИЗМЕНЕНО: pvp_shot_ вместо shot_
   bot.action(/pvp_shot_(.+)_(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     await pvpHandleShot(ctx, ctx.match[1], ctx.match[2]);
