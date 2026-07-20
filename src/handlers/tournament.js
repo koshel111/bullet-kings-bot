@@ -1,5 +1,5 @@
 // ============================================
-// src/handlers/tournament.js - ПОЛНАЯ ТУРНИРНАЯ СИСТЕМА
+// src/handlers/tournament.js - ИСПРАВЛЕННЫЙ (РАБОТАЮТ КОМАНДЫ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -43,6 +43,7 @@ function getTournamentData() {
 function saveTournamentData(data) {
   try {
     fs.writeFileSync(TOURNAMENT_PATH, JSON.stringify(data, null, 2));
+    console.log('✅ [Турнир] Данные сохранены');
   } catch (error) {
     console.error('❌ Ошибка сохранения турнира:', error.message);
   }
@@ -57,13 +58,16 @@ function getUsers() {
   }
 }
 
+function saveUsers(users) {
+  fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
+}
+
 // ============================================
 // ОСНОВНЫЕ ФУНКЦИИ
 // ============================================
 function addTournamentResult(playerId, isWin, isDraw = false) {
   const tournament = getTournamentData();
   
-  // ✅ ТУРНИР ДОЛЖЕН БЫТЬ АКТИВЕН
   if (!tournament.isActive || tournament.isFinished) {
     console.log('⚠️ Турнир неактивен или завершён, очки не начисляются');
     return false;
@@ -233,10 +237,12 @@ function selectPrizeCard(ctx, cardIndex) {
 }
 
 // ============================================
-// АДМИНСКИЕ ФУНКЦИИ
+// АДМИНСКИЕ ФУНКЦИИ (ИСПРАВЛЕННЫЕ)
 // ============================================
 function adminStopTournament(ctx) {
+  console.log('🏆 [adminStopTournament] Вызвана команда stop_tournament');
   const tournament = getTournamentData();
+  
   if (tournament.isFinished) {
     ctx.reply('❌ Турнир уже завершён!');
     return;
@@ -260,7 +266,6 @@ function adminStopTournament(ctx) {
     const userName = users[id]?.name || `Игрок${id}`;
     resultText += `${medals[index]} ${userName} — ${stats.points} очков\n`;
     
-    // ✅ ВЫДАЁМ НАГРАДЫ
     if (users[id]) {
       if (index === 0) {
         users[id].tournament_win = true;
@@ -280,10 +285,13 @@ function adminStopTournament(ctx) {
   
   saveUsers(users);
   ctx.reply(resultText, { parse_mode: 'HTML' });
+  console.log('🏆 [adminStopTournament] Турнир остановлен, награды выданы');
 }
 
 function adminStartTournament(ctx) {
+  console.log('🏆 [adminStartTournament] Вызвана команда start_tournament');
   const tournament = getTournamentData();
+  
   tournament.isActive = true;
   tournament.isFinished = false;
   tournament.players = {};
@@ -291,15 +299,18 @@ function adminStartTournament(ctx) {
   tournament.startDate = new Date().toISOString();
   tournament.endDate = new Date('2026-09-01T00:00:00.000Z').toISOString();
   saveTournamentData(tournament);
+  
   ctx.reply(
     `✅ НОВЫЙ ТУРНИР СОЗДАН!\n\n` +
     `🏆 Сезон ${tournament.season}\n` +
     `📅 До окончания: до 1 сентября\n\n` +
     `💡 Все игроки автоматически участвуют!`
   );
+  console.log('🏆 [adminStartTournament] Новый турнир создан, сезон', tournament.season);
 }
 
 function adminSetTournamentName(ctx, name) {
+  console.log('🏆 [adminSetTournamentName] Вызвана команда set_name:', name);
   const tournament = getTournamentData();
   tournament.name = name;
   saveTournamentData(tournament);
@@ -320,7 +331,6 @@ function checkTournamentAutoFinish() {
     saveTournamentData(tournament);
     console.log('🏆 Турнир автоматически завершён!');
     
-    // ✅ ВЫДАЁМ НАГРАДЫ
     const sorted = Object.entries(tournament.players)
       .sort((a, b) => b[1].points - a[1].points)
       .slice(0, 3);
