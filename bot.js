@@ -95,14 +95,12 @@ require('./src/handlers/admin')(bot);
 require('./src/handlers/battlepass')(bot);
 require('./src/handlers/subscription')(bot);
 require('./src/handlers/donate')(bot);
+require('./src/handlers/pvp')(bot);
 
-// ✅ ИМПОРТИРУЕМ ФУНКЦИИ ИЗ TOURNAMENT
-// ✅ ПРАВИЛЬНО:
-const { 
-  showTournament, 
-  selectPrizeCard,
-  checkTournamentAutoFinish 
-} = require('./src/handlers/tournament');
+// ============================================
+// ИМПОРТ ТУРНИРА
+// ============================================
+const tournament = require('./src/handlers/tournament');
 
 // ============================================
 // ОБРАБОТЧИКИ КНОПОК
@@ -110,6 +108,7 @@ const {
 const { showMainMenu } = require('./src/handlers/start');
 const { showDonateShop } = require('./src/handlers/donate');
 const { handleCheckSubscription } = require('./src/handlers/subscription');
+const { showTournament } = require('./src/handlers/tournament');
 
 bot.action('back', async (ctx) => {
   await ctx.answerCbQuery();
@@ -128,11 +127,6 @@ bot.action('tournament', async (ctx) => {
 bot.action('tournament_refresh', async (ctx) => {
   await ctx.answerCbQuery();
   await showTournament(ctx);
-});
-
-bot.action(/prize_card_(\d+)/, async (ctx) => {
-  await ctx.answerCbQuery();
-  await selectPrizeCard(ctx, parseInt(ctx.match[1]));
 });
 
 bot.action('donate', async (ctx) => {
@@ -159,9 +153,9 @@ async function startBot() {
     console.log('📅 ' + new Date().toLocaleString());
     console.log('🆔 PID:', process.pid);
     
-    // ✅ ЗАПУСКАЕМ АВТОМАТИЧЕСКУЮ ПРОВЕРКУ ТУРНИРА (каждый час)
+    // АВТОМАТИЧЕСКАЯ ПРОВЕРКА ТУРНИРА (каждый час)
     setInterval(() => {
-      checkTournamentAutoFinish();
+      tournament.checkTournamentAutoFinish();
     }, 60 * 60 * 1000);
     
   } catch (error) {

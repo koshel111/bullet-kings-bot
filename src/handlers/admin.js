@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - ПОЛНЫЙ ИСПРАВЛЕННЫЙ ФАЙЛ
+// src/handlers/admin.js - ПОЛНЫЙ ФАЙЛ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -19,13 +19,14 @@ const {
 } = require('../data/cosmetics');
 const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
 
-// ✅ ИМПОРТ ИЗ TOURNAMENT
+// ✅ ИМПОРТ ТУРНИРА
+const tournament = require('./tournament');
 const { 
   adminStopTournament, 
   adminStartTournament, 
   adminSetTournamentName,
   getTournamentData 
-} = require('./tournament');
+} = tournament;
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -597,7 +598,7 @@ async function showAdminMenu(ctx) {
 }
 
 // ============================================
-// ЭКСПОРТ — ВСЕ ОБРАБОТЧИКИ БОТА
+// ЭКСПОРТ
 // ============================================
 module.exports = (bot) => {
   
@@ -750,13 +751,13 @@ module.exports = (bot) => {
   // УПРАВЛЕНИЕ ТУРНИРОМ
   bot.action("admin_tournament", async (ctx) => {
     await ctx.answerCbQuery();
-    const tournament = getTournamentData();
+    const tournamentData = getTournamentData();
     await ctx.reply(
       `🏆 *УПРАВЛЕНИЕ ТУРНИРОМ*\n\n` +
-      `📊 Статус: ${tournament.isActive ? '✅ Активен' : '❌ Остановлен'}\n` +
-      `🏆 Название: ${tournament.name}\n` +
-      `📅 Сезон: ${tournament.season}\n` +
-      `👥 Участников: ${Object.keys(tournament.players).length}\n` +
+      `📊 Статус: ${tournamentData.isActive ? '✅ Активен' : '❌ Остановлен'}\n` +
+      `🏆 Название: ${tournamentData.name}\n` +
+      `📅 Сезон: ${tournamentData.season}\n` +
+      `👥 Участников: ${Object.keys(tournamentData.players).length}\n` +
       `📅 До окончания: до 1 сентября\n\n` +
       `📋 *Команды:*\n` +
       `\`stop_tournament\` — остановить турнир\n` +
@@ -1254,4 +1255,4 @@ module.exports = (bot) => {
     );
   });
 
-}; // ← ЭТА СКОБКА ЗАКРЫВАЕТ module.exports = (bot) => {
+};
