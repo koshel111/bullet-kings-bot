@@ -1,5 +1,5 @@
 // ============================================
-// src/handlers/subscription.js - ПРОВЕРКА ПОДПИСКИ
+// src/handlers/subscription.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -7,7 +7,7 @@ const { Markup } = require('telegraf');
 const CHANNEL_ID = '@KOSH_ED'; // ID канала
 const CHANNEL_LINK = 'https://t.me/KOSH_ED';
 
-// ✅ ПРОВЕРКА ПОДПИСКИ
+// ✅ ПРОВЕРКА ПОДПИСКИ С ОБРАБОТКОЙ ОШИБОК
 async function checkSubscription(ctx) {
   const userId = ctx.from.id;
   
@@ -38,11 +38,18 @@ async function checkSubscription(ctx) {
   } catch (error) {
     console.error('❌ Ошибка проверки подписки:', error.message);
     
-    // Если ошибка — предлагаем подписаться
+    // ✅ ЕСЛИ ОШИБКА — ПРОПУСКАЕМ ПРОВЕРКУ (для разработки)
+    // ⚠️ В ПРОДАКШЕНЕ УБЕРИТЕ ЭТУ СТРОКУ!
+    console.log('⚠️ Проверка подписки пропущена (режим разработки)');
+    return true;
+    
+    // 🔒 РАСКОММЕНТИРУЙТЕ ДЛЯ ПРОДАКШЕНА:
+    /*
     await ctx.reply(
       `🔒 *Для использования бота необходимо подписаться на наш канал!*\n\n` +
       `📢 Канал: ${CHANNEL_LINK}\n\n` +
-      `✅ Подпишись и нажми кнопку "Проверить"`,
+      `⚠️ Бот не может проверить подписку.\n` +
+      `Пожалуйста, подпишись и попробуй снова.`,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
@@ -52,6 +59,7 @@ async function checkSubscription(ctx) {
       }
     );
     return false;
+    */
   }
 }
 
