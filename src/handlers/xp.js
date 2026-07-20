@@ -1,5 +1,5 @@
 // ============================================
-// src/handlers/xp.js - УПРАВЛЕНИЕ XP
+// src/handlers/xp.js - УПРАВЛЕНИЕ XP (ИСПРАВЛЕННЫЙ)
 // ============================================
 
 const fs = require('fs');
@@ -9,7 +9,10 @@ const DB_PATH = path.join(__dirname, '../../data/database.json');
 
 function getUsersDirect() {
   try {
-    if (!fs.existsSync(DB_PATH)) return {};
+    if (!fs.existsSync(DB_PATH)) {
+      fs.writeFileSync(DB_PATH, JSON.stringify({}));
+      return {};
+    }
     const data = fs.readFileSync(DB_PATH, 'utf8');
     return JSON.parse(data);
   } catch (error) {
@@ -37,9 +40,79 @@ function getLevelByXP(xp) {
   return { level, remainingXp };
 }
 
-function autoClaimRewards(data, currentLevel, isPremium = false, ctx = null) {
+function giveReward(data, reward, isPremium = false) {
+  const rewards = isPremium ? reward.premium : reward.free;
+  if (!rewards) return [];
+
+  let rewardText = [];
+
+  if (rewards.coins) {
+    data.coins = (data.coins || 0) + rewards.coins;
+    rewardText.push("⭐ " + rewards.coins + " монет");
+  }
+  
+  if (rewards.crystals) {
+    data.crystals = (data.crystals || 0) + rewards.crystals;
+    rewardText.push("💎 " + rewards.crystals + " кристаллов");
+  }
+  
+  if (rewards.pack) {
+    if (!data.packs) data.packs = {};
+    if (!data.packs[rewards.pack]) data.packs[rewards.pack] = [];
+    data.packs[rewards.pack].push({
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6)
+    });
+    rewardText.push("📦 " + rewards.pack + " пак");
+  }
+  
+  if (rewards.jersey) {
+    if (!data.jerseys) data.jerseys = [];
+    data.jerseys.push({ 
+      id: "bp_jersey_" + Date.now(), 
+      name: rewards.jersey, 
+      rarity: rewards.jersey,
+      isTemporary: !isPremium
+    });
+    rewardText.push("🎽 " + rewards.jersey + " форма");
+  }
+  
+  if (rewards.arena) {
+    if (!data.arenas) data.arenas = [];
+    data.arenas.push({ 
+      id: "bp_arena_" + Date.now(), 
+      name: rewards.arena, 
+      rarity: rewards.arena,
+      isTemporary: !isPremium
+    });
+    rewardText.push("🏟️ " + rewards.arena + " арена");
+  }
+  
+  if (rewards.card) {
+    const cardData = {
+      name: rewards.card,
+      overall: rewards.overall || 93,
+      rarity: "Легендарная",
+      position: "C",
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+      count: 1
+    };
+    
+    const existing = data.cards.find(c => c.name === cardData.name && c.position === cardData.position);
+    if (existing) {
+      existing.count = (existing.count || 1) + 1;
+    } else {
+      data.cards.push(cardData);
+    }
+    rewardText.push("🃏 " + cardData.name + " (" + cardData.overall + " OVR)");
+  }
+  
+  return rewardText;
+}
+
+function autoClaimRewards(data, currentLevel, isPremium = false) {
   const claimed = data.claimed_rewards || [];
   let newRewards = 0;
+  let rewardList = [];
   
   const REWARDS = {
     1: { free: { coins: 20 }, premium: { coins: 50, crystals: 5 } },
@@ -84,22 +157,16 @@ function autoClaimRewards(data, currentLevel, isPremium = false, ctx = null) {
     const reward = REWARDS[level];
     if (!reward) continue;
     
-    // Даём награду
-    const rewards = isPremium ? reward.premium : reward.free;
-    if (rewards.coins) data.coins = (data.coins || 0) + rewards.coins;
-    if (rewards.crystals) data.crystals = (data.crystals || 0) + rewards.crystals;
-    if (rewards.pack) {
-      if (!data.packs) data.packs = {};
-      if (!data.packs[rewards.pack]) data.packs[rewards.pack] = [];
-      data.packs[rewards.pack].push({ id: Date.now().toString() + Math.random().toString(36).substr(2, 6) });
-    }
-    
+    const rewardText = giveReward(data, reward, isPremium);
     claimed.push(key);
     newRewards++;
+    if (rewardText.length > 0) {
+      rewardList.push({ level, rewardText, isPremium });
+    }
   }
   
   data.claimed_rewards = claimed;
-  return newRewards;
+  return { newRewards, rewardList };
 }
 
 // ✅ ГЛАВНАЯ ФУНКЦИЯ ДОБАВЛЕНИЯ XP
@@ -109,8 +176,6 @@ async function addXP(userId, amount, ctx = null) {
   
   try {
     const users = getUsersDirect();
-    console.log('📈 [addXP] БД прочитана, пользователей:', Object.keys(users).length);
-    
     const data = users[userId];
     
     if (!data) {
@@ -119,8 +184,6 @@ async function addXP(userId, amount, ctx = null) {
     }
     
     const currentXP = data.battlepass_xp || 0;
-    console.log('📈 [addXP] Текущий XP до добавления:', currentXP);
-    
     data.battlepass_xp = currentXP + amount;
     
     console.log('📊 [addXP] Было:', currentXP, 'Стало:', data.battlepass_xp);
@@ -132,8 +195,8 @@ async function addXP(userId, amount, ctx = null) {
     
     if (newLevel > oldLevel) {
       console.log('🎉 Новый уровень! Выдаём награды...');
-      const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0, ctx);
-      console.log('🎉 Выдано наград:', result);
+      const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0);
+      console.log('🎉 Выдано наград:', result.newRewards);
     }
     
     saveUsers(users);
@@ -147,11 +210,29 @@ async function addXP(userId, amount, ctx = null) {
   }
 }
 
+// ✅ ДОБАВЛЯЕМ XP ДЛЯ ТУРНИРА
+async function addTournamentXP(userId, isWin, isDraw = false) {
+  try {
+    const tournamentHandler = require('./tournament');
+    if (typeof tournamentHandler.addTournamentResult === 'function') {
+      await tournamentHandler.addTournamentResult(userId, isWin, isDraw);
+      console.log('🏆 [Турнир] Результат добавлен:', userId, isWin ? 'победа' : isDraw ? 'ничья' : 'поражение');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('❌ [Турнир] Ошибка:', error.message);
+    return false;
+  }
+}
+
 module.exports = {
   addXP,
+  addTournamentXP,
   XP_WIN,
   XP_LOSS,
   XP_PER_LEVEL,
   MAX_LEVEL,
-  getLevelByXP
+  getLevelByXP,
+  autoClaimRewards
 };

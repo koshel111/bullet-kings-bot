@@ -1,5 +1,5 @@
 // ============================================
-// src/handlers/donate.js - ДОНАТ И МАГАЗИН
+// src/handlers/donate.js - МАГАЗИН КРИСТАЛЛОВ (ИСПРАВЛЕННЫЙ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -8,15 +8,15 @@ const path = require('path');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
-// ✅ ЦЕНЫ НА КРИСТАЛЛЫ (2 кристалла = 1 рубль)
+// ✅ ЦЕНЫ НА КРИСТАЛЛЫ
 const CRYSTAL_PACKS = [
-  { id: 'crystal_10', amount: 10, price: 5, label: '10💎 = 5₽' },
-  { id: 'crystal_25', amount: 25, price: 12.5, label: '25💎 = 12.5₽' },
-  { id: 'crystal_50', amount: 50, price: 25, label: '50💎 = 25₽' },
-  { id: 'crystal_100', amount: 100, price: 50, label: '100💎 = 50₽' },
-  { id: 'crystal_250', amount: 250, price: 125, label: '250💎 = 125₽' },
-  { id: 'crystal_500', amount: 500, price: 250, label: '500💎 = 250₽' },
-  { id: 'crystal_1000', amount: 1000, price: 500, label: '1000💎 = 500₽' }
+  { id: 'crystal_10', amount: 10, price: 5, label: '10💎 = 5₽', emoji: '💎' },
+  { id: 'crystal_25', amount: 25, price: 12.5, label: '25💎 = 12.5₽', emoji: '💎' },
+  { id: 'crystal_50', amount: 50, price: 25, label: '50💎 = 25₽', emoji: '💎' },
+  { id: 'crystal_100', amount: 100, price: 50, label: '100💎 = 50₽', emoji: '💎' },
+  { id: 'crystal_250', amount: 250, price: 125, label: '250💎 = 125₽', emoji: '💎' },
+  { id: 'crystal_500', amount: 500, price: 250, label: '500💎 = 250₽', emoji: '💎' },
+  { id: 'crystal_1000', amount: 1000, price: 500, label: '1000💎 = 500₽', emoji: '💎' }
 ];
 
 function getUsers() {
@@ -34,24 +34,30 @@ async function showDonateShop(ctx) {
   const users = getUsers();
   const data = users[userId];
   
+  if (!data) {
+    await ctx.reply('❌ Ошибка! Попробуй /start');
+    return;
+  }
+  
   let text = '💎 *МАГАЗИН КРИСТАЛЛОВ*\n\n';
   text += `💎 Твои кристаллы: ${data.crystals || 0}\n`;
   text += `💰 2💎 = 1₽\n\n`;
-  text += '*Выбери пак:*\n\n';
+  text += '*Выбери пак для покупки:*\n\n';
   
   const buttons = [];
   CRYSTAL_PACKS.forEach(pack => {
-    text += `📦 ${pack.label}\n`;
-    buttons.push([Markup.button.callback(`💰 ${pack.label}`, `donate_${pack.id}`)]);
+    const emoji = pack.emoji || '💎';
+    text += `${emoji} ${pack.label}\n`;
+    buttons.push([Markup.button.callback(`💰 ${pack.label}`, `donate_buy_${pack.id}`)]);
   });
   
   text += '\n📌 *Как купить:*\n';
-  text += '1. Выбери пак\n';
-  text += '2. Оплати через СБП\n';
-  text += '3. Кристаллы зачислятся автоматически\n\n';
+  text += '1️⃣ Выбери пак\n';
+  text += '2️⃣ Оплати через СБП\n';
+  text += '3️⃣ Кристаллы зачислятся автоматически\n\n';
   text += '💳 *Реквизиты для оплаты:*\n';
-  text += 'По номеру телефона: +7 (999) 123-45-67\n';
-  text += 'Или по ссылке: https://www.tinkoff.ru/...\n\n';
+  text += '📱 По номеру телефона: +7 (999) 123-45-67\n';
+  text += '🔗 Или по ссылке: https://www.tinkoff.ru/...\n\n';
   text += '📩 После оплаты отправь скриншот @Koshelev_11';
   
   buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
@@ -62,26 +68,34 @@ async function showDonateShop(ctx) {
   });
 }
 
-// ✅ ОБРАБОТКА ПОКУПКИ (ТОЛЬКО ДЛЯ АДМИНА)
+// ✅ ОБРАБОТКА ПОКУПКИ
 async function handleDonatePurchase(ctx, packId) {
   const userId = ctx.from.id;
   const users = getUsers();
+  const data = users[userId];
   
-  // Проверяем, является ли пользователь админом (для автозачисления)
-  // В реальности здесь будет проверка оплаты через админа
+  if (!data) {
+    await ctx.reply('❌ Ошибка! Попробуй /start');
+    return;
+  }
+  
   const pack = CRYSTAL_PACKS.find(p => p.id === packId);
   if (!pack) {
     await ctx.reply('❌ Пак не найден!');
     return;
   }
   
+  // ✅ Добавляем кристаллы сразу (для теста)
+  data.crystals = (data.crystals || 0) + pack.amount;
+  saveUsers(users);
+  
   await ctx.reply(
-    `💎 *Заказ принят!*\n\n` +
+    `✅ *Кристаллы зачислены!*\n\n` +
     `📦 Пак: ${pack.label}\n` +
-    `💎 ${pack.amount} кристаллов\n` +
-    `💰 ${pack.price}₽\n\n` +
-    `📩 Оплати по реквизитам и отправь скриншот @Koshelev_11\n\n` +
-    `⏳ После подтверждения кристаллы будут зачислены`,
+    `💎 +${pack.amount} кристаллов\n` +
+    `💰 Стоимость: ${pack.price}₽\n\n` +
+    `💎 Теперь у тебя: ${data.crystals} кристаллов\n\n` +
+    `📩 В реальном режиме после оплаты нужно отправить скриншот @Koshelev_11`,
     { parse_mode: 'Markdown' }
   );
 }

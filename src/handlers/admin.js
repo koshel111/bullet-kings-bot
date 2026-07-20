@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - БЕЗ ТУРНИРА
+// src/handlers/admin.js - ПОЛНАЯ АДМИН-ПАНЕЛЬ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -18,6 +18,7 @@ const {
   getActiveArenas
 } = require('../data/cosmetics');
 const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
+const { addTournamentResult } = require('./tournament');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -524,6 +525,43 @@ async function showBackupMenu(ctx) {
   });
 }
 
+// ============================================
+// УПРАВЛЕНИЕ ТУРНИРОМ
+// ============================================
+async function showTournamentAdmin(ctx) {
+  const userId = ctx.from.id;
+  if (!isAdmin(userId)) return;
+  
+  const tournamentHandler = require('./tournament');
+  const tournament = tournamentHandler.getTournamentData();
+  const users = getUsers();
+  
+  const status = tournament.isActive ? '✅ Активен' : '❌ Завершён';
+  const playersCount = Object.keys(tournament.players).length;
+  
+  let text = '🏆 *УПРАВЛЕНИЕ ТУРНИРОМ*\n\n';
+  text += `📊 Статус: ${status}\n`;
+  text += `🏆 Название: ${tournament.name}\n`;
+  text += `📅 Сезон: ${tournament.season}\n`;
+  text += `👥 Участников: ${playersCount}\n`;
+  text += `📅 До окончания: ${tournamentHandler.getTimeUntilEnd()}\n\n`;
+  text += '📋 *Команды:*\n';
+  text += '`stop_tournament` — остановить турнир\n';
+  text += '`start_tournament` — начать новый турнир\n';
+  text += '`set_name_Название` — изменить название\n\n';
+  text += '💡 1 сентября в 00:00 турнир автоматически завершается';
+  
+  await ctx.reply(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback('🔙 Назад', 'admin_panel')]
+    ])
+  });
+}
+
+// ============================================
+// ГЛАВНОЕ МЕНЮ АДМИНА
+// ============================================
 async function showAdminMenu(ctx) {
   const userId = ctx.from.id;
   if (!isAdmin(userId)) { await ctx.reply("⛔ Доступ запрещён!"); return; }
@@ -561,7 +599,10 @@ async function showAdminMenu(ctx) {
     "🎁 `seasonal_ID_количество` — сезонные паки\n" +
     "🎖️ `skip_ID_уровней` — пропуск уровней\n" +
     "💎 `premium_ID` — выдать премиум\n" +
-    "📢 `broadcast_ID_сообщение` — рассылка\n\n" +
+    "📢 `broadcast_ID_сообщение` — рассылка\n" +
+    "🏆 `stop_tournament` — остановить турнир\n" +
+    "🏆 `start_tournament` — начать новый турнир\n" +
+    "🏆 `set_name_Название` — изменить название турнира\n\n" +
     "🌐 `all` — вместо ID для всех пользователей";
   
   await ctx.reply(text, {
@@ -577,6 +618,7 @@ async function showAdminMenu(ctx) {
       [Markup.button.callback("💎 Премиум пропуска", "admin_premium")],
       [Markup.button.callback("🃏 Все карты", "admin_all_cards")],
       [Markup.button.callback("🏪 Косметика", "admin_cosmetics")],
+      [Markup.button.callback("🏆 Турнир", "admin_tournament")],
       [Markup.button.callback("💾 Бекапы", "admin_backup")],
       [Markup.button.callback("📢 Рассылка", "admin_broadcast")],
       [Markup.button.callback("🔙 Главное меню", "back")],
@@ -596,6 +638,9 @@ module.exports = (bot) => {
     await showAdminMenu(ctx);
   });
 
+  // ============================================
+  // ОБРАБОТЧИКИ ДЕЙСТВИЙ
+  // ============================================
   bot.action(/open_pack_(.+)_(.+)/, async (ctx) => { await openPackByButton(ctx); });
   bot.action(/open_all_packs_(.+)_(.+)/, async (ctx) => { await openMultiplePacks(ctx); });
   bot.action(/open_seasonal_(.+)/, async (ctx) => { await openSeasonalPackByButton(ctx); });
@@ -714,6 +759,11 @@ module.exports = (bot) => {
     await ctx.reply("📢 *Рассылка*\n\n📋 *Формат:* `broadcast_ID_сообщение`\n📌 *Пример:* `broadcast_all_Привет_всем!`", { parse_mode: "Markdown" });
   });
 
+  bot.action("admin_tournament", async (ctx) => {
+    await ctx.answerCbQuery();
+    await showTournamentAdmin(ctx);
+  });
+
   bot.action("admin_clear_db", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
@@ -736,7 +786,37 @@ module.exports = (bot) => {
   });
 
   // ============================================
-  // ОБРАБОТКА ТЕКСТОВЫХ КОМАНД
+  // ОБРАБОТЧИКИ ТУРНИРНЫХ КОМАНД
+  // ============================================
+  bot.hears(/^stop_tournament$/, async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    const tournamentHandler = require('./tournament');
+    tournamentHandler.adminStopTournament(ctx);
+  });
+
+  bot.hears(/^start_tournament$/, async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    const tournamentHandler = require('./tournament');
+    tournamentHandler.adminStartTournament(ctx);
+  });
+
+  bot.hears(/^set_name_(.+)$/, async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    const name = ctx.match[1];
+    const tournamentHandler = require('./tournament');
+    tournamentHandler.adminSetTournamentName(ctx, name);
+  });
+
+  bot.hears(/^prize_([1-3])$/, async (ctx) => {
+    const tournamentHandler = require('./tournament');
+    tournamentHandler.selectPrizeCard(ctx, parseInt(ctx.match[1]));
+  });
+
+  // ============================================
+  // ОБРАБОТЧИКИ ТЕКСТОВЫХ КОМАНД
   // ============================================
   bot.on("text", async (ctx) => {
     const userId = ctx.from.id;
@@ -1194,7 +1274,10 @@ module.exports = (bot) => {
       "`shop_remove_form ID` — убрать форму\n" +
       "`shop_add_arena ID` — добавить арену\n" +
       "`shop_remove_arena ID` — убрать арену\n" +
-      "`shop_list` — список предметов\n\n" +
+      "`shop_list` — список предметов\n" +
+      "`stop_tournament` — остановить турнир\n" +
+      "`start_tournament` — начать новый турнир\n" +
+      "`set_name_Название` — изменить название турнира\n\n" +
       "💡 Вместо ID можно использовать `all`",
       { parse_mode: "Markdown" }
     );
