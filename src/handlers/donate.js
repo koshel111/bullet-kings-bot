@@ -1,19 +1,17 @@
 // ============================================
-// src/handlers/donate.js - ОПЛАТА ЧЕРЕЗ СБП (QR-код)
+// src/handlers/donate.js - С ЛОГАМИ ДЛЯ ОТЛАДКИ
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
-const QRCode = require('qrcode');
-const axios = require('axios');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
 // ✅ НАСТРОЙКИ СБП
 const SBP_CONFIG = {
-  phone: process.env.SBP_PHONE || '79991234567', // Номер телефона для СБП
-  bankName: 'Т-Банк (Тинькофф)', // Название банка
+  phone: process.env.SBP_PHONE || '79991234567',
+  bankName: 'Т-Банк (Тинькофф)',
 };
 
 // ✅ ЦЕНЫ НА КРИСТАЛЛЫ
@@ -36,42 +34,20 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// ✅ ГЕНЕРАЦИЯ QR-КОДА ДЛЯ СБП
-async function generateSBPQR(phone, amount, comment = '') {
-  try {
-    // Формируем ссылку для СБП
-    // Поддерживает все банки: Т-Банк, Сбер, Альфа, ВТБ и т.д.
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const url = `https://qr.nspk.ru/QR?phone=${cleanPhone}&amount=${amount}&comment=${encodeURIComponent(comment)}`;
-    
-    // Генерируем QR-код в base64
-    const qrBuffer = await QRCode.toBuffer(url, {
-      type: 'png',
-      width: 300,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
-    });
-    
-    return qrBuffer;
-  } catch (error) {
-    console.error('❌ Ошибка генерации QR-кода:', error);
-    return null;
-  }
-}
-
 // ✅ ПОКАЗ МАГАЗИНА
 async function showDonateShop(ctx) {
+  console.log('🛒 [donate] showDonateShop вызвана');
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
   
   if (!data) {
+    console.log('❌ [donate] Пользователь не найден:', userId);
     await ctx.reply('❌ Ошибка! Попробуй /start');
     return;
   }
+  
+  console.log('✅ [donate] Пользователь найден:', userId, 'Кристаллов:', data.crystals);
   
   let text = '💎 МАГАЗИН КРИСТАЛЛОВ\n\n';
   text += `💎 Твои кристаллы: ${data.crystals || 0}\n`;
@@ -84,11 +60,14 @@ async function showDonateShop(ctx) {
     buttons.push([Markup.button.callback(`💰 ${pack.label}`, `donate_buy_${pack.id}`)]);
   });
   
-  text += '\n💳 Оплата через СБП (QR-код)';
+  text += '\n💳 Оплата через СБП';
   text += `\n🏦 Банк: ${SBP_CONFIG.bankName}`;
+  text += `\n📱 Номер: ${SBP_CONFIG.phone}`;
   text += '\n📌 После оплаты нажми кнопку "Проверить оплату"';
   
   buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
+  
+  console.log('✅ [donate] Магазин показан, кнопок:', buttons.length);
   
   await ctx.editMessageText(text, {
     parse_mode: 'HTML',
@@ -96,26 +75,43 @@ async function showDonateShop(ctx) {
   });
 }
 
-// ✅ ПОКУПКА - ГЕНЕРАЦИЯ QR-КОДА
+// ✅ ПОКУПКА
 async function handleDonatePurchase(ctx, packId) {
+  console.log('🛒 [donate] handleDonatePurchase вызвана');
+  console.log('📦 [donate] packId:', packId);
+  
   const userId = ctx.from.id;
+  console.log('👤 [donate] userId:', userId);
+  
   const users = getUsers();
   const data = users[userId];
   
   if (!data) {
+    console.log('❌ [donate] Пользователь не найден:', userId);
     await ctx.reply('❌ Ошибка! Попробуй /start');
     return;
   }
   
+  console.log('✅ [donate] Пользователь найден');
+  
+  // ✅ ПОИСК ПАКА С ЛОГАМИ
+  console.log('🔍 [donate] Ищем пак с ID:', packId);
+  console.log('📋 [donate] Доступные паки:', CRYSTAL_PACKS.map(p => p.id).join(', '));
+  
   const pack = CRYSTAL_PACKS.find(p => p.id === packId);
+  
   if (!pack) {
-    await ctx.reply('❌ Пак не найден!');
+    console.log('❌ [donate] Пак НЕ НАЙДЕН! ID:', packId);
+    console.log('📋 [donate] Проверь ID пака. Должен быть одним из:', CRYSTAL_PACKS.map(p => p.id).join(', '));
+    await ctx.reply(`❌ Пак не найден! ID: ${packId}\n\nДоступные паки:\n${CRYSTAL_PACKS.map(p => `• ${p.id} - ${p.label}`).join('\n')}`);
     return;
   }
   
+  console.log('✅ [donate] Пак найден:', pack.id, pack.label);
+  
   // ✅ СОЗДАЁМ ЗАКАЗ
   const orderId = Date.now().toString() + Math.random().toString(36).substr(2, 4);
-  const comment = `${SBP_CONFIG.comment || 'Покупка кристаллов'} (заказ #${orderId})`;
+  console.log('📦 [donate] Создан заказ:', orderId);
   
   if (!data.orders) data.orders = {};
   data.orders[orderId] = {
@@ -127,87 +123,85 @@ async function handleDonatePurchase(ctx, packId) {
     status: 'pending'
   };
   saveUsers(users);
+  console.log('✅ [donate] Заказ сохранён:', orderId);
   
-  // ✅ ГЕНЕРИРУЕМ QR-КОД
-  const qrBuffer = await generateSBPQR(SBP_CONFIG.phone, pack.price, comment);
-  
-  if (!qrBuffer) {
-    await ctx.reply('❌ Ошибка генерации QR-кода! Попробуй позже.');
-    return;
-  }
-  
-  // ✅ ОТПРАВЛЯЕМ QR-КОД И ИНСТРУКЦИЮ
-  const caption = 
+  // ✅ ПОКАЗЫВАЕМ РЕКВИЗИТЫ
+  const text = 
     `💳 ОПЛАТА ПО СБП\n\n` +
     `📦 Пак: ${pack.label}\n` +
     `💎 ${pack.amount} кристаллов\n` +
     `💰 ${pack.price}₽\n\n` +
-    `🏦 Банк: ${SBP_CONFIG.bankName}\n` +
-    `📱 Номер: ${SBP_CONFIG.phone}\n\n` +
-    `📌 Инструкция:\n` +
-    `1️⃣ Отсканируй QR-код камерой телефона\n` +
-    `2️⃣ Подтверди оплату в приложении банка\n` +
-    `3️⃣ Нажми кнопку "Проверить оплату" ниже\n\n` +
-    `🆔 Номер заказа: ${orderId}`;
+    `📱 Номер для перевода:\n` +
+    `<b>${SBP_CONFIG.phone}</b>\n\n` +
+    `🏦 ${SBP_CONFIG.bankName}\n\n` +
+    `📌 ИНСТРУКЦИЯ:\n` +
+    `1️⃣ Открой приложение банка\n` +
+    `2️⃣ Переведи ${pack.price}₽ на номер ${SBP_CONFIG.phone}\n` +
+    `3️⃣ В комментарии укажи: ${orderId}\n` +
+    `4️⃣ Нажми кнопку "Проверить оплату"\n\n` +
+    `🆔 Номер заказа: <b>${orderId}</b>`;
   
-  // ✅ ОТПРАВЛЯЕМ QR-КОД КАК ФОТО
-  await ctx.replyWithPhoto(
-    { source: qrBuffer },
-    {
-      caption: caption,
-      parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Проверить оплату', `check_payment_${orderId}`)],
-        [Markup.button.callback('📱 Показать номер телефона', `show_phone_${orderId}`)],
-        [Markup.button.callback('🔙 Назад', 'donate')]
-      ])
-    }
-  );
+  console.log('✅ [donate] Отправляем реквизиты для заказа:', orderId);
+  
+  await ctx.reply(text, {
+    parse_mode: 'HTML',
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback('✅ Проверить оплату', `check_payment_${orderId}`)],
+      [Markup.button.callback('📱 Скопировать номер', `copy_phone_${orderId}`)],
+      [Markup.button.callback('🔙 Назад', 'donate')]
+    ])
+  });
 }
 
-// ✅ ПОКАЗАТЬ НОМЕР ТЕЛЕФОНА
-async function showPhone(ctx, orderId) {
+// ✅ КОПИРОВАТЬ НОМЕР
+async function copyPhone(ctx, orderId) {
+  console.log('📱 [donate] copyPhone вызвана, orderId:', orderId);
+  
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
   
   if (!data || !data.orders || !data.orders[orderId]) {
+    console.log('❌ [donate] Заказ не найден:', orderId);
     await ctx.reply('❌ Заказ не найден!');
     return;
   }
   
+  console.log('✅ [donate] Заказ найден, показываем номер');
+  
   await ctx.reply(
-    `📱 Номер для перевода по СБП:\n\n` +
-    `\`${SBP_CONFIG.phone}\`\n\n` +
-    `🏦 ${SBP_CONFIG.bankName}\n\n` +
+    `📱 Номер для перевода:\n\n` +
+    `<code>${SBP_CONFIG.phone}</code>\n\n` +
     `💰 Сумма: ${data.orders[orderId].price}₽\n` +
-    `🆔 Номер заказа: ${orderId}\n\n` +
-    `📌 Переведи на этот номер и нажми "Проверить оплату"`
+    `🆔 Заказ: ${orderId}`,
+    { parse_mode: 'HTML' }
   );
 }
 
-// ✅ ПРОВЕРКА ОПЛАТЫ (АДМИН + ВЕБХУК)
+// ✅ ПРОВЕРКА ОПЛАТЫ
 async function checkPayment(ctx, orderId) {
+  console.log('✅ [donate] checkPayment вызвана, orderId:', orderId);
+  
   const userId = ctx.from.id;
   const users = getUsers();
   const data = users[userId];
   
   if (!data || !data.orders || !data.orders[orderId]) {
+    console.log('❌ [donate] Заказ не найден:', orderId);
     await ctx.reply('❌ Заказ не найден!');
     return;
   }
   
   const order = data.orders[orderId];
+  console.log('📦 [donate] Заказ найден:', order);
   
   // ✅ ДЛЯ ТЕСТА - АВТОМАТИЧЕСКОЕ ЗАЧИСЛЕНИЕ
-  // В реальном проекте здесь будет проверка через API банка
-  // или подтверждение от админа
-  
-  // ✅ ЗАЧИСЛЯЕМ КРИСТАЛЛЫ
   data.crystals = (data.crystals || 0) + order.amount;
   order.status = 'completed';
   order.completedAt = Date.now();
   saveUsers(users);
+  
+  console.log('✅ [donate] Кристаллы зачислены! +' + order.amount + ', всего:', data.crystals);
   
   await ctx.reply(
     `✅ ОПЛАТА ПОДТВЕРЖДЕНА!\n\n` +
@@ -220,11 +214,12 @@ async function checkPayment(ctx, orderId) {
 
 // ✅ АДМИНСКОЕ ПОДТВЕРЖДЕНИЕ ОПЛАТЫ
 async function adminConfirmPayment(ctx, orderId) {
+  console.log('👑 [donate] adminConfirmPayment вызвана, orderId:', orderId);
+  
   const users = getUsers();
   let foundUserId = null;
   let foundOrder = null;
   
-  // Ищем заказ по всем пользователям
   for (const [userId, data] of Object.entries(users)) {
     if (data.orders && data.orders[orderId]) {
       foundUserId = userId;
@@ -234,16 +229,20 @@ async function adminConfirmPayment(ctx, orderId) {
   }
   
   if (!foundOrder) {
+    console.log('❌ [donate] Заказ не найден:', orderId);
     await ctx.reply('❌ Заказ не найден!');
     return;
   }
   
-  // ✅ ЗАЧИСЛЯЕМ КРИСТАЛЛЫ
+  console.log('✅ [donate] Заказ найден, пользователь:', foundUserId);
+  
   users[foundUserId].crystals = (users[foundUserId].crystals || 0) + foundOrder.amount;
   foundOrder.status = 'completed';
   foundOrder.completedAt = Date.now();
   foundOrder.confirmedBy = ctx.from.id;
   saveUsers(users);
+  
+  console.log('✅ [donate] Кристаллы зачислены админом! +' + foundOrder.amount);
   
   await ctx.reply(
     `✅ ОПЛАТА ПОДТВЕРЖДЕНА АДМИНОМ!\n\n` +
@@ -253,7 +252,6 @@ async function adminConfirmPayment(ctx, orderId) {
     `🆔 Заказ: ${orderId}`
   );
   
-  // ✅ УВЕДОМЛЯЕМ ПОЛЬЗОВАТЕЛЯ
   try {
     await ctx.telegram.sendMessage(
       foundUserId,
@@ -262,11 +260,16 @@ async function adminConfirmPayment(ctx, orderId) {
       `💰 ${foundOrder.price}₽\n\n` +
       `Спасибо за поддержку! 🏒`
     );
-  } catch (e) {}
+    console.log('✅ [donate] Уведомление отправлено пользователю');
+  } catch (e) {
+    console.log('❌ [donate] Не удалось отправить уведомление:', e.message);
+  }
 }
 
 // ✅ ПОКАЗ ВСЕХ ЗАКАЗОВ (АДМИН)
 async function showOrders(ctx) {
+  console.log('📋 [donate] showOrders вызвана');
+  
   const users = getUsers();
   let text = '📋 ВСЕ ЗАКАЗЫ\n\n';
   let hasOrders = false;
@@ -293,6 +296,8 @@ async function showOrders(ctx) {
     text += '❌ Нет заказов';
   }
   
+  console.log('✅ [donate] Заказы показаны, всего:', hasOrders ? 'есть' : 'нет');
+  
   await ctx.reply(text, { parse_mode: 'HTML' });
 }
 
@@ -302,7 +307,7 @@ module.exports = {
   checkPayment,
   adminConfirmPayment,
   showOrders,
-  generateSBPQR,
+  copyPhone,
   CRYSTAL_PACKS,
   SBP_CONFIG
 };
