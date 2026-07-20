@@ -84,7 +84,7 @@ process.on('uncaughtException', (err) => {
 const bot = new Telegraf(BOT_TOKEN);
 
 // ============================================
-// ПОДКЛЮЧАЕМ ОБРАБОТЧИКИ
+// ПОДКЛЮЧАЕМ ОБРАБОТЧИКИ (без турнира)
 // ============================================
 require('./src/handlers/start')(bot);
 require('./src/handlers/game')(bot);
@@ -98,17 +98,11 @@ require('./src/handlers/donate')(bot);
 require('./src/handlers/pvp')(bot);
 
 // ============================================
-// ИМПОРТ ТУРНИРА
-// ============================================
-const tournament = require('./src/handlers/tournament');
-
-// ============================================
 // ОБРАБОТЧИКИ КНОПОК
 // ============================================
 const { showMainMenu } = require('./src/handlers/start');
 const { showDonateShop } = require('./src/handlers/donate');
 const { handleCheckSubscription } = require('./src/handlers/subscription');
-const { showTournament } = require('./src/handlers/tournament');
 
 bot.action('back', async (ctx) => {
   await ctx.answerCbQuery();
@@ -117,16 +111,6 @@ bot.action('back', async (ctx) => {
     delete require.cache[require.resolve(battlepassPath)];
   } catch (e) {}
   await showMainMenu(ctx, bot);
-});
-
-bot.action('tournament', async (ctx) => {
-  await ctx.answerCbQuery();
-  await showTournament(ctx);
-});
-
-bot.action('tournament_refresh', async (ctx) => {
-  await ctx.answerCbQuery();
-  await showTournament(ctx);
 });
 
 bot.action('donate', async (ctx) => {
@@ -152,11 +136,6 @@ async function startBot() {
     console.log('🤖 @' + bot.botInfo.username);
     console.log('📅 ' + new Date().toLocaleString());
     console.log('🆔 PID:', process.pid);
-    
-    // АВТОМАТИЧЕСКАЯ ПРОВЕРКА ТУРНИРА (каждый час)
-    setInterval(() => {
-      tournament.checkTournamentAutoFinish();
-    }, 60 * 60 * 1000);
     
   } catch (error) {
     console.error('❌ Ошибка запуска:', error.message);

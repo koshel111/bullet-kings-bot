@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/admin.js - ПОЛНЫЙ ФАЙЛ
+// src/handlers/admin.js - БЕЗ ТУРНИРА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -18,15 +18,6 @@ const {
   getActiveArenas
 } = require('../data/cosmetics');
 const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
-
-// ✅ ИМПОРТ ТУРНИРА
-const tournament = require('./tournament');
-const { 
-  adminStopTournament, 
-  adminStartTournament, 
-  adminSetTournamentName,
-  getTournamentData 
-} = tournament;
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -570,10 +561,7 @@ async function showAdminMenu(ctx) {
     "🎁 `seasonal_ID_количество` — сезонные паки\n" +
     "🎖️ `skip_ID_уровней` — пропуск уровней\n" +
     "💎 `premium_ID` — выдать премиум\n" +
-    "📢 `broadcast_ID_сообщение` — рассылка\n" +
-    "🏆 `stop_tournament` — остановить турнир\n" +
-    "🏆 `start_tournament` — начать новый турнир\n" +
-    "🏆 `set_name_Название` — изменить название турнира\n\n" +
+    "📢 `broadcast_ID_сообщение` — рассылка\n\n" +
     "🌐 `all` — вместо ID для всех пользователей";
   
   await ctx.reply(text, {
@@ -590,7 +578,6 @@ async function showAdminMenu(ctx) {
       [Markup.button.callback("🃏 Все карты", "admin_all_cards")],
       [Markup.button.callback("🏪 Косметика", "admin_cosmetics")],
       [Markup.button.callback("💾 Бекапы", "admin_backup")],
-      [Markup.button.callback("🏆 Управление турниром", "admin_tournament")],
       [Markup.button.callback("📢 Рассылка", "admin_broadcast")],
       [Markup.button.callback("🔙 Главное меню", "back")],
     ])
@@ -748,26 +735,6 @@ module.exports = (bot) => {
     await showBackupMenu(ctx);
   });
 
-  // УПРАВЛЕНИЕ ТУРНИРОМ
-  bot.action("admin_tournament", async (ctx) => {
-    await ctx.answerCbQuery();
-    const tournamentData = getTournamentData();
-    await ctx.reply(
-      `🏆 *УПРАВЛЕНИЕ ТУРНИРОМ*\n\n` +
-      `📊 Статус: ${tournamentData.isActive ? '✅ Активен' : '❌ Остановлен'}\n` +
-      `🏆 Название: ${tournamentData.name}\n` +
-      `📅 Сезон: ${tournamentData.season}\n` +
-      `👥 Участников: ${Object.keys(tournamentData.players).length}\n` +
-      `📅 До окончания: до 1 сентября\n\n` +
-      `📋 *Команды:*\n` +
-      `\`stop_tournament\` — остановить турнир\n` +
-      `\`start_tournament\` — начать новый турнир\n` +
-      `\`set_name_Название\` — изменить название\n\n` +
-      `💡 1 сентября в 00:00 турнир автоматически завершается`,
-      { parse_mode: 'Markdown' }
-    );
-  });
-
   // ============================================
   // ОБРАБОТКА ТЕКСТОВЫХ КОМАНД
   // ============================================
@@ -776,25 +743,6 @@ module.exports = (bot) => {
     if (!isAdmin(userId)) return;
     const text = ctx.text.trim();
     const parts = text.split("_");
-    
-    // ТУРНИР: ОСТАНОВИТЬ
-    if (text === "stop_tournament") {
-      await adminStopTournament(ctx);
-      return;
-    }
-    
-    // ТУРНИР: НАЧАТЬ НОВЫЙ
-    if (text === "start_tournament") {
-      await adminStartTournament(ctx);
-      return;
-    }
-    
-    // ТУРНИР: ИЗМЕНИТЬ НАЗВАНИЕ
-    if (text.startsWith("set_name_")) {
-      const name = text.replace("set_name_", "").trim();
-      await adminSetTournamentName(ctx, name);
-      return;
-    }
     
     // ПЫЛЬ
     if (text.startsWith("dust_") && parts.length === 3) {
@@ -1242,9 +1190,6 @@ module.exports = (bot) => {
       "`skip_ID_уровней` — пропуск уровней\n" +
       "`premium_ID` — выдать премиум\n" +
       "`broadcast_ID_сообщение` — рассылка\n" +
-      "`stop_tournament` — остановить турнир\n" +
-      "`start_tournament` — начать новый турнир\n" +
-      "`set_name_Название` — изменить название турнира\n" +
       "`shop_add_form ID` — добавить форму\n" +
       "`shop_remove_form ID` — убрать форму\n" +
       "`shop_add_arena ID` — добавить арену\n" +
