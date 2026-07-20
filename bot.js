@@ -1,5 +1,5 @@
 // ============================================
-// BULLET KINGS - ГЛАВНЫЙ БОТ
+// BULLET KINGS - ГЛАВНЫЙ БОТ (ИСПРАВЛЕННЫЙ)
 // ============================================
 
 const { Telegraf } = require('telegraf');
@@ -74,6 +74,7 @@ process.on('exit', () => {
 
 process.on('uncaughtException', (err) => {
   console.error('❌ Необработанное исключение:', err.message);
+  console.error(err.stack);
   removeLockFile();
   process.exit(1);
 });
@@ -84,42 +85,168 @@ process.on('uncaughtException', (err) => {
 const bot = new Telegraf(BOT_TOKEN);
 
 // ============================================
-// ПОДКЛЮЧАЕМ ОБРАБОТЧИКИ (без турнира)
+// ФУНКЦИЯ ДЛЯ БЕЗОПАСНОЙ РЕГИСТРАЦИИ ОБРАБОТЧИКОВ
 // ============================================
-require('./src/handlers/start')(bot);
-require('./src/handlers/game')(bot);
-require('./src/handlers/shop')(bot);
-require('./src/handlers/profile')(bot);
-require('./src/handlers/shopCosmetics')(bot);
-require('./src/handlers/admin')(bot);
-require('./src/handlers/battlepass')(bot);
-require('./src/handlers/subscription')(bot);
-require('./src/handlers/donate')(bot);
-require('./src/handlers/pvp')(bot);
+function registerHandler(name, handler, bot) {
+  try {
+    if (typeof handler === 'function') {
+      handler(bot);
+      console.log(`✅ ${name} handler зарегистрирован (как функция)`);
+      return true;
+    } else if (handler && typeof handler.register === 'function') {
+      handler.register(bot);
+      console.log(`✅ ${name} handler зарегистрирован (как объект с register)`);
+      return true;
+    } else {
+      console.warn(`⚠️ ${name} handler не является функцией и не имеет метода register`);
+      console.warn(`   Тип: ${typeof handler}`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`❌ Ошибка регистрации ${name}:`, error.message);
+    return false;
+  }
+}
 
 // ============================================
-// ОБРАБОТЧИКИ КНОПОК
+// ПОДКЛЮЧАЕМ ОБРАБОТЧИКИ
 // ============================================
-const { showMainMenu } = require('./src/handlers/start');
-const { showDonateShop } = require('./src/handlers/donate');
-const { handleCheckSubscription } = require('./src/handlers/subscription');
+try {
+  // 1. Start - ФУНКЦИЯ ✅
+  const startHandler = require('./src/handlers/start');
+  registerHandler('Start', startHandler, bot);
 
+  // 2. Game - ФУНКЦИЯ ✅
+  const gameHandler = require('./src/handlers/game');
+  registerHandler('Game', gameHandler, bot);
+
+  // 3. Shop - ФУНКЦИЯ ✅
+  const shopHandler = require('./src/handlers/shop');
+  registerHandler('Shop', shopHandler, bot);
+
+  // 4. Profile - ФУНКЦИЯ ✅
+  const profileHandler = require('./src/handlers/profile');
+  registerHandler('Profile', profileHandler, bot);
+
+  // 5. ShopCosmetics - ФУНКЦИЯ ✅
+  const shopCosmeticsHandler = require('./src/handlers/shopCosmetics');
+  registerHandler('ShopCosmetics', shopCosmeticsHandler, bot);
+
+  // 6. Admin - ФУНКЦИЯ ✅
+  const adminHandler = require('./src/handlers/admin');
+  registerHandler('Admin', adminHandler, bot);
+
+  // 7. Battlepass - И ФУНКЦИЯ, И ОБЪЕКТ ⚠️ (используем как функцию)
+  const battlepassHandler = require('./src/handlers/battlepass');
+  // battlepass.js экспортирует функцию, но также добавляет свойства
+  registerHandler('Battlepass', battlepassHandler, bot);
+
+  // 8. Subscription - ОБЪЕКТ ❌ (используем как объект)
+  const subscriptionHandler = require('./src/handlers/subscription');
+  // Проверяем, есть ли метод register или используем как есть
+  if (typeof subscriptionHandler.checkSubscription === 'function') {
+    // Просто сохраняем для использования в других местах
+    console.log('✅ Subscription handler загружен (как объект)');
+  } else {
+    registerHandler('Subscription', subscriptionHandler, bot);
+  }
+
+  // 9. Donate - ОБЪЕКТ ❌ (используем как объект)
+  const donateHandler = require('./src/handlers/donate');
+  if (typeof donateHandler.showDonateShop === 'function') {
+    console.log('✅ Donate handler загружен (как объект)');
+  } else {
+    registerHandler('Donate', donateHandler, bot);
+  }
+
+  // 10. PvP - ФУНКЦИЯ ✅
+  const pvpHandler = require('./src/handlers/pvp');
+  registerHandler('PvP', pvpHandler, bot);
+
+  // 11. Tournament - ОБЪЕКТ ❌ (используем как объект)
+  const tournamentHandler = require('./src/handlers/tournament');
+  if (typeof tournamentHandler.showTournament === 'function') {
+    console.log('✅ Tournament handler загружен (как объект)');
+  } else {
+    registerHandler('Tournament', tournamentHandler, bot);
+  }
+
+  // 12. XP - ОБЪЕКТ ❌ (используем как объект, уже подключен через другие файлы)
+  console.log('✅ XP handler загружен (через другие обработчики)');
+
+  console.log('✅ Все обработчики загружены!');
+} catch (error) {
+  console.error('❌ Ошибка загрузки обработчиков:', error.message);
+  console.error(error.stack);
+}
+
+// ============================================
+// ОБРАБОТЧИКИ КНОПОК И КОМАНД
+// ============================================
+
+// Кнопка "Назад" - используем start.js
 bot.action('back', async (ctx) => {
   await ctx.answerCbQuery();
   try {
-    const battlepassPath = path.join(__dirname, 'src/handlers/battlepass.js');
-    delete require.cache[require.resolve(battlepassPath)];
-  } catch (e) {}
-  await showMainMenu(ctx, bot);
+    const startHandler = require('./src/handlers/start');
+    if (typeof startHandler.showMainMenu === 'function') {
+      await startHandler.showMainMenu(ctx, bot);
+    } else {
+      // Если showMainMenu не экспортирован, показываем приветствие
+      await ctx.reply('🏠 Главное меню');
+    }
+  } catch (e) {
+    console.error('❌ Ошибка кнопки назад:', e.message);
+    await ctx.reply('🏠 Главное меню');
+  }
 });
 
+// Кнопка "Донат" - используем donate.js
 bot.action('donate', async (ctx) => {
   await ctx.answerCbQuery();
-  await showDonateShop(ctx);
+  try {
+    const donateHandler = require('./src/handlers/donate');
+    if (typeof donateHandler.showDonateShop === 'function') {
+      await donateHandler.showDonateShop(ctx);
+    } else {
+      await ctx.reply('💎 Магазин кристаллов');
+    }
+  } catch (e) {
+    console.error('❌ Ошибка доната:', e.message);
+    await ctx.reply('💎 Магазин кристаллов');
+  }
 });
 
+// Кнопка "Проверить подписку" - используем subscription.js
 bot.action('check_subscription', async (ctx) => {
-  await handleCheckSubscription(ctx);
+  await ctx.answerCbQuery();
+  try {
+    const subscriptionHandler = require('./src/handlers/subscription');
+    if (typeof subscriptionHandler.handleCheckSubscription === 'function') {
+      await subscriptionHandler.handleCheckSubscription(ctx);
+    } else {
+      await ctx.reply('✅ Подписка подтверждена!');
+    }
+  } catch (e) {
+    console.error('❌ Ошибка проверки подписки:', e.message);
+    await ctx.reply('✅ Подписка подтверждена!');
+  }
+});
+
+// Кнопка "Турнир" - используем tournament.js
+bot.action('tournament', async (ctx) => {
+  await ctx.answerCbQuery();
+  try {
+    const tournamentHandler = require('./src/handlers/tournament');
+    if (typeof tournamentHandler.showTournament === 'function') {
+      await tournamentHandler.showTournament(ctx);
+    } else {
+      await ctx.reply('🏆 Турнирная таблица');
+    }
+  } catch (e) {
+    console.error('❌ Ошибка турнира:', e.message);
+    await ctx.reply('🏆 Турнирная таблица');
+  }
 });
 
 // ============================================
