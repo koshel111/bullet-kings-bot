@@ -19,6 +19,7 @@ const {
 } = require('../data/cosmetics');
 const { createBackup, restoreFromBackup, getBackupList } = require('../database/backup');
 const { addTournamentResult } = require('./tournament');
+const { adminConfirmPayment, showOrders } = require('./donate');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
@@ -602,7 +603,9 @@ async function showAdminMenu(ctx) {
     "📢 `broadcast_ID_сообщение` — рассылка\n" +
     "🏆 `stop_tournament` — остановить турнир\n" +
     "🏆 `start_tournament` — начать новый турнир\n" +
-    "🏆 `set_name_Название` — изменить название турнира\n\n" +
+    "🏆 `set_name_Название` — изменить название турнира\n" +
+    "📋 `orders` — просмотр заказов\n" +
+    "✅ `confirm_ЗАКАЗ` — подтвердить оплату\n\n" +
     "🌐 `all` — вместо ID для всех пользователей";
   
   await ctx.reply(text, {
@@ -621,6 +624,7 @@ async function showAdminMenu(ctx) {
       [Markup.button.callback("🏆 Турнир", "admin_tournament")],
       [Markup.button.callback("💾 Бекапы", "admin_backup")],
       [Markup.button.callback("📢 Рассылка", "admin_broadcast")],
+      [Markup.button.callback("📋 Заказы", "admin_orders")],
       [Markup.button.callback("🔙 Главное меню", "back")],
     ])
   });
@@ -764,6 +768,11 @@ module.exports = (bot) => {
     await showTournamentAdmin(ctx);
   });
 
+  bot.action("admin_orders", async (ctx) => {
+    await ctx.answerCbQuery();
+    await showOrders(ctx);
+  });
+
   bot.action("admin_clear_db", async (ctx) => {
     const userId = ctx.from.id;
     if (!isAdmin(userId)) return;
@@ -813,6 +822,22 @@ module.exports = (bot) => {
   bot.hears(/^prize_([1-3])$/, async (ctx) => {
     const tournamentHandler = require('./tournament');
     tournamentHandler.selectPrizeCard(ctx, parseInt(ctx.match[1]));
+  });
+
+  // ============================================
+  // ОБРАБОТЧИКИ ЗАКАЗОВ (СБП)
+  // ============================================
+  bot.hears(/^confirm_([a-zA-Z0-9]+)$/, async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    const orderId = ctx.match[1];
+    await adminConfirmPayment(ctx, orderId);
+  });
+
+  bot.hears(/^orders$/, async (ctx) => {
+    const userId = ctx.from.id;
+    if (!isAdmin(userId)) return;
+    await showOrders(ctx);
   });
 
   // ============================================
@@ -1277,7 +1302,9 @@ module.exports = (bot) => {
       "`shop_list` — список предметов\n" +
       "`stop_tournament` — остановить турнир\n" +
       "`start_tournament` — начать новый турнир\n" +
-      "`set_name_Название` — изменить название турнира\n\n" +
+      "`set_name_Название` — изменить название турнира\n" +
+      "`orders` — просмотр заказов\n" +
+      "`confirm_ЗАКАЗ` — подтвердить оплату\n\n" +
       "💡 Вместо ID можно использовать `all`",
       { parse_mode: "Markdown" }
     );

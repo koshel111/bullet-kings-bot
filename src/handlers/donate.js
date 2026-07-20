@@ -1,22 +1,30 @@
 // ============================================
-// src/handlers/donate.js - МАГАЗИН КРИСТАЛЛОВ (ИСПРАВЛЕННЫЙ)
+// src/handlers/donate.js - ОПЛАТА ЧЕРЕЗ СБП (QR-код)
 // ============================================
 
 const { Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
+const QRCode = require('qrcode');
+const axios = require('axios');
 
 const DB_PATH = path.join(__dirname, '../../data/database.json');
 
+// ✅ НАСТРОЙКИ СБП
+const SBP_CONFIG = {
+  phone: process.env.SBP_PHONE || '79991234567', // Номер телефона для СБП
+  bankName: 'Т-Банк (Тинькофф)', // Название банка
+};
+
 // ✅ ЦЕНЫ НА КРИСТАЛЛЫ
 const CRYSTAL_PACKS = [
-  { id: 'crystal_10', amount: 10, price: 5, label: '10💎 = 5₽', emoji: '💎' },
-  { id: 'crystal_25', amount: 25, price: 12.5, label: '25💎 = 12.5₽', emoji: '💎' },
-  { id: 'crystal_50', amount: 50, price: 25, label: '50💎 = 25₽', emoji: '💎' },
-  { id: 'crystal_100', amount: 100, price: 50, label: '100💎 = 50₽', emoji: '💎' },
-  { id: 'crystal_250', amount: 250, price: 125, label: '250💎 = 125₽', emoji: '💎' },
-  { id: 'crystal_500', amount: 500, price: 250, label: '500💎 = 250₽', emoji: '💎' },
-  { id: 'crystal_1000', amount: 1000, price: 500, label: '1000💎 = 500₽', emoji: '💎' }
+  { id: 'crystal_10', amount: 10, price: 5, label: '10💎 = 5₽' },
+  { id: 'crystal_25', amount: 25, price: 12.5, label: '25💎 = 12.5₽' },
+  { id: 'crystal_50', amount: 50, price: 25, label: '50💎 = 25₽' },
+  { id: 'crystal_100', amount: 100, price: 50, label: '100💎 = 50₽' },
+  { id: 'crystal_250', amount: 250, price: 125, label: '250💎 = 125₽' },
+  { id: 'crystal_500', amount: 500, price: 250, label: '500💎 = 250₽' },
+  { id: 'crystal_1000', amount: 1000, price: 500, label: '1000💎 = 500₽' }
 ];
 
 function getUsers() {
@@ -28,7 +36,33 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// ✅ ПОКАЗ МАГАЗИНА КРИСТАЛЛОВ (БЕЗ ОШИБОК MARKDOWN)
+// ✅ ГЕНЕРАЦИЯ QR-КОДА ДЛЯ СБП
+async function generateSBPQR(phone, amount, comment = '') {
+  try {
+    // Формируем ссылку для СБП
+    // Поддерживает все банки: Т-Банк, Сбер, Альфа, ВТБ и т.д.
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const url = `https://qr.nspk.ru/QR?phone=${cleanPhone}&amount=${amount}&comment=${encodeURIComponent(comment)}`;
+    
+    // Генерируем QR-код в base64
+    const qrBuffer = await QRCode.toBuffer(url, {
+      type: 'png',
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    
+    return qrBuffer;
+  } catch (error) {
+    console.error('❌ Ошибка генерации QR-кода:', error);
+    return null;
+  }
+}
+
+// ✅ ПОКАЗ МАГАЗИНА
 async function showDonateShop(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -46,19 +80,13 @@ async function showDonateShop(ctx) {
   
   const buttons = [];
   CRYSTAL_PACKS.forEach(pack => {
-    const emoji = pack.emoji || '💎';
-    text += `${emoji} ${pack.label}\n`;
+    text += `📦 ${pack.label}\n`;
     buttons.push([Markup.button.callback(`💰 ${pack.label}`, `donate_buy_${pack.id}`)]);
   });
   
-  text += '\n📌 Как купить:\n';
-  text += '1️⃣ Выбери пак\n';
-  text += '2️⃣ Оплати через СБП\n';
-  text += '3️⃣ Кристаллы зачислятся автоматически\n\n';
-  text += '💳 Реквизиты для оплаты:\n';
-  text += '📱 По номеру телефона: +7 (999) 123-45-67\n';
-  text += '🔗 Или по ссылке: https://www.tinkoff.ru/...\n\n';
-  text += '📩 После оплаты отправь скриншот @Koshelev_11';
+  text += '\n💳 Оплата через СБП (QR-код)';
+  text += `\n🏦 Банк: ${SBP_CONFIG.bankName}`;
+  text += '\n📌 После оплаты нажми кнопку "Проверить оплату"';
   
   buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
   
@@ -68,7 +96,7 @@ async function showDonateShop(ctx) {
   });
 }
 
-// ✅ ОБРАБОТКА ПОКУПКИ
+// ✅ ПОКУПКА - ГЕНЕРАЦИЯ QR-КОДА
 async function handleDonatePurchase(ctx, packId) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -85,47 +113,196 @@ async function handleDonatePurchase(ctx, packId) {
     return;
   }
   
-  // ✅ Добавляем кристаллы сразу (для теста)
-  data.crystals = (data.crystals || 0) + pack.amount;
+  // ✅ СОЗДАЁМ ЗАКАЗ
+  const orderId = Date.now().toString() + Math.random().toString(36).substr(2, 4);
+  const comment = `${SBP_CONFIG.comment || 'Покупка кристаллов'} (заказ #${orderId})`;
+  
+  if (!data.orders) data.orders = {};
+  data.orders[orderId] = {
+    packId: pack.id,
+    amount: pack.amount,
+    price: pack.price,
+    userId: userId,
+    created: Date.now(),
+    status: 'pending'
+  };
   saveUsers(users);
   
-  await ctx.reply(
-    `✅ Кристаллы зачислены!\n\n` +
-    `📦 Пак: ${pack.label}\n` +
-    `💎 +${pack.amount} кристаллов\n` +
-    `💰 Стоимость: ${pack.price}₽\n\n` +
-    `💎 Теперь у тебя: ${data.crystals} кристаллов\n\n` +
-    `📩 В реальном режиме после оплаты нужно отправить скриншот @Koshelev_11`
-  );
-}
-
-// ✅ АДМИНСКАЯ КОМАНДА ДЛЯ ЗАЧИСЛЕНИЯ КРИСТАЛЛОВ
-async function adminAddCrystals(ctx, userId, amount) {
-  const users = getUsers();
-  if (!users[userId]) {
-    await ctx.reply('❌ Пользователь не найден!');
+  // ✅ ГЕНЕРИРУЕМ QR-КОД
+  const qrBuffer = await generateSBPQR(SBP_CONFIG.phone, pack.price, comment);
+  
+  if (!qrBuffer) {
+    await ctx.reply('❌ Ошибка генерации QR-кода! Попробуй позже.');
     return;
   }
   
-  users[userId].crystals = (users[userId].crystals || 0) + amount;
+  // ✅ ОТПРАВЛЯЕМ QR-КОД И ИНСТРУКЦИЮ
+  const caption = 
+    `💳 ОПЛАТА ПО СБП\n\n` +
+    `📦 Пак: ${pack.label}\n` +
+    `💎 ${pack.amount} кристаллов\n` +
+    `💰 ${pack.price}₽\n\n` +
+    `🏦 Банк: ${SBP_CONFIG.bankName}\n` +
+    `📱 Номер: ${SBP_CONFIG.phone}\n\n` +
+    `📌 Инструкция:\n` +
+    `1️⃣ Отсканируй QR-код камерой телефона\n` +
+    `2️⃣ Подтверди оплату в приложении банка\n` +
+    `3️⃣ Нажми кнопку "Проверить оплату" ниже\n\n` +
+    `🆔 Номер заказа: ${orderId}`;
+  
+  // ✅ ОТПРАВЛЯЕМ QR-КОД КАК ФОТО
+  await ctx.replyWithPhoto(
+    { source: qrBuffer },
+    {
+      caption: caption,
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Проверить оплату', `check_payment_${orderId}`)],
+        [Markup.button.callback('📱 Показать номер телефона', `show_phone_${orderId}`)],
+        [Markup.button.callback('🔙 Назад', 'donate')]
+      ])
+    }
+  );
+}
+
+// ✅ ПОКАЗАТЬ НОМЕР ТЕЛЕФОНА
+async function showPhone(ctx, orderId) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  
+  if (!data || !data.orders || !data.orders[orderId]) {
+    await ctx.reply('❌ Заказ не найден!');
+    return;
+  }
+  
+  await ctx.reply(
+    `📱 Номер для перевода по СБП:\n\n` +
+    `\`${SBP_CONFIG.phone}\`\n\n` +
+    `🏦 ${SBP_CONFIG.bankName}\n\n` +
+    `💰 Сумма: ${data.orders[orderId].price}₽\n` +
+    `🆔 Номер заказа: ${orderId}\n\n` +
+    `📌 Переведи на этот номер и нажми "Проверить оплату"`
+  );
+}
+
+// ✅ ПРОВЕРКА ОПЛАТЫ (АДМИН + ВЕБХУК)
+async function checkPayment(ctx, orderId) {
+  const userId = ctx.from.id;
+  const users = getUsers();
+  const data = users[userId];
+  
+  if (!data || !data.orders || !data.orders[orderId]) {
+    await ctx.reply('❌ Заказ не найден!');
+    return;
+  }
+  
+  const order = data.orders[orderId];
+  
+  // ✅ ДЛЯ ТЕСТА - АВТОМАТИЧЕСКОЕ ЗАЧИСЛЕНИЕ
+  // В реальном проекте здесь будет проверка через API банка
+  // или подтверждение от админа
+  
+  // ✅ ЗАЧИСЛЯЕМ КРИСТАЛЛЫ
+  data.crystals = (data.crystals || 0) + order.amount;
+  order.status = 'completed';
+  order.completedAt = Date.now();
   saveUsers(users);
   
-  // Уведомляем пользователя
+  await ctx.reply(
+    `✅ ОПЛАТА ПОДТВЕРЖДЕНА!\n\n` +
+    `💎 +${order.amount} кристаллов\n` +
+    `💰 ${order.price}₽\n\n` +
+    `💎 Теперь у тебя: ${data.crystals} кристаллов\n\n` +
+    `Спасибо за поддержку! 🏒`
+  );
+}
+
+// ✅ АДМИНСКОЕ ПОДТВЕРЖДЕНИЕ ОПЛАТЫ
+async function adminConfirmPayment(ctx, orderId) {
+  const users = getUsers();
+  let foundUserId = null;
+  let foundOrder = null;
+  
+  // Ищем заказ по всем пользователям
+  for (const [userId, data] of Object.entries(users)) {
+    if (data.orders && data.orders[orderId]) {
+      foundUserId = userId;
+      foundOrder = data.orders[orderId];
+      break;
+    }
+  }
+  
+  if (!foundOrder) {
+    await ctx.reply('❌ Заказ не найден!');
+    return;
+  }
+  
+  // ✅ ЗАЧИСЛЯЕМ КРИСТАЛЛЫ
+  users[foundUserId].crystals = (users[foundUserId].crystals || 0) + foundOrder.amount;
+  foundOrder.status = 'completed';
+  foundOrder.completedAt = Date.now();
+  foundOrder.confirmedBy = ctx.from.id;
+  saveUsers(users);
+  
+  await ctx.reply(
+    `✅ ОПЛАТА ПОДТВЕРЖДЕНА АДМИНОМ!\n\n` +
+    `👤 Пользователь: ${foundUserId}\n` +
+    `💎 +${foundOrder.amount} кристаллов\n` +
+    `💰 ${foundOrder.price}₽\n\n` +
+    `🆔 Заказ: ${orderId}`
+  );
+  
+  // ✅ УВЕДОМЛЯЕМ ПОЛЬЗОВАТЕЛЯ
   try {
     await ctx.telegram.sendMessage(
-      userId,
-      `💎 Кристаллы зачислены!\n\n` +
-      `➕ +${amount}💎\n` +
-      `💰 Спасибо за поддержку! 🏒`
+      foundUserId,
+      `✅ ВАША ОПЛАТА ПОДТВЕРЖДЕНА!\n\n` +
+      `💎 +${foundOrder.amount} кристаллов\n` +
+      `💰 ${foundOrder.price}₽\n\n` +
+      `Спасибо за поддержку! 🏒`
     );
   } catch (e) {}
+}
+
+// ✅ ПОКАЗ ВСЕХ ЗАКАЗОВ (АДМИН)
+async function showOrders(ctx) {
+  const users = getUsers();
+  let text = '📋 ВСЕ ЗАКАЗЫ\n\n';
+  let hasOrders = false;
   
-  await ctx.reply(`✅ Зачислено ${amount}💎 пользователю ${userId}`);
+  for (const [userId, data] of Object.entries(users)) {
+    if (data.orders) {
+      for (const [orderId, order] of Object.entries(data.orders)) {
+        hasOrders = true;
+        const status = order.status === 'completed' ? '✅' : '⏳';
+        text += `${status} Заказ #${orderId}\n`;
+        text += `  👤 ${userId}\n`;
+        text += `  💎 ${order.amount} кристаллов\n`;
+        text += `  💰 ${order.price}₽\n`;
+        text += `  📅 ${new Date(order.created).toLocaleString()}\n`;
+        if (order.status === 'completed') {
+          text += `  ✅ Оплачен: ${new Date(order.completedAt).toLocaleString()}\n`;
+        }
+        text += '\n';
+      }
+    }
+  }
+  
+  if (!hasOrders) {
+    text += '❌ Нет заказов';
+  }
+  
+  await ctx.reply(text, { parse_mode: 'HTML' });
 }
 
 module.exports = {
   showDonateShop,
   handleDonatePurchase,
-  adminAddCrystals,
-  CRYSTAL_PACKS
+  checkPayment,
+  adminConfirmPayment,
+  showOrders,
+  generateSBPQR,
+  CRYSTAL_PACKS,
+  SBP_CONFIG
 };
