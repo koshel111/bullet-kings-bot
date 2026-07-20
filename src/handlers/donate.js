@@ -28,7 +28,7 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// ✅ ПОКАЗ МАГАЗИНА КРИСТАЛЛОВ
+// ✅ ПОКАЗ МАГАЗИНА КРИСТАЛЛОВ (БЕЗ ОШИБОК MARKDOWN)
 async function showDonateShop(ctx) {
   const userId = ctx.from.id;
   const users = getUsers();
@@ -39,10 +39,10 @@ async function showDonateShop(ctx) {
     return;
   }
   
-  let text = '💎 *МАГАЗИН КРИСТАЛЛОВ*\n\n';
+  let text = '💎 МАГАЗИН КРИСТАЛЛОВ\n\n';
   text += `💎 Твои кристаллы: ${data.crystals || 0}\n`;
   text += `💰 2💎 = 1₽\n\n`;
-  text += '*Выбери пак для покупки:*\n\n';
+  text += 'Выбери пак для покупки:\n\n';
   
   const buttons = [];
   CRYSTAL_PACKS.forEach(pack => {
@@ -51,11 +51,11 @@ async function showDonateShop(ctx) {
     buttons.push([Markup.button.callback(`💰 ${pack.label}`, `donate_buy_${pack.id}`)]);
   });
   
-  text += '\n📌 *Как купить:*\n';
+  text += '\n📌 Как купить:\n';
   text += '1️⃣ Выбери пак\n';
   text += '2️⃣ Оплати через СБП\n';
   text += '3️⃣ Кристаллы зачислятся автоматически\n\n';
-  text += '💳 *Реквизиты для оплаты:*\n';
+  text += '💳 Реквизиты для оплаты:\n';
   text += '📱 По номеру телефона: +7 (999) 123-45-67\n';
   text += '🔗 Или по ссылке: https://www.tinkoff.ru/...\n\n';
   text += '📩 После оплаты отправь скриншот @Koshelev_11';
@@ -63,7 +63,7 @@ async function showDonateShop(ctx) {
   buttons.push([Markup.button.callback('🔙 Назад', 'back')]);
   
   await ctx.editMessageText(text, {
-    parse_mode: 'Markdown',
+    parse_mode: 'HTML',
     ...Markup.inlineKeyboard(buttons)
   });
 }
@@ -90,13 +90,12 @@ async function handleDonatePurchase(ctx, packId) {
   saveUsers(users);
   
   await ctx.reply(
-    `✅ *Кристаллы зачислены!*\n\n` +
+    `✅ Кристаллы зачислены!\n\n` +
     `📦 Пак: ${pack.label}\n` +
     `💎 +${pack.amount} кристаллов\n` +
     `💰 Стоимость: ${pack.price}₽\n\n` +
     `💎 Теперь у тебя: ${data.crystals} кристаллов\n\n` +
-    `📩 В реальном режиме после оплаты нужно отправить скриншот @Koshelev_11`,
-    { parse_mode: 'Markdown' }
+    `📩 В реальном режиме после оплаты нужно отправить скриншот @Koshelev_11`
   );
 }
 
@@ -115,10 +114,9 @@ async function adminAddCrystals(ctx, userId, amount) {
   try {
     await ctx.telegram.sendMessage(
       userId,
-      `💎 *Кристаллы зачислены!*\n\n` +
+      `💎 Кристаллы зачислены!\n\n` +
       `➕ +${amount}💎\n` +
-      `💰 Спасибо за поддержку! 🏒`,
-      { parse_mode: 'Markdown' }
+      `💰 Спасибо за поддержку! 🏒`
     );
   } catch (e) {}
   

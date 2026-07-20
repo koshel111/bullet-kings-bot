@@ -48,12 +48,12 @@ function giveReward(data, reward, isPremium = false) {
 
   if (rewards.coins) {
     data.coins = (data.coins || 0) + rewards.coins;
-    rewardText.push("⭐ " + rewards.coins + " монет");
+    rewardText.push(`⭐ ${rewards.coins} монет`);
   }
   
   if (rewards.crystals) {
     data.crystals = (data.crystals || 0) + rewards.crystals;
-    rewardText.push("💎 " + rewards.crystals + " кристаллов");
+    rewardText.push(`💎 ${rewards.crystals} кристаллов`);
   }
   
   if (rewards.pack) {
@@ -62,7 +62,7 @@ function giveReward(data, reward, isPremium = false) {
     data.packs[rewards.pack].push({
       id: Date.now().toString() + Math.random().toString(36).substr(2, 6)
     });
-    rewardText.push("📦 " + rewards.pack + " пак");
+    rewardText.push(`📦 ${rewards.pack} пак`);
   }
   
   if (rewards.jersey) {
@@ -73,7 +73,7 @@ function giveReward(data, reward, isPremium = false) {
       rarity: rewards.jersey,
       isTemporary: !isPremium
     });
-    rewardText.push("🎽 " + rewards.jersey + " форма");
+    rewardText.push(`🎽 ${rewards.jersey} форма`);
   }
   
   if (rewards.arena) {
@@ -84,7 +84,7 @@ function giveReward(data, reward, isPremium = false) {
       rarity: rewards.arena,
       isTemporary: !isPremium
     });
-    rewardText.push("🏟️ " + rewards.arena + " арена");
+    rewardText.push(`🏟️ ${rewards.arena} арена`);
   }
   
   if (rewards.card) {
@@ -103,7 +103,7 @@ function giveReward(data, reward, isPremium = false) {
     } else {
       data.cards.push(cardData);
     }
-    rewardText.push("🃏 " + cardData.name + " (" + cardData.overall + " OVR)");
+    rewardText.push(`🃏 ${cardData.name} (${cardData.overall} OVR)`);
   }
   
   return rewardText;
@@ -169,7 +169,7 @@ function autoClaimRewards(data, currentLevel, isPremium = false) {
   return { newRewards, rewardList };
 }
 
-// ✅ ГЛАВНАЯ ФУНКЦИЯ ДОБАВЛЕНИЯ XP
+// ✅ ГЛАВНАЯ ФУНКЦИЯ ДОБАВЛЕНИЯ XP (С ВОЗВРАТОМ РЕЗУЛЬТАТА)
 async function addXP(userId, amount, ctx = null) {
   console.log('📈 [addXP] ===== НАЧАЛО =====');
   console.log('📈 [addXP] Добавляем XP:', userId, '+', amount);
@@ -180,7 +180,7 @@ async function addXP(userId, amount, ctx = null) {
     
     if (!data) {
       console.log('❌ [addXP] Пользователь не найден!');
-      return false;
+      return { success: false, error: 'User not found' };
     }
     
     const currentXP = data.battlepass_xp || 0;
@@ -193,31 +193,40 @@ async function addXP(userId, amount, ctx = null) {
     
     console.log('📊 [addXP] Уровни:', oldLevel, '->', newLevel);
     
+    let rewardResult = null;
     if (newLevel > oldLevel) {
       console.log('🎉 Новый уровень! Выдаём награды...');
-      const result = autoClaimRewards(data, newLevel, data.battlepass_premium || 0);
-      console.log('🎉 Выдано наград:', result.newRewards);
+      rewardResult = autoClaimRewards(data, newLevel, data.battlepass_premium || 0);
+      console.log('🎉 Выдано наград:', rewardResult.newRewards);
     }
     
     saveUsers(users);
     console.log('✅ [addXP] XP сохранён!');
     console.log('✅ [addXP] Итоговый XP в БД:', data.battlepass_xp);
     console.log('📈 [addXP] ===== КОНЕЦ =====');
-    return true;
+    
+    return { 
+      success: true, 
+      oldXP: currentXP, 
+      newXP: data.battlepass_xp,
+      oldLevel: oldLevel,
+      newLevel: newLevel,
+      rewards: rewardResult
+    };
   } catch (error) {
     console.error('❌ [addXP] Ошибка:', error);
-    return false;
+    return { success: false, error: error.message };
   }
 }
 
-// ✅ ДОБАВЛЯЕМ XP ДЛЯ ТУРНИРА
-async function addTournamentXP(userId, isWin, isDraw = false) {
+// ✅ ДОБАВЛЯЕМ XP ДЛЯ ТУРНИРА (И ДЛЯ ИИ, И ДЛЯ PVP)
+async function addTournamentResult(userId, isWin, isDraw = false) {
   try {
     const tournamentHandler = require('./tournament');
     if (typeof tournamentHandler.addTournamentResult === 'function') {
-      await tournamentHandler.addTournamentResult(userId, isWin, isDraw);
+      const result = await tournamentHandler.addTournamentResult(userId, isWin, isDraw);
       console.log('🏆 [Турнир] Результат добавлен:', userId, isWin ? 'победа' : isDraw ? 'ничья' : 'поражение');
-      return true;
+      return result;
     }
     return false;
   } catch (error) {
@@ -228,7 +237,7 @@ async function addTournamentXP(userId, isWin, isDraw = false) {
 
 module.exports = {
   addXP,
-  addTournamentXP,
+  addTournamentResult,
   XP_WIN,
   XP_LOSS,
   XP_PER_LEVEL,

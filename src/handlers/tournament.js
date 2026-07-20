@@ -62,8 +62,10 @@ function getUsers() {
 // ============================================
 function addTournamentResult(playerId, isWin, isDraw = false) {
   const tournament = getTournamentData();
+  
+  // ✅ ТУРНИР ДОЛЖЕН БЫТЬ АКТИВЕН
   if (!tournament.isActive || tournament.isFinished) {
-    console.log('⚠️ Турнир неактивен или завершён');
+    console.log('⚠️ Турнир неактивен или завершён, очки не начисляются');
     return false;
   }
   
@@ -115,17 +117,16 @@ function showTournament(ctx) {
   const tournament = getTournamentData();
   const users = getUsers();
   
-  let text = '📊 *ТУРНИРНАЯ ТАБЛИЦА*\n\n';
+  let text = '📊 ТУРНИРНАЯ ТАБЛИЦА\n\n';
   text += `🏆 ${tournament.name}\n`;
   text += `📅 Сезон ${tournament.season}\n`;
   
   if (tournament.isFinished) {
-    text += '🏁 *ТУРНИР ЗАВЕРШЁН!*\n\n';
+    text += '🏁 ТУРНИР ЗАВЕРШЁН!\n\n';
   } else {
     text += `🕐 До окончания: ${getTimeUntilEnd()}\n\n`;
   }
   
-  // ✅ СОРТИРУЕМ ПО ОЧКАМ
   const sorted = Object.entries(tournament.players)
     .sort((a, b) => b[1].points - a[1].points)
     .slice(0, 20);
@@ -134,7 +135,7 @@ function showTournament(ctx) {
     text += '❌ Пока нет участников\n';
     text += '💡 Играй матчи, чтобы попасть в таблицу!\n';
   } else {
-    text += '📋 *ТОП-20:*\n\n';
+    text += '📋 ТОП-20:\n\n';
     sorted.forEach(([id, stats], index) => {
       const userName = users[id]?.name || `Игрок${id}`;
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index+1}.`;
@@ -144,17 +145,16 @@ function showTournament(ctx) {
   
   text += `\n📊 Всего участников: ${Object.keys(tournament.players).length}`;
   
-  // ✅ ПОКАЗЫВАЕМ ПРИЗЫ
-  text += '\n\n🏆 *Призы:*\n';
+  text += '\n\n🏆 Призы:\n';
   text += `  🥇 1 место: ${tournament.prizes['1']}\n`;
   text += `  🥈 2 место: ${tournament.prizes['2']}\n`;
   text += `  🥉 3 место: ${tournament.prizes['3']}\n`;
   
-  text += '\n📋 *Как начисляются очки:*\n';
+  text += '\n📋 Как начисляются очки:\n';
   text += '  🏆 Победа: +2 очка\n';
   text += '  ⚖️ Ничья: +1 очко\n';
   text += '  💔 Поражение: 0 очков\n';
-  text += '  🔄 Очки начисляются автоматически после каждого матча!';
+  text += '  🔄 Очки начисляются автоматически после каждого матча (ИИ и PvP)!';
   
   const buttons = [
     [Markup.button.callback('🔄 Обновить', 'tournament_refresh')],
@@ -162,7 +162,7 @@ function showTournament(ctx) {
   ];
   
   ctx.editMessageText(text, { 
-    parse_mode: 'Markdown', 
+    parse_mode: 'HTML', 
     ...Markup.inlineKeyboard(buttons) 
   });
 }
@@ -179,14 +179,14 @@ function showPrizeSelection(ctx) {
   }
   
   const text = 
-    '🏆 *ВЫБЕРИ КАРТУ (96+)*\n\n' +
+    '🏆 ВЫБЕРИ КАРТУ (96+)\n\n' +
     'Ты победитель турнира! Выбери одну карту:\n\n' +
     '1️⃣ 🔥 Александр Овечкин (99 OVR) — Полевой\n' +
     '2️⃣ 🔥 Сидни Кросби (97 OVR) — Полевой\n' +
     '3️⃣ 🔥 Коннор Макдэвид (98 OVR) — Полевой\n\n' +
-    '📋 Отправь команду: `prize_1`, `prize_2` или `prize_3`';
+    '📋 Отправь команду: prize_1, prize_2 или prize_3';
   
-  ctx.reply(text, { parse_mode: 'Markdown' });
+  ctx.reply(text, { parse_mode: 'HTML' });
 }
 
 function selectPrizeCard(ctx, cardIndex) {
@@ -224,12 +224,11 @@ function selectPrizeCard(ctx, cardIndex) {
   saveUsers(users);
   
   ctx.reply(
-    `✅ *Карта получена!*\n\n` +
+    `✅ КАРТА ПОЛУЧЕНА!\n\n` +
     `🔥 ${card.name} (${card.overall} OVR)\n` +
     `🏆 Редкость: Икона\n` +
     `🏒 Позиция: ${card.position}\n\n` +
-    `💡 Карта добавлена в коллекцию!`,
-    { parse_mode: 'Markdown' }
+    `💡 Карта добавлена в коллекцию!`
   );
 }
 
@@ -254,8 +253,8 @@ function adminStopTournament(ctx) {
   
   const users = getUsers();
   const medals = ['🥇', '🥈', '🥉'];
-  let resultText = '🏆 *ТУРНИР ЗАВЕРШЁН!*\n\n';
-  resultText += '🏆 *Победители:*\n';
+  let resultText = '🏆 ТУРНИР ЗАВЕРШЁН!\n\n';
+  resultText += '🏆 Победители:\n';
   
   sorted.forEach(([id, stats], index) => {
     const userName = users[id]?.name || `Игрок${id}`;
@@ -280,7 +279,7 @@ function adminStopTournament(ctx) {
   });
   
   saveUsers(users);
-  ctx.reply(resultText, { parse_mode: 'Markdown' });
+  ctx.reply(resultText, { parse_mode: 'HTML' });
 }
 
 function adminStartTournament(ctx) {
@@ -293,11 +292,10 @@ function adminStartTournament(ctx) {
   tournament.endDate = new Date('2026-09-01T00:00:00.000Z').toISOString();
   saveTournamentData(tournament);
   ctx.reply(
-    `✅ *Новый турнир создан!*\n\n` +
+    `✅ НОВЫЙ ТУРНИР СОЗДАН!\n\n` +
     `🏆 Сезон ${tournament.season}\n` +
     `📅 До окончания: до 1 сентября\n\n` +
-    `💡 Все игроки автоматически участвуют!`,
-    { parse_mode: 'Markdown' }
+    `💡 Все игроки автоматически участвуют!`
   );
 }
 
@@ -305,7 +303,7 @@ function adminSetTournamentName(ctx, name) {
   const tournament = getTournamentData();
   tournament.name = name;
   saveTournamentData(tournament);
-  ctx.reply(`✅ *Название турнира обновлено!*\n\n🏆 ${name}`, { parse_mode: 'Markdown' });
+  ctx.reply(`✅ Название турнира обновлено!\n\n🏆 ${name}`);
 }
 
 // ✅ АВТОМАТИЧЕСКАЯ ПРОВЕРКА ЗАВЕРШЕНИЯ
@@ -344,19 +342,11 @@ function checkTournamentAutoFinish() {
       }
     });
     saveUsers(users);
-    
-    // ✅ УВЕДОМЛЯЕМ ПОБЕДИТЕЛЕЙ
-    sorted.forEach(([id], index) => {
-      try {
-        const bot = require('telegraf').Telegraf;
-        // Уведомление через бота
-      } catch (e) {}
-    });
   }
 }
 
 // ============================================
-// ЭКСПОРТ (ТОЛЬКО ОДИН)
+// ЭКСПОРТ
 // ============================================
 module.exports = {
   getTournamentData,
