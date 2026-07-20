@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/start.js - С КНОПКОЙ START
+// src/handlers/start.js - БЕЗ КНОПКИ START
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -27,7 +27,6 @@ function saveUsers(users) {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
 }
 
-// ✅ КНОПКА START В МЕНЮ
 async function showMainMenu(ctx, bot) {
   const user = ctx.from;
   const users = getUsersDirect();
@@ -73,7 +72,6 @@ async function showMainMenu(ctx, bot) {
   const emptyBars = progressBarLength - filledBars;
   const progressBar = '▓'.repeat(filledBars) + '░'.repeat(emptyBars);
   
-  // ✅ ПРОВЕРКА ПОБЕДЫ В ТУРНИРЕ
   let tournamentText = '';
   if (data.tournament_win && data.tournament_place === 1) {
     tournamentText = '\n🏆 *ТЫ ПОБЕДИЛ В ТУРНИРЕ!*\nВыбери свою награду в разделе 🏆 Турнир\n';
@@ -110,11 +108,9 @@ async function showMainMenu(ctx, bot) {
     "🏆 Турнир — турнирная таблица\n" +
     "📅 Бонус — ежедневный бонус";
   
-  // ✅ ДОБАВЛЯЕМ КНОПКУ START
   await ctx.reply(text, {
     parse_mode: "Markdown",
     ...Markup.inlineKeyboard([
-      [Markup.button.callback("📱 /start", "start_command")],
       [Markup.button.callback("🎮 Играть", "play")],
       [Markup.button.callback("👥 Команда", "team")],
       [Markup.button.callback("📚 Коллекция", "collection")],
@@ -133,12 +129,6 @@ async function showMainMenu(ctx, bot) {
 module.exports = (bot) => {
   
   bot.start(async (ctx) => {
-    await showMainMenu(ctx, bot);
-  });
-
-  // ✅ ОБРАБОТЧИК КНОПКИ START
-  bot.action("start_command", async (ctx) => {
-    await ctx.answerCbQuery();
     await showMainMenu(ctx, bot);
   });
 
