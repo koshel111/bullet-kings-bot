@@ -28,7 +28,7 @@ const COINS_WIN = 30;
 const RATING_WIN = 20;
 const RATING_LOSS = -5;
 
-// ✅ ФУНКЦИИ
+// ✅ ФУНКЦИИ РАБОТЫ С БАЗОЙ
 function getUsers() {
   if (!fs.existsSync(DB_PATH)) return {};
   return JSON.parse(fs.readFileSync(DB_PATH));
@@ -58,6 +58,10 @@ function getTeamRating(team) {
 
 function getOnlineCount() {
   return onlinePlayers.size;
+}
+
+function getQueueCount() {
+  return pvpQueue.length;
 }
 
 function hasActiveMatch(userId) {
@@ -168,29 +172,6 @@ const goalieNames = {
 };
 
 // ============================================
-// МЕНЮ ВЫБОРА РЕЖИМА (С ОНЛАЙНОМ)
-// ============================================
-async function showPlayMenu(ctx) {
-  const onlineCount = getOnlineCount();
-  
-  const text = 
-    `🎮 *Выбери режим:*\n\n` +
-    `👥 *Игроков в боте:* ${onlineCount}\n` +
-    `⚔️ *В PvP очереди:* ${pvpQueue.length}\n\n` +
-    `🤖 Игра против ИИ — сражайся с компьютером\n` +
-    `⚔️ PvP — сражайся с реальным игроком`;
-  
-  await ctx.editMessageText(text, {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback('🤖 Против ИИ', 'play_ai')],
-      [Markup.button.callback(`⚔️ PvP (${pvpQueue.length} в очереди)`, 'pvp_find')],
-      [Markup.button.callback('🔙 Назад', 'back')],
-    ])
-  });
-}
-
-// ============================================
 // ПОИСК СОПЕРНИКА
 // ============================================
 async function findOpponent(ctx) {
@@ -240,7 +221,7 @@ async function findOpponent(ctx) {
   
   // ✅ ПОКАЗЫВАЕМ СООБЩЕНИЕ О ПОИСКЕ С ТАЙМЕРОМ
   let seconds = 0;
-  const totalSeconds = SEARCH_TIMEOUT / 1000;
+  const totalSeconds = Math.floor(SEARCH_TIMEOUT / 1000);
   
   const msg = await ctx.reply(
     `🔍 *Поиск соперника...*\n\n` +
@@ -291,22 +272,24 @@ async function findOpponent(ctx) {
       if (index !== -1) {
         pvpQueue.splice(index, 1);
         clearInterval(timerInterval);
-        await ctx.telegram.editMessageText(
-          ctx.chat.id,
-          msg.message_id,
-          null,
-          `⏰ *Время поиска истекло!*\n\n` +
-          `Соперник не найден за ${totalSeconds} секунд.\n\n` +
-          `*Выбери действие:*`,
-          {
-            parse_mode: 'Markdown',
-            ...Markup.inlineKeyboard([
-              [Markup.button.callback('🤖 Играть с ИИ', 'play_ai')],
-              [Markup.button.callback('🔄 Начать поиск снова', 'pvp_find')],
-              [Markup.button.callback('🔙 Назад', 'back')],
-            ])
-          }
-        ).catch(() => {});
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            msg.message_id,
+            null,
+            `⏰ *Время поиска истекло!*\n\n` +
+            `Соперник не найден за ${totalSeconds} секунд.\n\n` +
+            `*Выбери действие:*`,
+            {
+              parse_mode: 'Markdown',
+              ...Markup.inlineKeyboard([
+                [Markup.button.callback('🤖 Играть с ИИ', 'play_ai')],
+                [Markup.button.callback('🔄 Начать поиск снова', 'pvp_find')],
+                [Markup.button.callback('🔙 Назад', 'play')],
+              ])
+            }
+          );
+        } catch (e) {}
         delete pvpTimers[userId];
       }
     }, SEARCH_TIMEOUT)
@@ -354,7 +337,7 @@ async function cancelPvpSearch(ctx) {
         ...Markup.inlineKeyboard([
           [Markup.button.callback('🤖 Играть с ИИ', 'play_ai')],
           [Markup.button.callback('🔄 Начать поиск снова', 'pvp_find')],
-          [Markup.button.callback('🔙 Назад', 'back')],
+          [Markup.button.callback('🔙 Назад', 'play')],
         ])
       }
     );
@@ -874,7 +857,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
     slap: '💥 Щелчок'
   };
   
-  const goalieNames = {
+  const goalieNamesMap = {
     left: '🧤 Закрыл левый угол',
     right: '🧤 Закрыл правый угол',
     stand: '🧍 Стоя',
@@ -885,7 +868,7 @@ async function pvpGoalieAction(ctx, matchId, goalieAction) {
   
   let resultText = `🎯 *${shooter.name} бросает!*\n`;
   resultText += `🎯 *Бросок:* ${throwNames[shotType] || shotType}\n`;
-  resultText += `🧤 *Вратарь:* ${goalieNames[goalieAction] || goalieAction}\n`;
+  resultText += `🧤 *Вратарь:* ${goalieNamesMap[goalieAction] || goalieAction}\n`;
   resultText += `${result.isGoal ? '⚡ *ГОЛ!* 🎉' : '😤 *СЭЙВ!*'}\n\n`;
   resultText += `📊 *Шанс гола:* ${result.probability}% (рейтинг ${playerOverall})\n\n`;
   resultText += `📊 *Счёт:* ${match.player1Name} ${match.player1Score} — ${match.player2Score} ${match.player2Name}\n`;
@@ -990,7 +973,7 @@ async function finishPvPMatch(matchId) {
   const finalKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback('🔄 Сыграть ещё', 'pvp_find')],
     [Markup.button.callback('🤖 Играть с ИИ', 'play_ai')],
-    [Markup.button.callback('🔙 Назад', 'back')]
+    [Markup.button.callback('🔙 Назад', 'play')]
   ]);
   
   await sendOrEditMessage(match.player1, resultText, finalKeyboard, playerMessages[match.player1]);
@@ -1061,59 +1044,38 @@ async function pvpForfeit(ctx, matchId) {
 }
 
 // ============================================
+// ОБНОВЛЕНИЕ ОНЛАЙН-ПОЛЬЗОВАТЕЛЕЙ
+// ============================================
+async function updateOnlineUsers() {
+  try {
+    const users = getUsers();
+    const userIds = Object.keys(users);
+    // В реальном проекте здесь должна быть более сложная логика
+    // Например, проверка последней активности
+    onlinePlayers.clear();
+    userIds.forEach(id => onlinePlayers.add(id));
+    console.log('👥 [PvP] Онлайн пользователей:', onlinePlayers.size);
+  } catch (error) {
+    console.error('❌ [PvP] Ошибка обновления онлайн:', error);
+  }
+}
+
+// ============================================
 // ЭКСПОРТ
 // ============================================
-module.exports = (bot) => {
-  botInstance = bot;
-  
-  // ✅ Обновляем онлайн-пользователей
-  setInterval(() => {
-    // Очищаем старых пользователей (удаляем тех, кто не активен)
-    // В реальном проекте здесь будет более сложная логика
-  }, 60000);
-  
-  // ✅ ОБРАБОТЧИКИ
-  bot.action('pvp_find', async (ctx) => {
-    await ctx.answerCbQuery();
-    await findOpponent(ctx);
-  });
-  
-  bot.action('pvp_cancel', async (ctx) => {
-    await ctx.answerCbQuery();
-    await cancelPvpSearch(ctx);
-  });
-  
-  bot.action(/pvp_ready_(.+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await pvpReady(ctx, ctx.match[1]);
-  });
-  
-  bot.action('pvp_wait', async (ctx) => {
-    await ctx.answerCbQuery('⏳ Ожидаем соперника...');
-  });
-  
-  bot.action(/pvp_pick_(.+)_([12])_(\d+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await pvpChooseShot(ctx, ctx.match[1], parseInt(ctx.match[2]), parseInt(ctx.match[3]));
-  });
-  
-  bot.action(/pvp_throw_(.+)_(.+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await pvpHandleThrow(ctx, ctx.match[1], ctx.match[2]);
-  });
-  
-  bot.action(/pvp_goalie_(.+)_(.+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await pvpGoalieAction(ctx, ctx.match[1], ctx.match[2]);
-  });
-  
-  bot.action(/pvp_continue_(.+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await continuePvP(ctx, ctx.match[1]);
-  });
-  
-  bot.action(/pvp_forfeit_(.+)/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await pvpForfeit(ctx, ctx.match[1]);
-  });
+module.exports = {
+  findOpponent,
+  cancelPvpSearch,
+  pvpReady,
+  pvpChooseShot,
+  pvpHandleThrow,
+  pvpGoalieAction,
+  continuePvP,
+  pvpForfeit,
+  getQueueCount,
+  getOnlineCount,
+  updateOnlineUsers,
+  createPvPMatch,
+  showTeamInfo,
+  finishPvPMatch
 };

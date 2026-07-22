@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - БЕЗ ПОДСКАЗОК ДЛЯ НОВИЧКА
+// src/handlers/game.js - ИСПРАВЛЕННЫЙ
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -41,10 +41,8 @@ const goalieNames = {
   aggressive: '💪 Агрессивный выход'
 };
 
-// ✅ ТОЛЬКО 3 ДЕЙСТВИЯ ДЛЯ ИИ
 const AI_ACTIONS = ['left', 'right', 'fivehole'];
 
-// ✅ НАГРАДЫ ЗА СЛОЖНОСТЬ (БЕЗ ПОДСКАЗОК)
 const DIFFICULTY_REWARDS = {
   novice: {
     name: '🟢 Новичок',
@@ -76,7 +74,19 @@ const DIFFICULTY_REWARDS = {
   }
 };
 
-// ✅ ФУНКЦИЯ ПОЛУЧЕНИЯ ХОДА ИИ
+// ✅ ФУНКЦИЯ ПОЛУЧЕНИЯ КОЛИЧЕСТВА ИГРОКОВ В ОЧЕРЕДИ
+function getQueueCount() {
+  try {
+    const pvpHandler = require('./pvp');
+    if (typeof pvpHandler.getQueueCount === 'function') {
+      return pvpHandler.getQueueCount();
+    }
+    return 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
 function getAIShot(playerId, difficulty = 1) {
   const history = matches[playerId]?.history || [];
   
@@ -118,7 +128,6 @@ function getAIShot(playerId, difficulty = 1) {
   return AI_ACTIONS[Math.floor(Math.random() * AI_ACTIONS.length)];
 }
 
-// ✅ РАСЧЁТ ШАНСА ГОЛА
 function calculateShot(playerAction, goalieAction, difficulty = 1, playerOverall = 80) {
   const actionBonus = {
     'left': { 'left': 0.05, 'right': 0.75, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
@@ -384,23 +393,16 @@ async function showPlayerSelection(ctx, user, match) {
 // ============================================
 module.exports = (bot) => {
   
-  // ✅ ОБНОВЛЁННЫЙ ОБРАБОТЧИК play - С ОНЛАЙН И ОЧЕРЕДЬЮ
+  // ✅ ГЛАВНОЕ МЕНЮ ВЫБОРА РЕЖИМА
   bot.action('play', async (ctx) => {
     console.log('🎮 [play] Нажата кнопка play');
     await ctx.answerCbQuery();
     
-    // Получаем количество игроков в очереди PvP
-    let queueCount = 0;
-    try {
-      const pvpHandler = require('./pvp');
-      queueCount = pvpHandler.getQueueCount ? pvpHandler.getQueueCount() : 0;
-    } catch (e) {
-      queueCount = 0;
-    }
+    const queueCount = getQueueCount();
     
     const text = 
       `🎮 *Выбери режим:*\n\n` +
-      `👥 *Игроков в боте:* ${Math.floor(Math.random() * 10) + 5}\n` +
+      `👥 *Игроков в боте:* ${Math.floor(Math.random() * 15) + 5}\n` +
       `⚔️ *В PvP очереди:* ${queueCount}\n\n` +
       `🤖 Игра против ИИ — сражайся с компьютером\n` +
       `⚔️ PvP — сражайся с реальным игроком`;
@@ -409,12 +411,13 @@ module.exports = (bot) => {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('🤖 Против ИИ', 'play_ai')],
-        [Markup.button.callback(`⚔️ PvP (${queueCount} в очереди)`, 'pvp_find')],
+        [Markup.button.callback(`⚔️ Найти соперника (${queueCount} в очереди)`, 'pvp_find_direct')],
         [Markup.button.callback('🔙 Назад', 'back')],
       ])
     });
   });
 
+  // ✅ ВЫБОР СЛОЖНОСТИ
   bot.action('play_ai', async (ctx) => {
     console.log('🤖 [play_ai] Нажата кнопка play_ai');
     await ctx.answerCbQuery();
@@ -438,6 +441,7 @@ module.exports = (bot) => {
     );
   });
 
+  // ✅ НАЧАЛО МАТЧА С ИИ
   bot.action(/difficulty_(.+)/, async (ctx) => {
     console.log('🎯 [difficulty] Нажата сложность:', ctx.match[1]);
     await ctx.answerCbQuery();
@@ -510,6 +514,7 @@ module.exports = (bot) => {
     await showPlayerSelection(ctx, user, matches[user.id]);
   });
 
+  // ✅ ВЫБОР ИГРОКА ДЛЯ БРОСКА
   bot.action(/match_player_(.+)/, async (ctx) => {
     console.log('🏒 [match_player] Выбран игрок:', ctx.match[1]);
     await ctx.answerCbQuery();
@@ -571,7 +576,7 @@ module.exports = (bot) => {
     match.isProcessing = false;
   });
 
-  // ✅ ОСНОВНОЙ ОБРАБОТЧИК БРОСКА
+  // ✅ БРОСОК ИГРОКА
   bot.action(/shot_(.+)/, async (ctx) => {
     console.log('💥 [shot] Выбран бросок:', ctx.match[1]);
     await ctx.answerCbQuery();
@@ -657,7 +662,7 @@ module.exports = (bot) => {
     match.isProcessing = false;
   });
 
-  // ✅ ОБРАБОТЧИК ВРАТАРЯ
+  // ✅ ДЕЙСТВИЕ ВРАТАРЯ
   bot.action(/game_goalie_(.+)/, async (ctx) => {
     console.log('🧤 [game_goalie] Выбрано действие вратаря:', ctx.match[1]);
     await ctx.answerCbQuery();
@@ -805,26 +810,21 @@ module.exports = (bot) => {
     }
   });
 
-  // ✅ ИСПРАВЛЕННЫЙ PvP - УБРАНО "В РАЗРАБОТКЕ"
-  bot.action('play_pvp', async (ctx) => {
-    console.log('⚔️ [play_pvp] Нажата кнопка PvP');
+  // ✅ PVP - ПРЯМОЙ ЗАПУСК ПОИСКА
+  bot.action('pvp_find_direct', async (ctx) => {
+    console.log('⚔️ [pvp_find_direct] Нажата кнопка PvP поиска');
     await ctx.answerCbQuery();
     
-    // Просто перенаправляем на поиск PvP
     try {
       const pvpHandler = require('./pvp');
       if (typeof pvpHandler.findOpponent === 'function') {
         await pvpHandler.findOpponent(ctx);
       } else {
-        // Если функция не найдена, показываем сообщение
         await ctx.editMessageText(
-          '⚔️ *PvP режим*\n\n' +
-          'Поиск соперника... ⏳\n\n' +
-          '💡 Нажми кнопку для поиска:',
+          '❌ PvP временно недоступен. Попробуй позже.',
           {
             parse_mode: 'Markdown',
             ...Markup.inlineKeyboard([
-              [Markup.button.callback('🔍 Найти соперника', 'pvp_find')],
               [Markup.button.callback('🔙 Назад', 'play')],
             ])
           }
@@ -833,13 +833,10 @@ module.exports = (bot) => {
     } catch (error) {
       console.error('❌ Ошибка PvP:', error);
       await ctx.editMessageText(
-        '⚔️ *PvP режим*\n\n' +
-        'Поиск соперника... ⏳\n\n' +
-        '💡 Нажми кнопку для поиска:',
+        '❌ Ошибка запуска PvP. Попробуй позже.',
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([
-            [Markup.button.callback('🔍 Найти соперника', 'pvp_find')],
             [Markup.button.callback('🔙 Назад', 'play')],
           ])
         }
