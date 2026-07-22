@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/start.js - БЕЗ КНОПКИ START
+// src/handlers/start.js - БЕЗ КНОПКИ ДОНАТА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -100,7 +100,6 @@ async function showMainMenu(ctx, bot) {
     "👥 Команда — управляй составом\n" +
     "📚 Коллекция — все твои карты\n" +
     "🛒 Магазин — паки и бусты\n" +
-    "💎 Донат — купить кристаллы\n" +
     "👤 Профиль — твоя статистика\n" +
     "🎖️ Пропуск — боевой пропуск\n" +
     "📦 Инвентарь — паки и косметика\n" +
@@ -115,7 +114,6 @@ async function showMainMenu(ctx, bot) {
       [Markup.button.callback("👥 Команда", "team")],
       [Markup.button.callback("📚 Коллекция", "collection")],
       [Markup.button.callback("🛒 Магазин", "shop")],
-      [Markup.button.callback("💎 Донат", "donate")],
       [Markup.button.callback("👤 Профиль", "profile")],
       [Markup.button.callback("🎖️ Пропуск", "battlepass")],
       [Markup.button.callback("📦 Инвентарь", "inventory")],
