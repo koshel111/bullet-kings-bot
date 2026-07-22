@@ -42,8 +42,6 @@ const goalieNames = {
   aggressive: '💪 Агрессивный выход'
 };
 
-// ✅ ТОЛЬКО 3 ДЕЙСТВИЯ ДЛЯ ИИ (ВЛЕВО, ВПРАВО, МЕЖДУ ЩИТКОВ)
-const AI_ACTIONS = ['left', 'right', 'fivehole'];
 
 // ✅ НАГРАДЫ ЗА СЛОЖНОСТЬ
 const DIFFICULTY_REWARDS = {
@@ -413,22 +411,30 @@ async function showPlayerSelection(ctx, user, match) {
 
 module.exports = (bot) => {
   
-  bot.action('play', async (ctx) => {
-    console.log('🎮 [play] Нажата кнопка play');
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '🎮 *Выбери режим:*',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🤖 Против ИИ', 'play_ai')],
-          [Markup.button.callback('⚔️ PvP', 'play_pvp')],
-          [Markup.button.callback('🔙 Назад', 'back')],
-        ])
-      }
-    );
-  });
-
+  // В game.js заменяем обработчик play на:
+bot.action('play', async (ctx) => {
+  console.log('🎮 [play] Нажата кнопка play');
+  await ctx.answerCbQuery();
+  
+  const onlineCount = getOnlineCount ? await getOnlineCount() : 0;
+  const queueCount = pvpQueue ? pvpQueue.length : 0;
+  
+  await ctx.editMessageText(
+    `🎮 *Выбери режим:*\n\n` +
+    `👥 *Игроков в боте:* ${onlineCount}\n` +
+    `⚔️ *В PvP очереди:* ${queueCount}\n\n` +
+    `🤖 Игра против ИИ — сражайся с компьютером\n` +
+    `⚔️ PvP — сражайся с реальным игроком`,
+    {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('🤖 Против ИИ', 'play_ai')],
+        [Markup.button.callback(`⚔️ PvP (${queueCount} в очереди)`, 'pvp_find')],
+        [Markup.button.callback('🔙 Назад', 'back')],
+      ])
+    }
+  );
+});
   bot.action('play_ai', async (ctx) => {
     console.log('🤖 [play_ai] Нажата кнопка play_ai');
     await ctx.answerCbQuery();
