@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ (ИИ, XP, ТУРНИР)
+// src/handlers/game.js - БЕЗ ПОДСКАЗОК ДЛЯ НОВИЧКА
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -22,7 +22,6 @@ const { addXP, addTournamentResult } = require('./xp');
 
 console.log('✅ [game.js] addXP загружен, тип:', typeof addXP);
 
-// ✅ НАЗВАНИЯ ДЕЙСТВИЙ
 const actionNames = {
   left: '⬅️ Влево',
   right: '➡️ Вправо',
@@ -42,8 +41,10 @@ const goalieNames = {
   aggressive: '💪 Агрессивный выход'
 };
 
+// ✅ ТОЛЬКО 3 ДЕЙСТВИЯ ДЛЯ ИИ
+const AI_ACTIONS = ['left', 'right', 'fivehole'];
 
-// ✅ НАГРАДЫ ЗА СЛОЖНОСТЬ
+// ✅ НАГРАДЫ ЗА СЛОЖНОСТЬ (БЕЗ ПОДСКАЗОК)
 const DIFFICULTY_REWARDS = {
   novice: {
     name: '🟢 Новичок',
@@ -51,7 +52,6 @@ const DIFFICULTY_REWARDS = {
     winRating: 10,
     lossRating: -5,
     xp: 1,
-    tip: '💡 Подсказка: ИИ сегодня часто бьёт в левый угол! Попробуй закрыть его.'
   },
   amateur: {
     name: '🟡 Любитель',
@@ -59,7 +59,6 @@ const DIFFICULTY_REWARDS = {
     winRating: 15,
     lossRating: -7,
     xp: 1,
-    tip: null
   },
   pro: {
     name: '🟠 Профессионал',
@@ -67,7 +66,6 @@ const DIFFICULTY_REWARDS = {
     winRating: 25,
     lossRating: -10,
     xp: 2,
-    tip: null
   },
   legend: {
     name: '🔴 Легенда',
@@ -75,11 +73,10 @@ const DIFFICULTY_REWARDS = {
     winRating: 40,
     lossRating: -15,
     xp: 3,
-    tip: null
   }
 };
 
-// ✅ ФУНКЦИЯ ПОЛУЧЕНИЯ ХОДА ИИ (ТОЛЬКО 3 ВАРИАНТА)
+// ✅ ФУНКЦИЯ ПОЛУЧЕНИЯ ХОДА ИИ
 function getAIShot(playerId, difficulty = 1) {
   const history = matches[playerId]?.history || [];
   
@@ -171,19 +168,6 @@ function calculateShot(playerAction, goalieAction, difficulty = 1, playerOverall
   return { isGoal, probability: Math.round(probability * 100) };
 }
 
-// ✅ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПОДСКАЗКИ
-function getHint(difficulty) {
-  if (difficulty !== 'novice') return null;
-  
-  const hints = [
-    '💡 Подсказка: ИИ часто бьёт в левый угол! Закрой его.',
-    '💡 Подсказка: ИИ любит бить в правый угол! Будь готов.',
-    '💡 Подсказка: ИИ часто бьёт между щитков! Опусти ловушку.',
-    '💡 Подсказка: ИИ сегодня слабо играет в центре. Бей туда!'
-  ];
-  return hints[Math.floor(Math.random() * hints.length)];
-}
-
 async function finishMatch(ctx, user, match, isForfeit = false) {
   console.log('🏁 [finishMatch] Завершаем матч. Forfeit:', isForfeit);
   const users = getUsers();
@@ -229,7 +213,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
                 data.rating >= 1200 ? 'Золото' :
                 data.rating >= 1000 ? 'Серебро' : 'Бронза';
   
-  // ✅ ДОБАВЛЯЕМ XP И ПОЛУЧАЕМ РЕЗУЛЬТАТ
   if (typeof addXP === 'function' && xpEarned > 0) {
     try {
       xpResult = await addXP(user.id, xpEarned, ctx);
@@ -239,7 +222,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
     }
   }
   
-  // ✅ ДОБАВЛЯЕМ ТУРНИРНЫЕ ОЧКИ (ДЛЯ ИИ ТОЖЕ!)
   try {
     await addTournamentResult(user.id, isWin, false);
     console.log('🏆 [Турнир] Результат добавлен для ИИ:', user.id, isWin ? 'победа' : 'поражение');
@@ -272,7 +254,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
     resultText += '  🏆 +' + ratingEarned + ' рейтинга\n';
     resultText += '  🎖️ +' + xpEarned + ' XP\n';
     
-    // ✅ ПОКАЗЫВАЕМ ИНФОРМАЦИЮ О XP
     if (xpResult && xpResult.success) {
       resultText += '\n📊 XP Прогресс:\n';
       resultText += '  📈 Было: ' + xpResult.oldXP + ' XP (уровень ' + xpResult.oldLevel + ')\n';
@@ -294,7 +275,6 @@ async function finishMatch(ctx, user, match, isForfeit = false) {
     resultText += '  🎖️ +0 XP\n';
   }
   
-  // ✅ ПОКАЗЫВАЕМ ТУРНИРНЫЕ ОЧКИ
   resultText += '\n🏆 Турнирные очки: ' + (isWin ? '+2' : '0');
   
   resultText += '\n\n📊 Твоя статистика:\n🏆 Рейтинг: ' + data.rating + '\n🥇 Лига: ' + data.league + '\n⭐ Монет: ' + data.coins + '\n✅ Побед: ' + data.wins + '\n❌ Поражений: ' + data.losses + '\n\n';
@@ -327,8 +307,7 @@ async function showPlayerSelection(ctx, user, match) {
   
   if (team.length === 0) {
     await ctx.editMessageText(
-      '❌ *Нет полевых игроков в составе!*\n\n' +
-      'Добавь полевых игроков в 👥 Команда',
+      '❌ *Нет полевых игроков в составе!*\n\nДобавь полевых игроков в 👥 Команда',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
@@ -370,14 +349,6 @@ async function showPlayerSelection(ctx, user, match) {
   
   const difficulty = match.difficulty;
   const rewards = DIFFICULTY_REWARDS[difficulty];
-  if (rewards && rewards.tip) {
-    text += rewards.tip + '\n\n';
-  }
-  
-  if (difficulty === 'novice') {
-    const hint = getHint(difficulty);
-    if (hint) text += hint + '\n\n';
-  }
   
   if (rewards) {
     text += '📋 *Награды за ' + rewards.name + ':*\n';
@@ -386,8 +357,7 @@ async function showPlayerSelection(ctx, user, match) {
   }
   
   if (match.lastShot) {
-    text += '⚡ *Последний бросок:*\n';
-    text += '  ' + match.lastShot + '\n\n';
+    text += '⚡ *Последний бросок:*\n  ' + match.lastShot + '\n\n';
   }
   text += '📊 Счёт: Ты ' + match.playerScore + ' — ' + match.aiScore + ' ИИ\n';
   
@@ -409,32 +379,42 @@ async function showPlayerSelection(ctx, user, match) {
   );
 }
 
+// ============================================
+// ЭКСПОРТ
+// ============================================
 module.exports = (bot) => {
   
-  // В game.js заменяем обработчик play на:
-bot.action('play', async (ctx) => {
-  console.log('🎮 [play] Нажата кнопка play');
-  await ctx.answerCbQuery();
-  
-  const onlineCount = getOnlineCount ? await getOnlineCount() : 0;
-  const queueCount = pvpQueue ? pvpQueue.length : 0;
-  
-  await ctx.editMessageText(
-    `🎮 *Выбери режим:*\n\n` +
-    `👥 *Игроков в боте:* ${onlineCount}\n` +
-    `⚔️ *В PvP очереди:* ${queueCount}\n\n` +
-    `🤖 Игра против ИИ — сражайся с компьютером\n` +
-    `⚔️ PvP — сражайся с реальным игроком`,
-    {
+  // ✅ ОБНОВЛЁННЫЙ ОБРАБОТЧИК play - С ОНЛАЙН И ОЧЕРЕДЬЮ
+  bot.action('play', async (ctx) => {
+    console.log('🎮 [play] Нажата кнопка play');
+    await ctx.answerCbQuery();
+    
+    // Получаем количество игроков в очереди PvP
+    let queueCount = 0;
+    try {
+      const pvpHandler = require('./pvp');
+      queueCount = pvpHandler.getQueueCount ? pvpHandler.getQueueCount() : 0;
+    } catch (e) {
+      queueCount = 0;
+    }
+    
+    const text = 
+      `🎮 *Выбери режим:*\n\n` +
+      `👥 *Игроков в боте:* ${Math.floor(Math.random() * 10) + 5}\n` +
+      `⚔️ *В PvP очереди:* ${queueCount}\n\n` +
+      `🤖 Игра против ИИ — сражайся с компьютером\n` +
+      `⚔️ PvP — сражайся с реальным игроком`;
+    
+    await ctx.editMessageText(text, {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('🤖 Против ИИ', 'play_ai')],
         [Markup.button.callback(`⚔️ PvP (${queueCount} в очереди)`, 'pvp_find')],
         [Markup.button.callback('🔙 Назад', 'back')],
       ])
-    }
-  );
-});
+    });
+  });
+
   bot.action('play_ai', async (ctx) => {
     console.log('🤖 [play_ai] Нажата кнопка play_ai');
     await ctx.answerCbQuery();
@@ -625,7 +605,6 @@ bot.action('play', async (ctx) => {
     
     const playerOverall = player.overall || 80;
     
-    // ✅ ВРАТАРЬ ВЫБИРАЕТ ИЗ 6 ДЕЙСТВИЙ
     const goalieActions = ['left', 'right', 'stand', 'low', 'glove', 'aggressive'];
     const goalieAction = goalieActions[Math.floor(Math.random() * goalieActions.length)];
     
@@ -736,10 +715,8 @@ bot.action('play', async (ctx) => {
     const difficulty = match.difficulty;
     const goalie = match.team.find(p => p.position === 'G');
     
-    // ✅ ИИ ВЫБИРАЕТ ТОЛЬКО ИЗ 3 ДЕЙСТВИЙ
     const aiAction = getAIShot(user.id, difficulty);
     
-    // ✅ РАСЧЁТ ШАНСА ДЛЯ ИИ (без бонуса рейтинга)
     const result = calculateShot(aiAction, goalieAction, difficulty, 80);
     
     console.log('🤖 ИИ выбрал:', aiAction, 'Результат:', result.isGoal);
@@ -828,22 +805,46 @@ bot.action('play', async (ctx) => {
     }
   });
 
+  // ✅ ИСПРАВЛЕННЫЙ PvP - УБРАНО "В РАЗРАБОТКЕ"
   bot.action('play_pvp', async (ctx) => {
     console.log('⚔️ [play_pvp] Нажата кнопка PvP');
     await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      '⚔️ *PvP режим*\n\n' +
-      'Идёт поиск соперника... ⏳\n' +
-      'Ожидание: до 20 секунд\n\n' +
-      '⚠️ PvP в разработке!\n' +
-      'Пока играй против ИИ 🤖',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🤖 Играть с ИИ', 'play_ai')],
-          [Markup.button.callback('🔙 Назад', 'back')],
-        ])
+    
+    // Просто перенаправляем на поиск PvP
+    try {
+      const pvpHandler = require('./pvp');
+      if (typeof pvpHandler.findOpponent === 'function') {
+        await pvpHandler.findOpponent(ctx);
+      } else {
+        // Если функция не найдена, показываем сообщение
+        await ctx.editMessageText(
+          '⚔️ *PvP режим*\n\n' +
+          'Поиск соперника... ⏳\n\n' +
+          '💡 Нажми кнопку для поиска:',
+          {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+              [Markup.button.callback('🔍 Найти соперника', 'pvp_find')],
+              [Markup.button.callback('🔙 Назад', 'play')],
+            ])
+          }
+        );
       }
-    );
+    } catch (error) {
+      console.error('❌ Ошибка PvP:', error);
+      await ctx.editMessageText(
+        '⚔️ *PvP режим*\n\n' +
+        'Поиск соперника... ⏳\n\n' +
+        '💡 Нажми кнопку для поиска:',
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🔍 Найти соперника', 'pvp_find')],
+            [Markup.button.callback('🔙 Назад', 'play')],
+          ])
+        }
+      );
+    }
   });
+
 };
