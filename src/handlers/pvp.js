@@ -21,7 +21,7 @@ let botInstance = null;
 
 // ✅ КОНСТАНТЫ
 const MAX_ROUNDS = 5;
-const SEARCH_TIMEOUT = 30000; // 30 секунд
+const SEARCH_TIMEOUT = 30000;
 const MIN_PLAYERS_FOR_MATCH = 2;
 const XP_WIN = 2;
 const COINS_WIN = 30;
@@ -180,20 +180,17 @@ async function findOpponent(ctx) {
   
   console.log('🔍 [PvP] Поиск соперника для:', userId);
   
-  // ✅ ПРОВЕРКА АКТИВНОГО МАТЧА
   const activeMatch = hasActiveMatch(userId);
   if (activeMatch) {
     await ctx.reply('⚠️ У вас уже есть активный матч! Дождитесь его завершения.');
     return;
   }
   
-  // ✅ ПРОВЕРКА В ОЧЕРЕДИ
   if (pvpQueue.includes(userId)) {
     await ctx.reply('⏳ Вы уже в очереди на поиск соперника!');
     return;
   }
   
-  // ✅ ПРОВЕРКА СОСТАВА
   const users = getUsers();
   const data = users[userId];
   if (!data) {
@@ -215,11 +212,9 @@ async function findOpponent(ctx) {
     return;
   }
   
-  // ✅ ДОБАВЛЯЕМ В ОЧЕРЕДЬ
   pvpQueue.push(userId);
   console.log('📊 [PvP] В очереди:', pvpQueue.length, 'игроков');
   
-  // ✅ ПОКАЗЫВАЕМ СООБЩЕНИЕ О ПОИСКЕ С ТАЙМЕРОМ
   let seconds = 0;
   const totalSeconds = Math.floor(SEARCH_TIMEOUT / 1000);
   
@@ -237,7 +232,6 @@ async function findOpponent(ctx) {
     }
   );
   
-  // ✅ ЗАПУСКАЕМ ТАЙМЕР ОБНОВЛЕНИЯ
   const timerInterval = setInterval(async () => {
     seconds++;
     try {
@@ -262,7 +256,6 @@ async function findOpponent(ctx) {
     }
   }, 1000);
   
-  // ✅ СОХРАНЯЕМ ТАЙМЕР
   pvpTimers[userId] = {
     messageId: msg.message_id,
     chatId: ctx.chat.id,
@@ -295,12 +288,10 @@ async function findOpponent(ctx) {
     }, SEARCH_TIMEOUT)
   };
   
-  // ✅ ЕСЛИ НАШЛИСЬ 2 ИГРОКА — СОЗДАЁМ МАТЧ
   if (pvpQueue.length >= MIN_PLAYERS_FOR_MATCH) {
     const player1Id = pvpQueue.shift();
     const player2Id = pvpQueue.shift();
     
-    // Очищаем таймеры
     if (pvpTimers[player1Id]) {
       clearInterval(pvpTimers[player1Id].interval);
       clearTimeout(pvpTimers[player1Id].timeout);
@@ -1050,8 +1041,6 @@ async function updateOnlineUsers() {
   try {
     const users = getUsers();
     const userIds = Object.keys(users);
-    // В реальном проекте здесь должна быть более сложная логика
-    // Например, проверка последней активности
     onlinePlayers.clear();
     userIds.forEach(id => onlinePlayers.add(id));
     console.log('👥 [PvP] Онлайн пользователей:', onlinePlayers.size);
@@ -1061,21 +1050,89 @@ async function updateOnlineUsers() {
 }
 
 // ============================================
+// РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ
+// ============================================
+function registerPvP(bot) {
+  botInstance = bot;
+  
+  setInterval(async () => {
+    await updateOnlineUsers();
+  }, 30000);
+  
+  bot.action('pvp_find', async (ctx) => {
+    console.log('⚔️ [pvp_find] Нажата кнопка PvP поиска');
+    await ctx.answerCbQuery();
+    await findOpponent(ctx);
+  });
+  
+  bot.action('pvp_find_direct', async (ctx) => {
+    console.log('⚔️ [pvp_find_direct] Нажата кнопка PvP из меню');
+    await ctx.answerCbQuery();
+    await findOpponent(ctx);
+  });
+  
+  bot.action('pvp_cancel', async (ctx) => {
+    console.log('❌ [pvp_cancel] Отмена поиска');
+    await ctx.answerCbQuery();
+    await cancelPvpSearch(ctx);
+  });
+  
+  bot.action(/pvp_ready_(.+)/, async (ctx) => {
+    console.log('✅ [pvp_ready] Готовность к матчу:', ctx.match[1]);
+    await ctx.answerCbQuery();
+    await pvpReady(ctx, ctx.match[1]);
+  });
+  
+  bot.action(/pvp_pick_(.+)_([12])_(\d+)/, async (ctx) => {
+    console.log('🏒 [pvp_pick] Выбор игрока:', ctx.match[1]);
+    await ctx.answerCbQuery();
+    await pvpChooseShot(ctx, ctx.match[1], parseInt(ctx.match[2]), parseInt(ctx.match[3]));
+  });
+  
+  bot.action(/pvp_throw_(.+)_(.+)/, async (ctx) => {
+    console.log('💥 [pvp_throw] Бросок:', ctx.match[1]);
+    await ctx.answerCbQuery();
+    await pvpHandleThrow(ctx, ctx.match[1], ctx.match[2]);
+  });
+  
+  bot.action(/pvp_goalie_(.+)_(.+)/, async (ctx) => {
+    console.log('🧤 [pvp_goalie] Действие вратаря:', ctx.match[1]);
+    await ctx.answerCbQuery();
+    await pvpGoalieAction(ctx, ctx.match[1], ctx.match[2]);
+  });
+  
+  bot.action(/pvp_continue_(.+)/, async (ctx) => {
+    console.log('📊 [pvp_continue] Продолжение матча:', ctx.match[1]);
+    await ctx.answerCbQuery();
+    await continuePvP(ctx, ctx.match[1]);
+  });
+  
+  bot.action(/pvp_forfeit_(.+)/, async (ctx) => {
+    console.log('🏳️ [pvp_forfeit] Сдача в матче:', ctx.match[1]);
+    await ctx.answerCbQuery();
+    await pvpForfeit(ctx, ctx.match[1]);
+  });
+  
+  console.log('✅ [PvP] Все обработчики зарегистрированы');
+}
+
+// ============================================
 // ЭКСПОРТ
 // ============================================
-module.exports = {
-  findOpponent,
-  cancelPvpSearch,
-  pvpReady,
-  pvpChooseShot,
-  pvpHandleThrow,
-  pvpGoalieAction,
-  continuePvP,
-  pvpForfeit,
-  getQueueCount,
-  getOnlineCount,
-  updateOnlineUsers,
-  createPvPMatch,
-  showTeamInfo,
-  finishPvPMatch
-};
+module.exports = registerPvP;
+
+// Дополнительные экспорты
+module.exports.findOpponent = findOpponent;
+module.exports.cancelPvpSearch = cancelPvpSearch;
+module.exports.getQueueCount = getQueueCount;
+module.exports.getOnlineCount = getOnlineCount;
+module.exports.updateOnlineUsers = updateOnlineUsers;
+module.exports.createPvPMatch = createPvPMatch;
+module.exports.showTeamInfo = showTeamInfo;
+module.exports.finishPvPMatch = finishPvPMatch;
+module.exports.pvpReady = pvpReady;
+module.exports.pvpChooseShot = pvpChooseShot;
+module.exports.pvpHandleThrow = pvpHandleThrow;
+module.exports.pvpGoalieAction = pvpGoalieAction;
+module.exports.continuePvP = continuePvP;
+module.exports.pvpForfeit = pvpForfeit;

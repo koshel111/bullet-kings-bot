@@ -1,5 +1,5 @@
 ﻿// ============================================
-// src/handlers/game.js - ИСПРАВЛЕННЫЙ
+// src/handlers/game.js - ИГРА ПРОТИВ ИИ (ПОЛНАЯ ВЕРСИЯ)
 // ============================================
 
 const { Markup } = require('telegraf');
@@ -74,19 +74,7 @@ const DIFFICULTY_REWARDS = {
   }
 };
 
-// ✅ ФУНКЦИЯ ПОЛУЧЕНИЯ КОЛИЧЕСТВА ИГРОКОВ В ОЧЕРЕДИ
-function getQueueCount() {
-  try {
-    const pvpHandler = require('./pvp');
-    if (typeof pvpHandler.getQueueCount === 'function') {
-      return pvpHandler.getQueueCount();
-    }
-    return 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
+// ✅ ФУНКЦИЯ ПОЛУЧЕНИЯ ХОДА ИИ
 function getAIShot(playerId, difficulty = 1) {
   const history = matches[playerId]?.history || [];
   
@@ -128,6 +116,7 @@ function getAIShot(playerId, difficulty = 1) {
   return AI_ACTIONS[Math.floor(Math.random() * AI_ACTIONS.length)];
 }
 
+// ✅ РАСЧЁТ ШАНСА ГОЛА
 function calculateShot(playerAction, goalieAction, difficulty = 1, playerOverall = 80) {
   const actionBonus = {
     'left': { 'left': 0.05, 'right': 0.75, 'stand': 0.40, 'low': 0.35, 'glove': 0.35, 'aggressive': 0.60 },
@@ -398,7 +387,16 @@ module.exports = (bot) => {
     console.log('🎮 [play] Нажата кнопка play');
     await ctx.answerCbQuery();
     
-    const queueCount = getQueueCount();
+    // Получаем количество игроков в очереди PvP
+    let queueCount = 0;
+    try {
+      const pvpHandler = require('./pvp');
+      if (typeof pvpHandler.getQueueCount === 'function') {
+        queueCount = pvpHandler.getQueueCount();
+      }
+    } catch (e) {
+      queueCount = 0;
+    }
     
     const text = 
       `🎮 *Выбери режим:*\n\n` +
@@ -411,7 +409,7 @@ module.exports = (bot) => {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('🤖 Против ИИ', 'play_ai')],
-        [Markup.button.callback(`⚔️ Найти соперника (${queueCount} в очереди)`, 'pvp_find_direct')],
+        [Markup.button.callback(`⚔️ PvP (${queueCount} в очереди)`, 'pvp_find_direct')],
         [Markup.button.callback('🔙 Назад', 'back')],
       ])
     });
@@ -807,40 +805,6 @@ module.exports = (bot) => {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'back')]])
       });
-    }
-  });
-
-  // ✅ PVP - ПРЯМОЙ ЗАПУСК ПОИСКА
-  bot.action('pvp_find_direct', async (ctx) => {
-    console.log('⚔️ [pvp_find_direct] Нажата кнопка PvP поиска');
-    await ctx.answerCbQuery();
-    
-    try {
-      const pvpHandler = require('./pvp');
-      if (typeof pvpHandler.findOpponent === 'function') {
-        await pvpHandler.findOpponent(ctx);
-      } else {
-        await ctx.editMessageText(
-          '❌ PvP временно недоступен. Попробуй позже.',
-          {
-            parse_mode: 'Markdown',
-            ...Markup.inlineKeyboard([
-              [Markup.button.callback('🔙 Назад', 'play')],
-            ])
-          }
-        );
-      }
-    } catch (error) {
-      console.error('❌ Ошибка PvP:', error);
-      await ctx.editMessageText(
-        '❌ Ошибка запуска PvP. Попробуй позже.',
-        {
-          parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('🔙 Назад', 'play')],
-          ])
-        }
-      );
     }
   });
 
